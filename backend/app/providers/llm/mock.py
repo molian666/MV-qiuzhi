@@ -10,6 +10,7 @@ import json
 
 from .base import LLMClient, LLMMessage, LLMResult
 from .mock_scoring import build_mock_scoring_json
+from .mock_training import build_mock_training_grade, build_mock_training_questions
 
 # (kind, topic, question)
 _MOCK_SCRIPT: list[tuple[str, str, str]] = [
@@ -41,6 +42,10 @@ class MockLLMClient(LLMClient):  # type: ignore[misc]
             text = self._next_question(messages)
         elif task == "scoring":
             text = build_mock_scoring_json(messages)
+        elif task == "training_question":
+            text = build_mock_training_questions(messages)
+        elif task == "training_grade":
+            text = build_mock_training_grade(messages)
         else:
             text = json.dumps(
                 {

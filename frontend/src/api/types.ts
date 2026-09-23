@@ -184,3 +184,63 @@ export interface ReportSummary {
   generated_at: string
   summary: string
 }
+
+// --------------------------------------------------------------------------- //
+// 薄弱点与训练（M5）
+// --------------------------------------------------------------------------- //
+export interface MasteryItem {
+  topic_id: number
+  name: string
+  category: string
+  mastery: number
+  attempts: number
+  correct_hits: number
+  updated_at: string | null
+  high_risk: boolean
+}
+
+export interface MasteryOverview {
+  items: MasteryItem[]
+  high_risk_count: number
+  average_mastery: number
+  due_count: number
+}
+
+export interface MasteryEvent {
+  id: number
+  at: string
+  mastery_before: number
+  mastery_after: number
+  score: number
+  source: string
+  note: string
+}
+
+export interface TrainingQuestion {
+  question_id: number
+  text: string
+  type: string
+  difficulty: number
+  tags: string[]
+  topic_names: string[]
+  origin: 'bank' | 'generated' | string
+  kind: 'weak' | 'random' | string
+  /** 打分依据：薄弱度 / 岗位匹配 / 到期 / 难度 / 题型罚项 */
+  reason: Record<string, number>
+}
+
+export interface MasteryChange {
+  topic_id: number
+  name: string
+  before: number
+  after: number
+}
+
+export interface TrainingGrade {
+  question_id: number
+  attempt_id: number
+  score: number
+  comment: string
+  better_answer: string
+  mastery: MasteryChange[]
+}

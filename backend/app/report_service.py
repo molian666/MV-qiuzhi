@@ -15,6 +15,7 @@ from .analysis.scoring import (
     build_scoring_messages,
     normalize_report,
 )
+from .learning_service import MAX_TOPICS_PER_OBSERVATION, apply_observation, ensure_topic
 from .models.core import JobTarget, Resume
 from .models.scoring import ImprovementItem, ScoreReport
 from .models.session import InterviewSession
@@ -167,4 +168,44 @@ async def generate_report(
     db.add(session_row)
     db.commit()
 
+    # M5：把报告里的能力标签累积成掌握度，供"今日训练"挑题使用
+    _accumulate_mastery(
+        db,
+        normalized=normalized,
+        items=items,
+        session_id=session_id,
+        report_id=report_row.id or 0,
+    )
+
     return ReportBundle(report=report_row, items=items, target_label=_target_label(target))
+
+
+def _accumulate_mastery(db: Session, *, normalized, items, session_id: int, report_id: int) -> int:
+    """把报告的能力标签累积成掌握度。
+
+    用"该改进项所属维度"的得分作为这次观察的分数：维度分代表这件事做得怎么样，
+    而改进项正好指向那个维度。`scores` 缺该项时按 3 分（中位）处理。
+    """
+    dimension_scores = {dimension.key: dimension.score for dimension in normalized.dimensions}
+    observations = 0
+
+    for row, item in zip(items, normalized.items):
+        score = float(dimension_scores.get(item.dimension, 3))
+        names = item.topics or [item.dimension_label]
+        for name in names[:MAX_TOPICS_PER_OBSERVATION]:
+            topic = ensure_topic(db, name)
+            if topic is None or topic.id is None:
+                continue
+            apply_observation(
+                db,
+                topic_id=int(topic.id),
+                score=score,
+                source="report",
+                session_id=session_id,
+                report_id=report_id,
+                item_id=row.id,
+                note=f"报告：{item.dimension_label}",
+            )
+            observations += 1
+
+    return observations

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from ..config import get_settings
-from . import questions, reports, resumes, sessions, system, targets, ws
+from . import questions, reports, resumes, sessions, system, targets, training, ws
 
 api_router = APIRouter()
 
@@ -27,4 +27,5 @@ api_router.include_router(resumes.router)
 api_router.include_router(questions.router)
 api_router.include_router(system.router)
 api_router.include_router(reports.router)
+api_router.include_router(training.router)
 api_router.include_router(ws.router)

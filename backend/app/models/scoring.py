@@ -89,4 +89,30 @@ class ReviewTask(SQLModel, table=True):
     due_at: datetime = Field(default_factory=utcnow, index=True)
     interval_days: float = 1.0
     ease: float = 2.5
+    # SM-2 需要知道"这是第几次连续答对"，否则算不出 1 天 → 6 天 → n×ease 的节奏
+    repetitions: int = 0
     done_at: datetime | None = Field(default=None)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class MasteryEvent(SQLModel, table=True):
+    """掌握度变化流水。
+
+    存在的意义就是 M5 验收里的"掌握度随练习变化**可解释**"：
+    用户能看到某个标签从 42 → 55 是因为哪一次作答、得了多少分。
+    """
+
+    __tablename__ = "mastery_event"
+
+    id: int | None = Field(default=None, primary_key=True)
+    topic_id: int = Field(foreign_key="skill_topic.id", index=True)
+    at: datetime = Field(default_factory=utcnow, index=True)
+
+    mastery_before: float = 0.0
+    mastery_after: float = 0.0
+    score: float = 0.0  # 本次观察的 1–5 分
+    source: str = Field(default="report", index=True)  # report | training
+    session_id: int | None = Field(default=None, index=True)
+    report_id: int | None = Field(default=None)
+    item_id: int | None = Field(default=None)
+    note: str = ""

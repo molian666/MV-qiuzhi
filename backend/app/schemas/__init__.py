@@ -24,6 +24,15 @@ from .session import (
     SessionOut,
     TurnOut,
 )
+from .training import (
+    MasteryChangeOut,
+    MasteryEventOut,
+    MasteryItemOut,
+    MasteryOverviewOut,
+    TrainingGradeIn,
+    TrainingGradeOut,
+    TrainingQuestionOut,
+)
 
 __all__ = [
     "AnswerIn",
@@ -33,6 +42,10 @@ __all__ = [
     "ImprovementItemOut",
     "JobTargetCreate",
     "JobTargetOut",
+    "MasteryChangeOut",
+    "MasteryEventOut",
+    "MasteryItemOut",
+    "MasteryOverviewOut",
     "QuestionCreate",
     "QuestionOut",
     "ReportSummaryOut",
@@ -43,5 +56,8 @@ __all__ = [
     "SessionDetail",
     "SessionListItem",
     "SessionOut",
+    "TrainingGradeIn",
+    "TrainingGradeOut",
+    "TrainingQuestionOut",
     "TurnOut",
 ]

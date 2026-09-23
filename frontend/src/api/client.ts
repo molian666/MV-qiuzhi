@@ -7,12 +7,16 @@ import type {
   CreateTargetPayload,
   Health,
   JobTarget,
+  MasteryEvent,
+  MasteryOverview,
   ProviderStatus,
   ReportSummary,
   ResumeItem,
   ScoreReport,
   SessionDetail,
   SessionSummary,
+  TrainingGrade,
+  TrainingQuestion,
   Usage,
 } from './types'
 
@@ -72,4 +76,21 @@ export const api = {
   createReport: (sessionId: number, force = true) =>
     request<ScoreReport>(`/sessions/${sessionId}/report?force=${force ? 'true' : 'false'}`, { method: 'POST' }),
   listReports: () => request<ReportSummary[]>('/reports'),
+
+  // 薄弱点与训练（M5）
+  masteryOverview: () => request<MasteryOverview>('/skills/mastery'),
+  masteryHistory: (topicId: number) => request<MasteryEvent[]>(`/skills/${topicId}/history`),
+  // POST 是因为缺题时后端会真的生成题目并写库（有副作用）
+  nextTraining: (limit = 4, weakCount = 3, targetId: number | null = null) => {
+    const query = new URLSearchParams({ limit: String(limit), weak_count: String(weakCount) })
+    if (targetId !== null) {
+      query.set('target_id', String(targetId))
+    }
+    return request<TrainingQuestion[]>(`/training/next?${query.toString()}`, { method: 'POST' })
+  },
+  gradeTraining: (questionId: number, answer: string) =>
+    request<TrainingGrade>('/training/answer', {
+      method: 'POST',
+      body: JSON.stringify({ question_id: questionId, answer }),
+    }),
 }

@@ -3,6 +3,7 @@
 from .core import JobTarget, QuestionAttempt, QuestionBank, Resume
 from .scoring import (
     ImprovementItem,
+    MasteryEvent,
     ReviewTask,
     ScoreReport,
     SkillMastery,
@@ -18,6 +19,7 @@ __all__ = [
     "InterviewSession",
     "JobTarget",
     "LLMCall",
+    "MasteryEvent",
     "ProviderConfig",
     "QuestionAttempt",
     "QuestionBank",
