@@ -7,9 +7,12 @@
 
 | 里程碑 | 状态 | 说明 |
 |--------|------|------|
-| **M0 骨架与文字闭环** | ✅ 已完成 | 文字模拟面试端到端（岗位/简历 → 多轮问答 → 自动收尾 → 落库）；LLM 提供方可插拔（Mock / DeepSeek）；LLM 用量流水落库；16 个 pytest 通过 |
-| M1 实时语音链路 | ⏭ 下一步 | 阿里云百炼 Qwen 实时语音（cascade：ASR → DeepSeek → TTS）、VAD、打断、录音回放 |
-| M2–M15 | 计划中 | 题库与会话管理、评分与教学、节奏学习、半自动投递、Offer 决策…… 见 PLAN §9 |
+| **M0 骨架与文字闭环** | ✅ | 文字模拟面试端到端（岗位/简历 → 多轮问答 → 自动收尾 → 落库）；LLM 提供方可插拔（Mock / DeepSeek）；用量流水落库 |
+| **M1 实时语音链路** | ✅ | WebSocket 双向音频、能量 VAD + 回合控制器、打断（barge-in）、录音存档（整场 + 逐回合 WAV）与回放、百炼实时 ASR provider（协议已实现，待真机校准） |
+| M2 题库与会话管理 | ⏭ 下一步 | 题库 CRUD、按 JD 生成题、回合文本精修、Alembic 迁移 |
+| M3–M15 | 计划中 | 评分与教学、节奏学习、半自动投递、Offer 决策…… 见 PLAN §9 |
+
+测试：**56 个 pytest**，覆盖文字与语音两条链路（会话生命周期、VAD、回合控制、音频存档、WebSocket、provider 协议映射）。
 
 ## 环境要求
 
@@ -51,6 +54,30 @@ pnpm dev                              # http://127.0.0.1:5173
 
 > Windows 上若 `pnpm` 被 PowerShell 执行策略拦住（`无法加载文件 pnpm.ps1`），
 > 用 `cmd /c pnpm ...`，或把执行策略放开：`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`。
+
+## 语音面试怎么用
+
+前端 →「语音面试」标签：
+
+1. 选岗位/简历（可留空）→ 题量 →「开始语音面试」（创建 realtime 会话并连上 WebSocket）；
+2. 点「开始说话」授权麦克风，正常说话；面试官的问题会用浏览器朗读出来；
+3. 你开口时面试官的声音会自动停掉（打断），也可以点「打断面试官」按钮；
+4. 说完自动进入下一题；点「结束并保存」结束，录音可在「历史面试」里整场或逐回合回放。
+
+**两种语音模式**（`backend/.env`）：
+
+| 配置 | 行为 |
+|------|------|
+| `SPEECH_PROVIDER=mock`（默认） | 不需要任何 Key。音频照常采集、录制、存档、回放；"音频→文字"这一步由你输入的文本替代——页面会明确显示「转写：文字替身」，**不会假装已经识别了语音** |
+| `SPEECH_PROVIDER=qwen` + `DASHSCOPE_API_KEY=...` | 阿里云百炼实时语音识别（`qwen3-asr-flash-realtime`），说话即转写 |
+
+面试官的"说话"目前用浏览器 `speechSynthesis` 播报（`audio_mode=client`）：零依赖、中文音色开箱可用，
+让 M1 在没有服务端 TTS 的情况下也能真的听见对话。服务端 TTS 的协议位已留好
+（`app/providers/tts/base.py`），接入后把 `audio_mode` 切到 `server`，音频改由 `audio_chunk` 事件下发，
+前端播放器不用改。
+
+> ⚠️ 如果你的机器开着系统代理（VPN / Clash 等），httpx 与 websockets 会尝试走代理而连不上国内接口。
+> 本项目默认 `TRUST_ENV_PROXY=false` 显式绕过系统代理；确实必须经代理访问时才设为 true。
 
 ## 跑测试
 

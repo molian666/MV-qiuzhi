@@ -105,6 +105,7 @@ export default function InterviewLive() {
           start_ms: previous.turns.at(-1)?.end_ms ?? null,
           end_ms: null,
           created_at: new Date().toISOString(),
+          audio_url: null,
         },
       ],
     })

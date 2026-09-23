@@ -64,6 +64,15 @@ export default function Sessions() {
     }
   }
 
+  /** 逐回合回放：单独 new Audio，避免和"整场播放器"互相抢播放。 */
+  const playTurn = async (url: string) => {
+    try {
+      await new Audio(url).play()
+    } catch (err) {
+      setError(`无法播放该回合：${errorMessage(err)}`)
+    }
+  }
+
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -134,13 +143,35 @@ export default function Sessions() {
               {STATUS_LABEL[detail.status] ?? detail.status} · 共 {detail.turns.length} 个回合 · 时长{' '}
               {formatDuration(detail.duration_ms)} · 提供方 {detail.provider}
             </p>
-            <div className="mt-3 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+
+            {detail.turns.some((turn) => turn.audio_url !== null) ? (
+              <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2">
+                <p className="mb-1 text-xs text-slate-600">整场录音</p>
+                <audio controls src={`/api/sessions/${detail.id}/audio`} className="h-8 w-full" />
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-slate-400">本场没有录音（纯文字作答不产生音频）。</p>
+            )}
+
+            <div className="mt-3 max-h-[55vh] space-y-3 overflow-y-auto pr-1">
               {detail.turns.map((turn) => (
                 <div key={turn.idx} className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
-                  <div className="mb-1 text-[11px] text-slate-500">
-                    {SPEAKER_LABEL[turn.speaker] ?? turn.speaker}
-                    {turn.kind ? ` · ${turn.kind}` : ''}
-                    {turn.topic ? ` · ${turn.topic}` : ''}
+                  <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span>
+                      {SPEAKER_LABEL[turn.speaker] ?? turn.speaker}
+                      {turn.kind ? ` · ${turn.kind}` : ''}
+                      {turn.topic ? ` · ${turn.topic}` : ''}
+                      {turn.end_ms !== null ? ` · ${(turn.end_ms / 1000).toFixed(1)}s` : ''}
+                    </span>
+                    {turn.audio_url !== null && (
+                      <button
+                        type="button"
+                        onClick={() => void playTurn(turn.audio_url as string)}
+                        className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-white"
+                      >
+                        回放
+                      </button>
+                    )}
                   </div>
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{turn.text}</p>
                 </div>

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from sqlmodel import Session
 
-from .models.session import LLMCall
+from .clock import utcnow
+from .models.session import InterviewSession, LLMCall
 from .providers.llm.base import LLMResult
 
 
@@ -53,3 +54,23 @@ def log_llm_error(
     db.commit()
     db.refresh(row)
     return row
+
+
+def mark_finished(db: Session, session_row: InterviewSession) -> InterviewSession:
+    """把会话标记为已结束并算好时长（幂等：重复调用不重置结束时间）。
+
+    文字链路（api/sessions.py）与语音链路（realtime/session_runtime.py）共用，
+    避免两条链路对"结束"的定义跑偏。
+    """
+    if session_row.status == "finished":
+        return session_row
+
+    ended = utcnow()
+    started = session_row.started_at or session_row.created_at
+    session_row.status = "finished"
+    session_row.ended_at = ended
+    session_row.duration_ms = max(0, int((ended - started).total_seconds() * 1000))
+    db.add(session_row)
+    db.commit()
+    db.refresh(session_row)
+    return session_row

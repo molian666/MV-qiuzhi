@@ -426,12 +426,17 @@ REST（`/api`）：
 - **人脉与准备**：`GET|POST /contacts`；`POST /contacts/{id}/events`；`GET /contacts/due-followups`；`POST /prep-packs`（按 application 生成）；`GET|POST /exports?kind=markdown|excel|pdf`
 - `GET|PUT /settings/providers`；`POST /settings/test-connection`
 
-WebSocket `/ws/sessions/{id}`：
+WebSocket `/ws/sessions/{id}`（M1 已实现；事件名以 `app/realtime/session_runtime.py` 为准）：
 
-- 上行：`start` `audio_append(base64 pcm16)` `text` `interrupt` `control(pause|resume|skip|hint)` `finish`
-- 下行：`state` `asr_partial` `asr_final` `agent_text_delta` `audio_chunk` `metrics(wpm, silence_ms)` `turn_meta` `error`
+- 上行：`audio_append(base64 pcm16@16k)` `text` `interrupt` `control(end_turn)` `finish` `ping`
+  （不需要 `start`：会话由 `POST /api/sessions` 创建，开场题已落库，WS 只负责音频与事件）
+- 下行：`state`（含 `audio_mode` / `speech_provider` / `text_fallback`）`interviewer_text` `candidate_turn`
+  `asr_partial` `asr_final` `speech_state` `barge_in` `audio_chunk` `metrics(audio_ms, speaking, threshold)`
+  `turn_meta` `awaiting_text` `finished` `error` `pong`
 
 所有事件带 `seq`，便于断线续接与前端去重。
+
+录音回放：`GET /api/sessions/{id}/audio`（整场 WAV）、`GET /api/sessions/{id}/audio/turns/{idx}`（单回合切片）。
 
 ---
 
@@ -454,6 +459,8 @@ WebSocket `/ws/sessions/{id}`：
 ## 9. 里程碑计划
 
 每个里程碑都以「可演示 + 有测试」为完成标准。M0–M2 是主干，M3 起是可独立迭代的价值点。
+
+> **进度**：✅ **M0 已完成**、✅ **M1 已完成**（代码在 `backend/` 与 `frontend/`，56 个 pytest 通过，文字与语音两条链路均已端到端冒烟验证；细节见 `README.md` 的进度表）。M2 进行中。
 
 | 里程碑 | 内容 | 验收标准 |
 |--------|------|----------|

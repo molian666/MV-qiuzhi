@@ -67,11 +67,14 @@ def init_db() -> None:
 
 @contextmanager
 def session_scope() -> Iterator[Session]:
-    with Session(get_engine()) as session:
+    # expire_on_commit=False：commit 后仍可读已加载的属性，
+    # 这样"落库（短事务）→ 调 LLM → 再落库"的两段式流程不必反复 refresh，
+    # 也不会在事务外访问属性时炸 DetachedInstanceError。
+    with Session(get_engine(), expire_on_commit=False) as session:
         yield session
 
 
 def get_session() -> Iterator[Session]:
     """FastAPI 依赖。"""
-    with Session(get_engine()) as session:
+    with Session(get_engine(), expire_on_commit=False) as session:
         yield session

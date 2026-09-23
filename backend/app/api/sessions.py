@@ -6,7 +6,10 @@ M0 走文字模式；M1 的 realtime 模式会复用这里完全相同的落库�
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -17,6 +20,7 @@ from ..models.core import JobTarget, Resume
 from ..models.session import InterviewSession, SessionTurn
 from ..providers.llm.base import LLMClient, LLMError
 from ..realtime.interviewer import Interviewer
+from ..repositories import count_turns, ordered_turns
 from ..schemas import (
     AnswerIn,
     AnswerOut,
@@ -26,7 +30,7 @@ from ..schemas import (
     SessionOut,
     TurnOut,
 )
-from ..services import log_llm_error, log_llm_result
+from ..services import log_llm_error, log_llm_result, mark_finished
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -39,19 +43,11 @@ STATUS_FINISHED = "finished"
 # 内部工具
 # --------------------------------------------------------------------------- #
 def _turns(db: Session, session_id: int) -> list[SessionTurn]:
-    statement = (
-        select(SessionTurn)
-        .where(SessionTurn.session_id == session_id)
-        .order_by(SessionTurn.idx)  # type: ignore[arg-type]
-    )
-    return list(db.exec(statement).all())
+    return ordered_turns(db, session_id)
 
 
 def _counts(turns: list[SessionTurn]) -> tuple[int, int]:
-    """(面试官提问数, 候选人作答数)。收尾轮不算提问。"""
-    questions = sum(1 for t in turns if t.speaker == "interviewer" and t.kind != "closing")
-    answers = sum(1 for t in turns if t.speaker == "candidate")
-    return questions, answers
+    return count_turns(turns)
 
 
 def _target_label(target: JobTarget | None) -> str:
@@ -73,29 +69,41 @@ def _elapsed_ms(session_row: InterviewSession) -> int:
     return max(0, int((utcnow() - started).total_seconds() * 1000))
 
 
+def _audio_url(session_id: int, audio_path: str | None) -> str | None:
+    """把库里的 `42/turn_003.wav` 转成前端可直接播放的地址。"""
+    if not audio_path:
+        return None
+    name = Path(audio_path).name
+    if not (name.startswith("turn_") and name.endswith(".wav")):
+        return None
+    try:
+        index = int(name[len("turn_") : -len(".wav")])
+    except ValueError:
+        return None
+    return f"/api/sessions/{session_id}/audio/turns/{index}"
+
+
+def _turn_out(session_id: int, turn: SessionTurn) -> TurnOut:
+    item = TurnOut.model_validate(turn)
+    item.audio_url = _audio_url(session_id, turn.audio_path)
+    return item
+
+
 def _detail(session_row: InterviewSession, turns: list[SessionTurn], db: Session) -> SessionDetail:
     questions, answers = _counts(turns)
     base = SessionOut.model_validate(session_row).model_dump()
+    session_id = session_row.id or 0
     return SessionDetail(
         **base,
         target_label=_target_label(_load_target(db, session_row)),
         question_count=questions,
         answer_count=answers,
-        turns=[TurnOut.model_validate(t) for t in turns],
+        turns=[_turn_out(session_id, turn) for turn in turns],
     )
 
 
 def _mark_finished(session_row: InterviewSession, db: Session) -> None:
-    if session_row.status == STATUS_FINISHED:
-        return
-    ended = utcnow()
-    started = session_row.started_at or session_row.created_at
-    session_row.status = STATUS_FINISHED
-    session_row.ended_at = ended
-    session_row.duration_ms = max(0, int((ended - started).total_seconds() * 1000))
-    db.add(session_row)
-    db.commit()
-    db.refresh(session_row)
+    mark_finished(db, session_row)
 
 
 # --------------------------------------------------------------------------- #
@@ -319,3 +327,25 @@ def get_session_detail(session_id: int, db: Session = Depends(get_session)) -> S
     if session_row is None:
         raise HTTPException(status_code=404, detail=f"会话不存在：{session_id}")
     return _detail(session_row, _turns(db, session_id), db)
+
+
+@router.get("/{session_id}/audio", summary="整场录音（WAV）")
+def download_session_audio(session_id: int, db: Session = Depends(get_session)) -> FileResponse:
+    if db.get(InterviewSession, session_id) is None:
+        raise HTTPException(status_code=404, detail=f"会话不存在：{session_id}")
+
+    path = get_settings().audio_dir / str(session_id) / "full.wav"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="该会话还没有录音（文字模式不产生音频）")
+    return FileResponse(path, media_type="audio/wav", filename=f"session_{session_id}.wav")
+
+
+@router.get("/{session_id}/audio/turns/{index}", summary="某一回合的录音切片（WAV）")
+def download_turn_audio(session_id: int, index: int, db: Session = Depends(get_session)) -> FileResponse:
+    if db.get(InterviewSession, session_id) is None:
+        raise HTTPException(status_code=404, detail=f"会话不存在：{session_id}")
+
+    path = get_settings().audio_dir / str(session_id) / f"turn_{index:03d}.wav"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"该回合没有音频切片：{index}")
+    return FileResponse(path, media_type="audio/wav", filename=f"session_{session_id}_turn_{index:03d}.wav")

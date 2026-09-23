@@ -33,6 +33,8 @@ class TurnOut(BaseModel):
     start_ms: int | None = None
     end_ms: int | None = None
     created_at: datetime
+    # 该回合的音频切片地址（M1 起有；前端回放用），由 api 层按 audio_path 推导
+    audio_url: str | None = None
 
 
 class SessionOut(BaseModel):

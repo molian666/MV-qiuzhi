@@ -34,12 +34,18 @@ class DeepSeekClient(LLMClient):  # type: ignore[misc]
         chat_model: str = "deepseek-chat",
         reasoner_model: str = "deepseek-reasoner",
         timeout: float = 60.0,
+        trust_env: bool = False,
     ) -> None:
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._chat_model = chat_model
         self._reasoner_model = reasoner_model
         self._timeout = timeout
+        # trust_env 默认 False：httpx 默认会读 HTTP_PROXY/HTTPS_PROXY 环境变量，
+        # 而 DeepSeek 这类国内接口走墙外代理往往直接超时或 403
+        # （get_jobs 的 README 也专门提醒"必须关闭墙外代理"）。
+        # 需要走代理的用户把 TRUST_ENV_PROXY 打开即可。
+        self._trust_env = trust_env
 
     def model_for(self, task: str) -> str:
         return self._reasoner_model if task in REASONER_TASKS else self._chat_model
@@ -68,7 +74,7 @@ class DeepSeekClient(LLMClient):  # type: ignore[misc]
 
         started = time.perf_counter()
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
+            async with httpx.AsyncClient(timeout=self._timeout, trust_env=self._trust_env) as client:
                 response = await client.post(
                     f"{self._base_url}/chat/completions",
                     json=payload,

@@ -10,6 +10,8 @@ dependencies = [
     "pydantic-settings>=2.4",
     "httpx>=0.27",
     "python-multipart>=0.0.9",
+    # M1 实时语音：作为客户端连接上游实时语音 WS
+    "websockets>=13",
 ]
 
 [project.optional-dependencies]

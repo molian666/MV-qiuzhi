@@ -37,6 +37,21 @@ class Settings(BaseSettings):
     # 面试默认值
     default_max_questions: int = 6
 
+    # 语音（M1）
+    speech_provider: str = "mock"  # mock | qwen
+    dashscope_api_key: str = ""
+    dashscope_realtime_endpoint: str = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
+    dashscope_asr_model: str = "qwen3-asr-flash-realtime"
+    # VAD：连续静音多久算"说完"（M4 起由面试官画像的 wait_ms 覆盖）
+    speech_silence_ms: int = 900
+    # 短于这个时长的"说话"忽略（多半是咳嗽/噪音）
+    min_answer_ms: int = 700
+    # 判定说完后，等待 ASR 给出 final 的时间
+    asr_wait_ms: int = 1500
+    # 是否让 httpx / websockets 读取系统代理（HTTP_PROXY 等）。
+    # 默认 False：DeepSeek、百炼都是国内直连，跟着墙外代理走通常直接失败。
+    trust_env_proxy: bool = False
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

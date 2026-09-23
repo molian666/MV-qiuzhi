@@ -13,6 +13,8 @@ export interface Turn {
   start_ms: number | null
   end_ms: number | null
   created_at: string
+  /** 该回合的录音切片地址（M1 起有；空表示该回合没有音频） */
+  audio_url: string | null
 }
 
 export interface SessionSummary {
