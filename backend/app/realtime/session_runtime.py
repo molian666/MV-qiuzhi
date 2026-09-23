@@ -48,6 +48,8 @@ class VoiceRuntimeConfig:
     text_fallback: bool = True
     # M4：面试官画像生成的指令块（题型配比 / 追问深度 / 压力水平），为空则用默认行为
     policy_block: str = ""
+    # M8：按当前问题挑出的故事卡事实底稿（由调用方查库拼好，编排层不碰 DB）
+    story_block: str = ""
 
 
 class VoiceSessionRuntime:
@@ -388,6 +390,7 @@ class VoiceSessionRuntime:
                     max_questions=max_questions,
                     style=style,
                     closing=closing,
+                    story_block=self.config.story_block,
                     policy_block=self.config.policy_block,
                 )
             except LLMError as exc:

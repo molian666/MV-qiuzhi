@@ -1,15 +1,60 @@
-"""简历：创建与查询（多版本 A/B 统计在 M10）。"""
+"""简历：创建与查询、多版本管理、以及 M8 的匹配诊断与 ATS 体检。"""
 
 from __future__ import annotations
+
+from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
+from ..analysis.ats import check_ats
+from ..analysis.resume_match import extract_resume_hits, match as match_resume
+from ..analysis.skill_dict import group_label
 from ..deps import get_session
+from ..models.apply import Application
 from ..models.core import JobTarget, Resume
-from ..schemas import ResumeCreate, ResumeOut
+from ..schemas import ResumeCloneIn, ResumeCreate, ResumeOut
+from ..schemas.resume_intel import (
+    AtsIssueOut,
+    JdKeywordOut,
+    MatchRequestIn,
+    MatchResultOut,
+    MatchSuggestionOut,
+)
 
 router = APIRouter(prefix="/api/resumes", tags=["resumes"])
+
+
+def _load(db: Session, resume_id: int) -> Resume:
+    resume = db.get(Resume, resume_id)
+    if resume is None:
+        raise HTTPException(status_code=404, detail=f"简历不存在：{resume_id}")
+    return resume
+
+
+def _keyword_out(keyword) -> JdKeywordOut:  # noqa: ANN001 - 纯数据对象
+    payload = asdict(keyword)
+    payload["group_label"] = group_label(payload.get("group", "other"))
+    return JdKeywordOut(**payload)
+
+
+def _match_out(result) -> MatchResultOut:  # noqa: ANN001 - 纯数据对象
+    return MatchResultOut(
+        score=result.score,
+        grade=result.grade,
+        coverage=result.coverage,
+        jd_keyword_count=result.jd_keyword_count,
+        covered=[_keyword_out(item) for item in result.covered],
+        missing=[_keyword_out(item) for item in result.missing],
+        extra=result.extra,
+        missing_groups=result.missing_groups,
+        years_required=result.years_required,
+        years_actual=result.years_actual,
+        years_ok=result.years_ok,
+        ats=[AtsIssueOut(**asdict(issue)) for issue in result.ats],
+        suggestions=[MatchSuggestionOut(**asdict(item)) for item in result.suggestions],
+        summary=result.summary,
+    )
 
 
 @router.post("", response_model=ResumeOut, status_code=201)
@@ -49,3 +94,69 @@ def get_resume(resume_id: int, db: Session = Depends(get_session)) -> Resume:
     if resume is None:
         raise HTTPException(status_code=404, detail=f"简历不存在：{resume_id}")
     return resume
+
+
+@router.post("/{resume_id}/match", response_model=MatchResultOut, summary="简历 × JD 匹配诊断")
+def diagnose_match(
+    resume_id: int,
+    payload: MatchRequestIn,
+    db: Session = Depends(get_session),
+) -> MatchResultOut:
+    resume = _load(db, resume_id)
+
+    jd_text = payload.jd_text.strip()
+    if not jd_text and payload.application_id is not None:
+        application = db.get(Application, payload.application_id)
+        if application is None:
+            raise HTTPException(status_code=404, detail=f"投递记录不存在：{payload.application_id}")
+        jd_text = (application.jd_text or "").strip()
+
+    if not jd_text:
+        raise HTTPException(
+            status_code=422,
+            detail="没有 JD 正文可比：贴一段 JD，或指定一条带 JD 的投递记录",
+        )
+
+    return _match_out(match_resume(resume.content_text, jd_text, job_title=payload.job_title))
+
+
+@router.post("/{resume_id}/ats", response_model=list[AtsIssueOut], summary="格式与可读性体检（不需要 JD）")
+def diagnose_ats(resume_id: int, db: Session = Depends(get_session)) -> list[AtsIssueOut]:
+    resume = _load(db, resume_id)
+    hits = extract_resume_hits(resume.content_text)
+    return [AtsIssueOut(**asdict(issue)) for issue in check_ats(resume.content_text, skill_count=len(hits))]
+
+
+@router.post("/{resume_id}/clone", response_model=ResumeOut, status_code=201, summary="另存为一个简历版本")
+def clone_resume(
+    resume_id: int,
+    payload: ResumeCloneIn,
+    db: Session = Depends(get_session),
+) -> Resume:
+    source = _load(db, resume_id)
+    name = (payload.name or source.name).strip() or source.name
+
+    # 版本号在**同名族**里递增（M6 的 A/B 统计按 variant_label 分组，按名字归族最直观）
+    family = [row for row in db.exec(select(Resume)).all() if row.name == name]
+    clone = Resume(
+        name=name,
+        content_text=source.content_text,
+        version=max([row.version for row in family], default=0) + 1,
+        variant_label=payload.variant_label or f"{source.variant_label or '主简历'} 副本",
+        target_job_id=source.target_job_id,
+        parent_resume_id=source.id,
+        ats_report=dict(source.ats_report or {}),
+    )
+    db.add(clone)
+    db.commit()
+    db.refresh(clone)
+    return clone
+
+
+@router.get("/{resume_id}/versions", response_model=list[ResumeOut], summary="同一份简历的所有版本")
+def list_versions(resume_id: int, db: Session = Depends(get_session)) -> list[Resume]:
+    resume = _load(db, resume_id)
+    root_id = resume.parent_resume_id or resume.id
+
+    rows = list(db.exec(select(Resume).order_by(Resume.version)).all())  # type: ignore[arg-type]
+    return [row for row in rows if row.id == root_id or row.parent_resume_id == root_id]

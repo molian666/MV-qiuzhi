@@ -6,7 +6,9 @@ import InterviewLive from './pages/InterviewLive'
 import InterviewVoice from './pages/InterviewVoice'
 import Report from './pages/Report'
 import Recordings from './pages/Recordings'
+import ResumeHealth from './pages/ResumeHealth'
 import Sessions from './pages/Sessions'
+import SpeechKit from './pages/SpeechKit'
 import System from './pages/System'
 import Training from './pages/Training'
 
@@ -16,6 +18,8 @@ const TABS = [
   { key: 'report', label: '报告' },
   { key: 'training', label: '训练' },
   { key: 'pacing', label: '节奏学习' },
+  { key: 'resume', label: '简历体检' },
+  { key: 'speech', label: '故事与话术' },
   { key: 'apply', label: '投递执行台' },
   { key: 'applications', label: '投递分析' },
   { key: 'sessions', label: '历史面试' },
@@ -48,7 +52,7 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-baseline gap-3">
             <h1 className="text-lg font-semibold">mianshi · 求职操作系统</h1>
-            <span className="text-xs text-slate-500">M10：半自动投递</span>
+            <span className="text-xs text-slate-500">M8：简历与话术</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
@@ -81,6 +85,8 @@ export default function App() {
         {tab === 'report' && <Report sessionId={reportSessionId} onSelectSession={setReportSessionId} />}
         {tab === 'training' && <Training />}
         {tab === 'pacing' && <Recordings />}
+        {tab === 'resume' && <ResumeHealth />}
+        {tab === 'speech' && <SpeechKit />}
         {tab === 'apply' && <ApplyDesk />}
         {tab === 'applications' && <Applications />}
         {tab === 'system' && <System />}

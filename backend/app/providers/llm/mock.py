@@ -9,9 +9,11 @@ from __future__ import annotations
 import json
 
 from .base import LLMClient, LLMMessage, LLMResult
+from .mock_answers import build_mock_questions, build_mock_self_intro, build_mock_sensitive
 from .mock_pacing import build_mock_pacing_labels
 from .mock_say_hi import build_mock_say_hi
 from .mock_scoring import build_mock_scoring_json
+from .mock_story import build_mock_stories
 from .mock_training import build_mock_training_grade, build_mock_training_questions
 
 # (kind, topic, question)
@@ -53,6 +55,14 @@ class MockLLMClient(LLMClient):  # type: ignore[misc]
         elif task == "say_hi":
             # 招呼语是纯文本，不是 JSON
             text = build_mock_say_hi(messages)
+        elif task == "story_card":
+            text = build_mock_stories(messages)
+        elif task == "self_intro":
+            text = build_mock_self_intro(messages)
+        elif task == "sensitive_answer":
+            text = build_mock_sensitive(messages)
+        elif task == "questions_to_ask":
+            text = build_mock_questions(messages)
         else:
             text = json.dumps(
                 {

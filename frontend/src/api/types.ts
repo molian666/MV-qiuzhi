@@ -554,3 +554,123 @@ export interface ApplyExecutionOutcome {
   breaker_message: string
   items: ApplyExecutionItem[]
 }
+
+// -------------------------------------------------------------------------- //
+// 简历智能与话术（M8）
+// -------------------------------------------------------------------------- //
+
+export interface JdKeyword {
+  word: string
+  weight: number
+  group: string
+  group_label: string
+  mentions: number
+  sentence: string
+}
+
+export interface AtsIssue {
+  severity: 'error' | 'warning' | 'info'
+  kind: string
+  message: string
+  suggestion: string
+}
+
+export interface MatchSuggestion {
+  kind: string
+  target: string
+  why: string
+  where: string
+  draft: string
+  weight: number
+}
+
+export interface MatchResult {
+  score: number
+  grade: string
+  coverage: number
+  jd_keyword_count: number
+  covered: JdKeyword[]
+  missing: JdKeyword[]
+  extra: string[]
+  missing_groups: string[]
+  years_required: number | null
+  years_actual: number | null
+  years_ok: boolean | null
+  ats: AtsIssue[]
+  suggestions: MatchSuggestion[]
+  summary: string
+}
+
+export interface StoryCardItem {
+  id: number
+  title: string
+  situation: string
+  task: string
+  action: string
+  result: string
+  metrics: string
+  tags: string[]
+  topics: string[]
+  starred: boolean
+  source_resume_id: number | null
+  used_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface StoryList {
+  items: StoryCardItem[]
+  coverage: Record<string, number>
+  missing_tags: string[]
+  tag_labels: Record<string, string>
+}
+
+export interface AnswerDraft {
+  id: number
+  kind: string
+  title: string
+  resume_id: number | null
+  content: string
+  target_seconds: number
+  basis: Record<string, unknown>
+  created_at: string
+}
+
+export interface SensitiveQuestion {
+  key: string
+  label: string
+  question: string
+  strategy: string
+}
+
+export interface SelfIntroOption {
+  seconds: number
+  label: string
+  target_chars: number
+}
+
+export interface AnswerMeta {
+  sensitive: SensitiveQuestion[]
+  self_intro_options: SelfIntroOption[]
+  tag_labels: Record<string, string>
+}
+
+export interface BandStat {
+  label: string
+  min_score: number
+  count: number
+  responded: number
+  interviewed: number
+  offers: number
+  response_rate: number
+  interview_rate: number
+}
+
+export interface MatchBandReport {
+  resume_id: number | null
+  total_records: number
+  matched_records: number
+  bands: BandStat[]
+  recommendation: string
+  confidence_note: string
+}

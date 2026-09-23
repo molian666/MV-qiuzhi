@@ -24,6 +24,7 @@ from ..pacing_service import load_policy_for_session
 from ..providers.llm.base import LLMClient, LLMError
 from ..realtime.interviewer import Interviewer
 from ..repositories import count_turns, ordered_turns
+from ..story_service import prompt_block_for
 from ..schemas import (
     AnswerIn,
     AnswerOut,
@@ -243,6 +244,9 @@ async def submit_answer(
 
     interviewer = Interviewer(llm)
     policy = load_policy_for_session(db, session_row, default_silence_ms=settings.speech_silence_ms)
+    # M8：按"上一个问题 + 这次回答"挑出最相关的故事卡，让追问落在你真做过的经历上
+    last_question = next((turn.text for turn in reversed(turns) if turn.speaker == "interviewer"), "")
+    story_block = prompt_block_for(db, question=f"{last_question}\n{payload.text}", limit=2) if last_question else ""
     try:
         plan, result = await interviewer.next_question(
             turns=turns,
@@ -252,6 +256,7 @@ async def submit_answer(
             style=style,
             closing=closing,
             policy_block=policy_prompt_block(policy) if policy is not None else "",
+            story_block=story_block,
         )
     except LLMError as exc:
         log_llm_error(db, task="interview_turn", provider=provider, error=str(exc), session_id=session_id)

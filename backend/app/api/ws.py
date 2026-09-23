@@ -18,7 +18,7 @@ from ..models.session import InterviewSession
 from ..pacing_service import load_policy_for_session
 from ..realtime.audio_store import AudioStore
 from ..realtime.session_runtime import VoiceRuntimeConfig, VoiceSessionRuntime
-
+from ..story_service import starred_block
 router = APIRouter(tags=["realtime"])
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,8 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
             # Mock 语音（没有 ASR）时必须允许文字替身，否则这一轮没法继续
             text_fallback=speech.requires_text_fallback,
             policy_block=policy_prompt_block(policy) if policy is not None else "",
+            # M8：语音会话的底稿在开始时固定，所以给"主推的故事卡"而不是每轮重挑
+            story_block=starred_block(db),
         ),
     )
 

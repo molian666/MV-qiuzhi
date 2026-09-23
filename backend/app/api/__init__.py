@@ -14,6 +14,7 @@ from . import (
     reports,
     resumes,
     sessions,
+    story,
     system,
     targets,
     training,
@@ -45,4 +46,5 @@ api_router.include_router(recordings.router)
 api_router.include_router(profiles.router)
 api_router.include_router(applications.router)
 api_router.include_router(apply.router)
+api_router.include_router(story.router)
 api_router.include_router(ws.router)

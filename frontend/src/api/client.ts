@@ -1,6 +1,8 @@
 /** 后端 REST 客户端。所有请求走 Vite 代理的 /api，不直连端口。 */
 
 import type {
+  AnswerDraft,
+  AnswerMeta,
   AnswerResult,
   ApplicationItem,
   ApplicationStats,
@@ -11,6 +13,7 @@ import type {
   ApplySearchOutcome,
   ApplySettings,
   ApplyStatus,
+  AtsIssue,
   CreateRecordingPayload,
   CreateResumePayload,
   CreateSessionPayload,
@@ -21,6 +24,8 @@ import type {
   JobTarget,
   MasteryEvent,
   MasteryOverview,
+  MatchBandReport,
+  MatchResult,
   ProfileDetail,
   ProfileListItem,
   ProviderStatus,
@@ -31,6 +36,8 @@ import type {
   ScoreReport,
   SessionDetail,
   SessionSummary,
+  StoryCardItem,
+  StoryList,
   TrainingGrade,
   TrainingQuestion,
   Usage,
@@ -200,4 +207,46 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ limit, dry_run: dryRun }),
     }),
+
+  // 简历智能与话术（M8）
+  matchResume: (resumeId: number, payload: { jd_text?: string; job_title?: string; application_id?: number }) =>
+    request<MatchResult>(`/resumes/${resumeId}/match`, { method: 'POST', body: JSON.stringify(payload) }),
+  resumeAts: (resumeId: number) => request<AtsIssue[]>(`/resumes/${resumeId}/ats`, { method: 'POST' }),
+  cloneResume: (resumeId: number, payload: { name?: string; variant_label?: string }) =>
+    request<ResumeItem>(`/resumes/${resumeId}/clone`, { method: 'POST', body: JSON.stringify(payload) }),
+  resumeVersions: (resumeId: number) => request<ResumeItem[]>(`/resumes/${resumeId}/versions`),
+
+  listStories: () => request<StoryList>('/stories'),
+  generateStories: (resumeId: number | null, count = 4) =>
+    request<StoryCardItem[]>('/stories/generate', {
+      method: 'POST',
+      body: JSON.stringify({ resume_id: resumeId, count }),
+    }),
+  createStory: (payload: Partial<StoryCardItem>) =>
+    request<StoryCardItem>('/stories', { method: 'POST', body: JSON.stringify(payload) }),
+  updateStory: (id: number, payload: Partial<StoryCardItem>) =>
+    request<StoryCardItem>(`/stories/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteStory: (id: number) => request<void>(`/stories/${id}`, { method: 'DELETE' }),
+
+  answerMeta: () => request<AnswerMeta>('/answers/meta'),
+  listAnswers: (kind?: string) => {
+    const suffix = kind ? `?kind=${kind}` : ''
+    return request<AnswerDraft[]>(`/answers${suffix}`)
+  },
+  composeSelfIntro: (payload: { resume_id?: number | null; seconds: number; jd_text?: string }) =>
+    request<AnswerDraft>('/answers/self-intro', { method: 'POST', body: JSON.stringify(payload) }),
+  composeSensitive: (payload: { kind: string; resume_id?: number | null; jd_text?: string }) =>
+    request<AnswerDraft>('/answers/sensitive', { method: 'POST', body: JSON.stringify(payload) }),
+  composeQuestions: (payload: {
+    jd_text: string
+    company?: string
+    resume_id?: number | null
+    count?: number
+  }) => request<AnswerDraft>('/answers/questions', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteAnswer: (id: number) => request<void>(`/answers/${id}`, { method: 'DELETE' }),
+
+  matchBands: (resumeId?: number | null) => {
+    const suffix = resumeId ? `?resume_id=${resumeId}` : ''
+    return request<MatchBandReport>(`/applications/match-bands${suffix}`)
+  },
 }
