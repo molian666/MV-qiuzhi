@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { JobTarget, ResumeItem, SessionDetail, Turn } from '../api/types'
+import type { JobTarget, ProfileListItem, ResumeItem, SessionDetail, Turn } from '../api/types'
 import type { ServerEvent } from '../api/ws'
 import { SessionSocket } from '../api/ws'
 import { startMicCapture } from '../audio/mic'
@@ -39,6 +39,8 @@ interface Props {
 export default function InterviewVoice({ onOpenReport }: Props) {
   const [targets, setTargets] = useState<JobTarget[]>([])
   const [resumes, setResumes] = useState<ResumeItem[]>([])
+  const [profiles, setProfiles] = useState<ProfileListItem[]>([])
+  const [profileId, setProfileId] = useState('')
   const [targetId, setTargetId] = useState('')
   const [resumeId, setResumeId] = useState('')
   const [maxQuestions, setMaxQuestions] = useState(4)
@@ -190,9 +192,14 @@ export default function InterviewVoice({ onOpenReport }: Props) {
   useEffect(() => {
     void (async () => {
       try {
-        const [targetList, resumeList] = await Promise.all([api.listTargets(), api.listResumes()])
+        const [targetList, resumeList, profileList] = await Promise.all([
+          api.listTargets(),
+          api.listResumes(),
+          api.listProfiles(),
+        ])
         setTargets(targetList)
         setResumes(resumeList)
+        setProfiles(profileList)
         setTargetId((current) => current || (targetList[0] ? String(targetList[0].id) : ''))
         setResumeId((current) => current || (resumeList[0] ? String(resumeList[0].id) : ''))
       } catch (err) {
@@ -226,6 +233,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
       const created = await api.createSession({
         target_id: targetId ? Number(targetId) : null,
         resume_id: resumeId ? Number(resumeId) : null,
+        interviewer_profile_id: profileId ? Number(profileId) : null,
         max_questions: maxQuestions,
         mode: 'realtime',
       })
@@ -515,6 +523,20 @@ export default function InterviewVoice({ onOpenReport }: Props) {
             onChange={(event) => setMaxQuestions(Number(event.target.value) || 1)}
             className={`${inputClass} mb-3`}
           />
+
+          <label className="mb-1 block text-xs text-slate-500">面试官画像（可选）</label>
+          <select
+            value={profileId}
+            onChange={(event) => setProfileId(event.target.value)}
+            className={`${inputClass} mb-3`}
+          >
+            <option value="">默认节奏</option>
+            {profiles.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}（{item.question_count} 题 · {item.stress_level || '—'}）
+              </option>
+            ))}
+          </select>
 
           <button
             type="button"

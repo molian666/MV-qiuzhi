@@ -6,16 +6,21 @@ M0 走文字模式；M1 的 realtime 模式会复用这里完全相同的落库�
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from ..analysis.pacing import build_policy, policy_prompt_block, policy_summary
 from ..clock import utcnow
 from ..config import get_settings
 from ..deps import get_llm, get_session
 from ..models.core import JobTarget, Resume
+from ..models.pacing import InterviewerProfile
 from ..models.session import InterviewSession, SessionTurn
+from ..pacing_service import load_policy_for_session
 from ..providers.llm.base import LLMClient, LLMError
 from ..realtime.interviewer import Interviewer
 from ..repositories import count_turns, ordered_turns
@@ -121,13 +126,36 @@ async def create_session(
     style = payload.style or DEFAULT_STYLE
     provider = getattr(llm, "name", "")
 
+    # M4：选了面试官画像 → 这场面试按那个节奏来
+    profile: InterviewerProfile | None = None
+    if payload.interviewer_profile_id is not None:
+        profile = db.get(InterviewerProfile, payload.interviewer_profile_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail=f"面试官画像不存在：{payload.interviewer_profile_id}")
+
+    session_plan: dict[str, Any] = {"max_questions": max_questions, "style": style}
+    policy = (
+        build_policy(
+            profile.params,
+            default_silence_ms=settings.speech_silence_ms,
+            profile_id=profile.id,
+            profile_name=profile.name,
+        )
+        if profile is not None
+        else None
+    )
+    if policy is not None:
+        # 把"这场会用到的节奏"落进 plan：前端能直接展示，测试也能断言画像真的生效了
+        session_plan["pacing"] = policy_summary(policy)
+
     session_row = InterviewSession(
         mode=payload.mode,
         status=STATUS_LIVE,
         provider=provider,
         target_id=payload.target_id,
         resume_id=payload.resume_id,
-        plan={"max_questions": max_questions, "style": style},
+        interviewer_profile_id=payload.interviewer_profile_id,
+        plan=session_plan,
         started_at=utcnow(),
     )
     db.add(session_row)
@@ -143,6 +171,7 @@ async def create_session(
             resume=resume,
             max_questions=max_questions,
             style=style,
+            policy_block=policy_prompt_block(policy) if policy is not None else "",
         )
     except LLMError as exc:
         log_llm_error(db, task="interview_turn", provider=provider, error=str(exc), session_id=session_id)
@@ -213,6 +242,7 @@ async def submit_answer(
     closing = answer_count >= max_questions
 
     interviewer = Interviewer(llm)
+    policy = load_policy_for_session(db, session_row, default_silence_ms=settings.speech_silence_ms)
     try:
         plan, result = await interviewer.next_question(
             turns=turns,
@@ -221,6 +251,7 @@ async def submit_answer(
             max_questions=max_questions,
             style=style,
             closing=closing,
+            policy_block=policy_prompt_block(policy) if policy is not None else "",
         )
     except LLMError as exc:
         log_llm_error(db, task="interview_turn", provider=provider, error=str(exc), session_id=session_id)

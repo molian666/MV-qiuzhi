@@ -11,6 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class SessionCreate(BaseModel):
     target_id: int | None = None
     resume_id: int | None = None
+    # M4：选一个面试官画像，这场面试就会按那个节奏来（题型配比、追问深度、等待时长）
+    interviewer_profile_id: int | None = None
     mode: Literal["text", "realtime"] = "text"
     max_questions: int | None = Field(default=None, ge=1, le=30)
     style: str | None = None
@@ -45,6 +47,7 @@ class SessionOut(BaseModel):
     status: str
     target_id: int | None = None
     resume_id: int | None = None
+    interviewer_profile_id: int | None = None
     provider: str = ""
     plan: dict[str, Any] = Field(default_factory=dict)
     # 生成报告后回填摘要：历史列表不用打开报告就能看个大概

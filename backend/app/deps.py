@@ -9,6 +9,9 @@ from sqlmodel import Session
 
 from .config import get_settings
 from .db import get_session as _get_session
+from .providers.asr.base import BatchTranscriber
+from .providers.asr.mock import MockBatchTranscriber
+from .providers.asr.qwen_file import QwenFileTranscriber
 from .providers.llm.base import LLMClient
 from .providers.llm.deepseek import DeepSeekClient
 from .providers.llm.mock import MockLLMClient
@@ -63,6 +66,21 @@ def build_speech_provider() -> SpeechProvider:
 
 def get_speech_provider() -> SpeechProvider:
     return build_speech_provider()
+
+
+def build_transcriber() -> BatchTranscriber:
+    """批量转写（M4）：用来把上传的面试录音转成带说话人的段落。"""
+    settings = get_settings()
+    if settings.asr_provider == "qwen-file":
+        return QwenFileTranscriber(
+            api_key=settings.dashscope_api_key,
+            model=settings.dashscope_asr_file_model,
+        )
+    return MockBatchTranscriber()
+
+
+def get_transcriber() -> BatchTranscriber:
+    return build_transcriber()
 
 
 def get_session() -> Iterator[Session]:

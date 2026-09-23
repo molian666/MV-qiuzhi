@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { JobTarget, ResumeItem, SessionDetail } from '../api/types'
+import type { JobTarget, ProfileListItem, ResumeItem, SessionDetail } from '../api/types'
 
 const SPEAKER_LABEL: Record<string, string> = {
   interviewer: '面试官',
@@ -28,6 +28,8 @@ interface Props {
 export default function InterviewLive({ onOpenReport }: Props) {
   const [targets, setTargets] = useState<JobTarget[]>([])
   const [resumes, setResumes] = useState<ResumeItem[]>([])
+  const [profiles, setProfiles] = useState<ProfileListItem[]>([])
+  const [profileId, setProfileId] = useState('')
   const [targetId, setTargetId] = useState('')
   const [resumeId, setResumeId] = useState('')
   const [maxQuestions, setMaxQuestions] = useState(5)
@@ -44,9 +46,14 @@ export default function InterviewLive({ onOpenReport }: Props) {
 
   const refreshOptions = useCallback(async () => {
     try {
-      const [targetList, resumeList] = await Promise.all([api.listTargets(), api.listResumes()])
+      const [targetList, resumeList, profileList] = await Promise.all([
+        api.listTargets(),
+        api.listResumes(),
+        api.listProfiles(),
+      ])
       setTargets(targetList)
       setResumes(resumeList)
+      setProfiles(profileList)
       setTargetId((current) => current || (targetList[0] ? String(targetList[0].id) : ''))
       setResumeId((current) => current || (resumeList[0] ? String(resumeList[0].id) : ''))
     } catch (err) {
@@ -72,6 +79,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
       const created = await api.createSession({
         target_id: targetId ? Number(targetId) : null,
         resume_id: resumeId ? Number(resumeId) : null,
+        interviewer_profile_id: profileId ? Number(profileId) : null,
         max_questions: maxQuestions,
         style,
       })
@@ -348,6 +356,20 @@ export default function InterviewLive({ onOpenReport }: Props) {
             className={`${inputClass} mb-3`}
           />
 
+          <label className="mb-1 block text-xs text-slate-500">面试官画像（可选）</label>
+          <select
+            value={profileId}
+            onChange={(event) => setProfileId(event.target.value)}
+            className={`${inputClass} mb-3`}
+          >
+            <option value="">默认节奏</option>
+            {profiles.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}（{item.question_count} 题 · {item.stress_level || '—'}）
+              </option>
+            ))}
+          </select>
+
           <button
             type="button"
             onClick={() => void startSession()}
@@ -359,6 +381,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
           {session && (
             <p className="mt-2 text-xs text-slate-500">
               会话 #{session.id} · 提供方 {session.provider}
+              {session.plan.pacing ? ` · 画像：${session.plan.pacing.profile_name}` : ''}
             </p>
           )}
         </div>

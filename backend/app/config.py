@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     dashscope_api_key: str = ""
     dashscope_realtime_endpoint: str = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
     dashscope_asr_model: str = "qwen3-asr-flash-realtime"
+    # 批量转写（M4，上传录音做节奏分析）：mock 用粘贴的文稿；qwen-file 待接入
+    asr_provider: str = "mock"  # mock | qwen-file
+    dashscope_asr_file_model: str = "paraformer-v2"
     # VAD：连续静音多久算"说完"（M4 起由面试官画像的 wait_ms 覆盖）
     speech_silence_ms: int = 900
     # 短于这个时长的"说话"忽略（多半是咳嗽/噪音）

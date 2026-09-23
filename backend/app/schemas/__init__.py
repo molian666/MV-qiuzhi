@@ -8,6 +8,17 @@ from .core import (
     ResumeCreate,
     ResumeOut,
 )
+from .pacing import (
+    PacingSampleOut,
+    ProfileCreate,
+    ProfileDetail,
+    ProfileListItem,
+    ProfileOut,
+    RecordingCreate,
+    RecordingDetail,
+    RecordingOut,
+    TranscriptSegmentOut,
+)
 from .report import (
     DimensionScoreOut,
     EvidenceTurnOut,
@@ -46,8 +57,16 @@ __all__ = [
     "MasteryEventOut",
     "MasteryItemOut",
     "MasteryOverviewOut",
+    "PacingSampleOut",
+    "ProfileCreate",
+    "ProfileDetail",
+    "ProfileListItem",
+    "ProfileOut",
     "QuestionCreate",
     "QuestionOut",
+    "RecordingCreate",
+    "RecordingDetail",
+    "RecordingOut",
     "ReportSummaryOut",
     "ResumeCreate",
     "ResumeOut",
@@ -59,5 +78,6 @@ __all__ = [
     "TrainingGradeIn",
     "TrainingGradeOut",
     "TrainingQuestionOut",
+    "TranscriptSegmentOut",
     "TurnOut",
 ]

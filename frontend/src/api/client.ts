@@ -2,6 +2,7 @@
 
 import type {
   AnswerResult,
+  CreateRecordingPayload,
   CreateResumePayload,
   CreateSessionPayload,
   CreateTargetPayload,
@@ -9,7 +10,11 @@ import type {
   JobTarget,
   MasteryEvent,
   MasteryOverview,
+  ProfileDetail,
+  ProfileListItem,
   ProviderStatus,
+  Recording,
+  RecordingDetail,
   ReportSummary,
   ResumeItem,
   ScoreReport,
@@ -21,9 +26,14 @@ import type {
 } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // 只有 JSON 字符串才设 Content-Type：multipart 上传必须让浏览器自己带 boundary
+  const hasStringBody = typeof init?.body === 'string'
   const response = await fetch(`/api${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers: {
+      ...(hasStringBody ? { 'Content-Type': 'application/json' } : {}),
+      ...((init?.headers as Record<string, string> | undefined) ?? {}),
+    },
   })
 
   if (!response.ok) {
@@ -93,4 +103,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ question_id: questionId, answer }),
     }),
+
+  // 节奏学习（M4）
+  listRecordings: () => request<Recording[]>('/recordings'),
+  createRecording: (payload: CreateRecordingPayload) =>
+    request<Recording>('/recordings', { method: 'POST', body: JSON.stringify(payload) }),
+  getRecording: (id: number) => request<RecordingDetail>(`/recordings/${id}`),
+  deleteRecording: (id: number) => request<void>(`/recordings/${id}`, { method: 'DELETE' }),
+  uploadRecording: (file: File, title: string, rawText: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('title', title)
+    form.append('raw_text', rawText)
+    return request<Recording>('/recordings/upload', { method: 'POST', body: form })
+  },
+  listProfiles: () => request<ProfileListItem[]>('/interviewer-profiles'),
+  createProfile: (recordingIds: number[], name: string) =>
+    request<ProfileDetail>('/interviewer-profiles', {
+      method: 'POST',
+      body: JSON.stringify({ recording_ids: recordingIds, name }),
+    }),
+  getProfile: (id: number) => request<ProfileDetail>(`/interviewer-profiles/${id}`),
+  deleteProfile: (id: number) => request<void>(`/interviewer-profiles/${id}`, { method: 'DELETE' }),
 }

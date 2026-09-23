@@ -127,8 +127,12 @@ class Interviewer:
         max_questions: int = 6,
         style: str = "标准技术面",
         closing: bool = False,
+        policy_block: str = "",
     ) -> tuple[QuestionPlan, LLMResult]:
         context = build_context(target, resume, max_questions=max_questions, style=style)
+        if policy_block.strip():
+            # 画像指令放最后：越靠近末尾的指令越容易被遵守（题型配比、追问深度都在这）
+            context = f"{context}\n\n{policy_block.strip()}"
         messages = build_messages(turns=turns, context=context, closing=closing)
         result = await self.llm.complete(
             task="interview_turn",

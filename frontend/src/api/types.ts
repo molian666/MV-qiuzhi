@@ -24,7 +24,7 @@ export interface SessionSummary {
   target_id: number | null
   resume_id: number | null
   provider: string
-  plan: { max_questions?: number; style?: string }
+  plan: { max_questions?: number; style?: string; pacing?: ProfilePolicy }
   /** 生成报告后回填的摘要 */
   summary: string
   created_at: string
@@ -50,6 +50,8 @@ export interface AnswerResult {
 export interface CreateSessionPayload {
   target_id?: number | null
   resume_id?: number | null
+  /** M4：选一个面试官画像，这场面试按它的节奏来 */
+  interviewer_profile_id?: number | null
   mode?: 'text' | 'realtime'
   max_questions?: number | null
   style?: string | null
@@ -243,4 +245,89 @@ export interface TrainingGrade {
   comment: string
   better_answer: string
   mastery: MasteryChange[]
+}
+
+// --------------------------------------------------------------------------- //
+// 节奏学习（M4）
+// --------------------------------------------------------------------------- //
+export interface Recording {
+  id: number
+  title: string
+  kind: string
+  company: string
+  role: string
+  status: string
+  duration_ms: number | null
+  error: string
+  created_at: string
+  has_audio: boolean
+  has_text: boolean
+}
+
+export interface CreateRecordingPayload {
+  title?: string
+  kind?: string
+  company?: string
+  role?: string
+  /** 对话文稿：Mock 转写模式下的文字替身 */
+  raw_text?: string
+}
+
+export interface TranscriptSegment {
+  idx: number
+  speaker: string
+  text: string
+  start_ms: number | null
+  end_ms: number | null
+}
+
+export interface RecordingDetail extends Recording {
+  segments: TranscriptSegment[]
+}
+
+export interface PacingSample {
+  question_type: string
+  topic: string
+  question: string
+  ask_duration_ms: number
+  wait_ms: number | null
+  answer_ms: number | null
+  followup_count: number
+  interrupted: boolean
+}
+
+/** 把画像翻译成"这场面试会怎么进行" */
+export interface ProfilePolicy {
+  profile_id: number | null
+  profile_name: string
+  silence_ms: number
+  max_followup_depth: number
+  followup_triggers: string[]
+  topic_mix: Record<string, number>
+  style_tags: string[]
+  stress_level: string
+  interviewer_wpm: number
+  opening_pattern: string
+  closing_pattern: string
+}
+
+export interface InterviewerProfile {
+  id: number
+  name: string
+  source: string
+  style_tags: string[]
+  recording_ids: number[]
+  created_at: string
+}
+
+export interface ProfileListItem extends InterviewerProfile {
+  question_count: number
+  stress_level: string
+  sample_count: number
+}
+
+export interface ProfileDetail extends InterviewerProfile {
+  params: Record<string, unknown>
+  policy: ProfilePolicy
+  samples: PacingSample[]
 }

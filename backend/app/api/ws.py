@@ -10,10 +10,12 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from ..analysis.pacing import policy_prompt_block
 from ..config import get_settings
 from ..db import session_scope
 from ..deps import get_llm, get_speech_provider
 from ..models.session import InterviewSession
+from ..pacing_service import load_policy_for_session
 from ..realtime.audio_store import AudioStore
 from ..realtime.session_runtime import VoiceRuntimeConfig, VoiceSessionRuntime
 
@@ -34,6 +36,8 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
             return
         plan = dict(session_row.plan or {})
         status = session_row.status
+        # M4：选了面试官画像就按它的节奏来——等待时长直接覆盖 VAD 的静音阈值
+        policy = load_policy_for_session(db, session_row, default_silence_ms=settings.speech_silence_ms)
 
     if status != "live":
         await websocket.send_json({"type": "error", "message": f"会话状态为 {status}，无法继续"})
@@ -53,11 +57,13 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
         config=VoiceRuntimeConfig(
             max_questions=int(plan.get("max_questions") or settings.default_max_questions),
             style=str(plan.get("style") or "标准技术面"),
-            silence_ms=settings.speech_silence_ms,
+            # 画像里的等待时长覆盖默认 VAD 阈值：这是"节奏跟着画像变"最直接的体现
+            silence_ms=policy.silence_ms if policy is not None else settings.speech_silence_ms,
             min_answer_ms=settings.min_answer_ms,
             asr_wait_ms=settings.asr_wait_ms,
             # Mock 语音（没有 ASR）时必须允许文字替身，否则这一轮没法继续
             text_fallback=speech.requires_text_fallback,
+            policy_block=policy_prompt_block(policy) if policy is not None else "",
         ),
     )
 

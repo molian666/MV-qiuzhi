@@ -46,6 +46,8 @@ class VoiceRuntimeConfig:
     # server：服务端 TTS 通过 audio_chunk 下发（待接入厂商）
     audio_mode: str = "client"
     text_fallback: bool = True
+    # M4：面试官画像生成的指令块（题型配比 / 追问深度 / 压力水平），为空则用默认行为
+    policy_block: str = ""
 
 
 class VoiceSessionRuntime:
@@ -386,6 +388,7 @@ class VoiceSessionRuntime:
                     max_questions=max_questions,
                     style=style,
                     closing=closing,
+                    policy_block=self.config.policy_block,
                 )
             except LLMError as exc:
                 with session_scope() as db:

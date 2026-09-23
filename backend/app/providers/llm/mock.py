@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 
 from .base import LLMClient, LLMMessage, LLMResult
+from .mock_pacing import build_mock_pacing_labels
 from .mock_scoring import build_mock_scoring_json
 from .mock_training import build_mock_training_grade, build_mock_training_questions
 
@@ -46,6 +47,8 @@ class MockLLMClient(LLMClient):  # type: ignore[misc]
             text = build_mock_training_questions(messages)
         elif task == "training_grade":
             text = build_mock_training_grade(messages)
+        elif task == "pacing_label":
+            text = build_mock_pacing_labels(messages)
         else:
             text = json.dumps(
                 {
