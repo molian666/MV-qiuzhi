@@ -11,6 +11,7 @@ from .apply import (
     PlatformAccount,
 )
 from .core import JobTarget, QuestionAttempt, QuestionBank, Resume
+from .expression import ExpressionSnapshot
 from .pacing import InterviewerProfile, PacingSample, Recording, TranscriptSegment
 from .scoring import (
     ImprovementItem,
@@ -35,6 +36,7 @@ __all__ = [
     "ApplyTask",
     "AudioAsset",
     "Blacklist",
+    "ExpressionSnapshot",
     "ImportBatch",
     "ImprovementItem",
     "InterviewSession",

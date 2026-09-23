@@ -674,3 +674,71 @@ export interface MatchBandReport {
   recommendation: string
   confidence_note: string
 }
+
+// -------------------------------------------------------------------------- //
+// 表达体检（M9）
+// -------------------------------------------------------------------------- //
+
+export interface FillerHit {
+  word: string
+  count: number
+  weight: number
+  strong: boolean
+  weighted: number
+}
+
+export interface PaceWindow {
+  start_ms: number
+  end_ms: number
+  chars: number
+  cpm: number
+  rms: number
+}
+
+export interface PauseSpan {
+  start_ms: number
+  duration_ms: number
+  kind: 'normal' | 'long' | 'very_long'
+  turn_index: number | null
+  before_text: string
+  after_text: string
+  seconds: number
+}
+
+export interface TurnIssue {
+  kind: string
+  severity: 'warning' | 'info'
+  at_ms: number
+  excerpt: string
+  detail: string
+  turn_index: number | null
+}
+
+export interface ExpressionReport {
+  id: number
+  session_id: number | null
+  recording_id: number | null
+  overall: number
+  summary: string
+  has_audio: boolean
+  frame_ms: number
+  generated_at: string
+
+  speaking_ms: number
+  chars: number
+  overall_cpm: number
+  filler_total: number
+  filler_weighted: number
+  filler_per_kchar: number
+  reliable: boolean
+  fillers: FillerHit[]
+  pauses: PauseSpan[]
+  longest_pause: PauseSpan | null
+  windows: PaceWindow[]
+  pace_cv: number
+  volume_cv: number
+  tension: number
+  issues: TurnIssue[]
+  suggestions: string[]
+  audio_url: string | null
+}

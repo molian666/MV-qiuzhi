@@ -18,6 +18,7 @@ import type {
   CreateResumePayload,
   CreateSessionPayload,
   CreateTargetPayload,
+  ExpressionReport,
   Health,
   ImportBatch,
   ImportOutcome,
@@ -249,4 +250,12 @@ export const api = {
     const suffix = resumeId ? `?resume_id=${resumeId}` : ''
     return request<MatchBandReport>(`/applications/match-bands${suffix}`)
   },
+
+  // 表达体检（M9）
+  getExpression: (sessionId: number) => request<ExpressionReport>(`/sessions/${sessionId}/expression`),
+  /** 生成表达体检（GET 只读已有报告，POST 才会真的读音频分析） */
+  createExpression: (sessionId: number, withAudio = true) =>
+    request<ExpressionReport>(`/sessions/${sessionId}/expression?with_audio=${withAudio ? 'true' : 'false'}`, {
+      method: 'POST',
+    }),
 }

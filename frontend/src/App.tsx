@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api/client'
 import Applications from './pages/Applications'
 import ApplyDesk from './pages/ApplyDesk'
+import Expression from './pages/Expression'
 import InterviewLive from './pages/InterviewLive'
 import InterviewVoice from './pages/InterviewVoice'
 import Report from './pages/Report'
@@ -16,6 +17,7 @@ const TABS = [
   { key: 'interview', label: '面试间' },
   { key: 'voice', label: '语音面试' },
   { key: 'report', label: '报告' },
+  { key: 'expression', label: '表达体检' },
   { key: 'training', label: '训练' },
   { key: 'pacing', label: '节奏学习' },
   { key: 'resume', label: '简历体检' },
@@ -52,7 +54,7 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-baseline gap-3">
             <h1 className="text-lg font-semibold">mianshi · 求职操作系统</h1>
-            <span className="text-xs text-slate-500">M8：简历与话术</span>
+            <span className="text-xs text-slate-500">M9：表达体检</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
@@ -83,6 +85,7 @@ export default function App() {
         {tab === 'voice' && <InterviewVoice onOpenReport={openReport} />}
         {tab === 'sessions' && <Sessions onOpenReport={openReport} />}
         {tab === 'report' && <Report sessionId={reportSessionId} onSelectSession={setReportSessionId} />}
+        {tab === 'expression' && <Expression />}
         {tab === 'training' && <Training />}
         {tab === 'pacing' && <Recordings />}
         {tab === 'resume' && <ResumeHealth />}

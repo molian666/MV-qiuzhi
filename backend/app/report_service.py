@@ -15,6 +15,7 @@ from .analysis.scoring import (
     build_scoring_messages,
     normalize_report,
 )
+from .expression_service import attach_to_report
 from .learning_service import MAX_TOPICS_PER_OBSERVATION, apply_observation, ensure_topic
 from .models.core import JobTarget, Resume
 from .models.scoring import ImprovementItem, ScoreReport
@@ -144,6 +145,9 @@ async def generate_report(
     db.add(report_row)
     db.commit()
     db.refresh(report_row)
+
+    # M9：把表达体检的分数并进 dimension_scores（加一个「表达」维度，不改表结构）
+    attach_to_report(db, session_id=session_id, report_row=report_row)
 
     items: list[ImprovementItem] = []
     for item in normalized.items:

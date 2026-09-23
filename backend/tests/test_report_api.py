@@ -39,7 +39,11 @@ def test_report_generation_then_read(client: TestClient) -> None:
     assert report["reused"] is False
     assert 0 < report["overall"] <= 100
     assert report["summary"]
-    assert [dimension["key"] for dimension in report["dimensions"]] == list(dimension_keys())
+    keys = [dimension["key"] for dimension in report["dimensions"]]
+    # rubric 的维度必须齐全且保持顺序；M9 起还会多出「表达」（表达体检并入的维度），
+    # 所以这里断言的是"包含关系"而不是"恰好相等"
+    assert keys[: len(dimension_keys())] == list(dimension_keys())
+    assert set(dimension_keys()) <= set(keys)
     assert all(1 <= dimension["score"] <= 5 for dimension in report["dimensions"])
     assert report["items"], "报告至少要有一条改进项"
 

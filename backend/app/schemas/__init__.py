@@ -34,6 +34,13 @@ from .core import (
     ResumeCreate,
     ResumeOut,
 )
+from .expression import (
+    ExpressionReportOut,
+    FillerHitOut,
+    PauseSpanOut,
+    TurnIssueOut,
+    WindowMetricOut,
+)
 from .pacing import (
     PacingSampleOut,
     ProfileCreate,
@@ -110,6 +117,8 @@ __all__ = [
     "ExecuteIn",
     "ExecutionItemOut",
     "ExecutionOutcomeOut",
+    "ExpressionReportOut",
+    "FillerHitOut",
     "ImportBatchOut",
     "ImportIn",
     "ImportOutcomeOut",
@@ -122,6 +131,7 @@ __all__ = [
     "MasteryItemOut",
     "MasteryOverviewOut",
     "PacingSampleOut",
+    "PauseSpanOut",
     "ProfileCreate",
     "ProfileDetail",
     "ProfileListItem",
@@ -157,5 +167,7 @@ __all__ = [
     "TrainingGradeOut",
     "TrainingQuestionOut",
     "TranscriptSegmentOut",
+    "TurnIssueOut",
     "TurnOut",
+    "WindowMetricOut",
 ]
