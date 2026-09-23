@@ -10,6 +10,7 @@ import json
 
 from .base import LLMClient, LLMMessage, LLMResult
 from .mock_pacing import build_mock_pacing_labels
+from .mock_say_hi import build_mock_say_hi
 from .mock_scoring import build_mock_scoring_json
 from .mock_training import build_mock_training_grade, build_mock_training_questions
 
@@ -49,6 +50,9 @@ class MockLLMClient(LLMClient):  # type: ignore[misc]
             text = build_mock_training_grade(messages)
         elif task == "pacing_label":
             text = build_mock_pacing_labels(messages)
+        elif task == "say_hi":
+            # 招呼语是纯文本，不是 JSON
+            text = build_mock_say_hi(messages)
         else:
             text = json.dumps(
                 {

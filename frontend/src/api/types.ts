@@ -441,3 +441,116 @@ export interface ImportBatch {
   skipped: number
   note: string
 }
+
+// -------------------------------------------------------------------------- //
+// 半自动投递（M10）
+// -------------------------------------------------------------------------- //
+
+export interface ApplySettings {
+  enabled: boolean
+  risk_acknowledged: boolean
+  platform: string
+  default_channel: string
+  want_salary_min: number
+  per_minute: number
+  per_day: number
+  jitter_min_seconds: number
+  jitter_max_seconds: number
+  selectors: Record<string, string>
+  user_data_dir: string
+  /** 硬上限：配置会被夹到这个范围内 */
+  max_per_minute: number
+  max_per_day: number
+}
+
+export interface ApplyStatus {
+  enabled: boolean
+  risk_acknowledged: boolean
+  platform: string
+  circuit_broken_until: string | null
+  broken: boolean
+  daily_sent: number
+  daily_limit: number
+  remaining_quota: number
+  adapter_ready: boolean
+  adapter_note: string
+}
+
+export interface ApplyRule {
+  id: number
+  name: string
+  kind: string
+  enabled: boolean
+  priority: number
+  params: Record<string, unknown>
+}
+
+export interface ApplyCandidate {
+  job_posting_id: number
+  external_id: string
+  company: string
+  title: string
+  salary_range: string
+  city: string
+  jd_url: string
+  matched_score: number
+  passed: boolean
+  blocked_by: string[]
+  reasons: string[]
+  say_hi: string
+  task_id: number | null
+}
+
+export interface ApplySearchOutcome {
+  fetched: number
+  passed: number
+  blocked: number
+  queued: number
+  duplicates: number
+  candidates: ApplyCandidate[]
+  notes: string[]
+}
+
+export interface ApplyQueueTask {
+  id: number
+  status: string
+  company: string
+  title: string
+  salary_range: string
+  city: string
+  jd_url: string
+  matched_score: number | null
+  say_hi_text: string
+  attempts: number
+  error: string
+  created_at: string
+  approved_at: string | null
+  sent_at: string | null
+}
+
+export interface ApplyQueueSnapshot {
+  total: number
+  pending: number
+  approved: number
+  sent: number
+  failed: number
+  by_status: Record<string, number>
+}
+
+export interface ApplyExecutionItem {
+  task_id: number
+  company: string
+  title: string
+  ok: boolean
+  detail: string
+}
+
+export interface ApplyExecutionOutcome {
+  attempted: number
+  sent: number
+  failed: number
+  stopped_reason: string
+  tripped: boolean
+  breaker_message: string
+  items: ApplyExecutionItem[]
+}

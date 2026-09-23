@@ -4,6 +4,13 @@ import type {
   AnswerResult,
   ApplicationItem,
   ApplicationStats,
+  ApplyExecutionOutcome,
+  ApplyQueueSnapshot,
+  ApplyQueueTask,
+  ApplyRule,
+  ApplySearchOutcome,
+  ApplySettings,
+  ApplyStatus,
   CreateRecordingPayload,
   CreateResumePayload,
   CreateSessionPayload,
@@ -157,4 +164,40 @@ export const api = {
     }),
   deleteApplication: (id: number) => request<void>(`/applications/${id}`, { method: 'DELETE' }),
   listImportBatches: () => request<ImportBatch[]>('/applications/imports'),
+
+  // 半自动投递（M10）
+  applyStatus: () => request<ApplyStatus>('/apply/status'),
+  applySettings: () => request<ApplySettings>('/apply/settings'),
+  updateApplySettings: (payload: Partial<ApplySettings>) =>
+    request<ApplySettings>('/apply/settings', { method: 'PUT', body: JSON.stringify(payload) }),
+  applyRules: () => request<ApplyRule[]>('/apply/rules'),
+  updateApplyRule: (id: number, payload: Partial<ApplyRule>) =>
+    request<ApplyRule>(`/apply/rules/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  applyQueue: (status?: string) => {
+    const suffix = status ? `?status=${status}` : ''
+    return request<ApplyQueueTask[]>(`/apply/queue${suffix}`)
+  },
+  applyQueueSnapshot: () => request<ApplyQueueSnapshot>('/apply/queue/snapshot'),
+  /** 抓岗位 → 过滤 → 打分 → 进待投队列（**不会投递**） */
+  searchApplyCandidates: (keywords: string[], limit: number) =>
+    request<ApplySearchOutcome>('/apply/search', {
+      method: 'POST',
+      body: JSON.stringify({ keywords, limit }),
+    }),
+  approveApplyTasks: (taskIds: number[], overrides: Record<number, string> = {}) =>
+    request<{ approved: number }>('/apply/queue/approve', {
+      method: 'POST',
+      body: JSON.stringify({ task_ids: taskIds, say_hi_overrides: overrides }),
+    }),
+  skipApplyTasks: (taskIds: number[]) =>
+    request<{ skipped: number }>('/apply/queue/skip', {
+      method: 'POST',
+      body: JSON.stringify({ task_ids: taskIds }),
+    }),
+  /** 执行已确认的投递（受限速与熔断约束） */
+  executeApply: (limit: number, dryRun = false) =>
+    request<ApplyExecutionOutcome>('/apply/execute', {
+      method: 'POST',
+      body: JSON.stringify({ limit, dry_run: dryRun }),
+    }),
 }

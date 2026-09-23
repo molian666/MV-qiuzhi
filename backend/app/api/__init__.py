@@ -5,7 +5,20 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from ..config import get_settings
-from . import applications, profiles, questions, recordings, reports, resumes, sessions, system, targets, training, ws
+from . import (
+    applications,
+    apply,
+    profiles,
+    questions,
+    recordings,
+    reports,
+    resumes,
+    sessions,
+    system,
+    targets,
+    training,
+    ws,
+)
 
 api_router = APIRouter()
 
@@ -31,4 +44,5 @@ api_router.include_router(training.router)
 api_router.include_router(recordings.router)
 api_router.include_router(profiles.router)
 api_router.include_router(applications.router)
+api_router.include_router(apply.router)
 api_router.include_router(ws.router)
