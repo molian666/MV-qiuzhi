@@ -1,0 +1,154 @@
+/** 历史面试：列表 + 回合详情（回听与报告分别在 M1/M3 加入）。 */
+
+import { useCallback, useEffect, useState } from 'react'
+import { api } from '../api/client'
+import type { SessionDetail, SessionSummary } from '../api/types'
+
+const STATUS_LABEL: Record<string, string> = {
+  live: '进行中',
+  finished: '已结束',
+  created: '未开始',
+  failed: '失败',
+}
+
+const SPEAKER_LABEL: Record<string, string> = {
+  interviewer: '面试官',
+  candidate: '我',
+  system: '系统',
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function formatDuration(ms: number | null): string {
+  if (!ms) return '—'
+  const totalSeconds = Math.round(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  return minutes > 0 ? `${minutes} 分 ${totalSeconds % 60} 秒` : `${totalSeconds} 秒`
+}
+
+function formatTime(value: string | null): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
+export default function Sessions() {
+  const [items, setItems] = useState<SessionSummary[]>([])
+  const [detail, setDetail] = useState<SessionDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setItems(await api.listSessions())
+      setError('')
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const openDetail = async (id: number) => {
+    try {
+      setDetail(await api.getSession(id))
+      setError('')
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <h2 className="text-base font-semibold text-slate-800">历史面试</h2>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+          >
+            刷新
+          </button>
+        </header>
+
+        {error && <p className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700">{error}</p>}
+
+        {loading ? (
+          <p className="px-4 py-6 text-sm text-slate-500">加载中…</p>
+        ) : items.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-slate-500">还没有面试记录。去「面试间」跑一场文字面试。</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-2 font-medium">#</th>
+                  <th className="px-4 py-2 font-medium">岗位</th>
+                  <th className="px-4 py-2 font-medium">状态</th>
+                  <th className="px-4 py-2 font-medium">题量</th>
+                  <th className="px-4 py-2 font-medium">时长</th>
+                  <th className="px-4 py-2 font-medium">开始时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr
+                    key={item.id}
+                    onClick={() => void openDetail(item.id)}
+                    className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${
+                      detail?.id === item.id ? 'bg-sky-50' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-2 text-slate-500">{item.id}</td>
+                    <td className="px-4 py-2 text-slate-800">{item.target_label || '通用面试'}</td>
+                    <td className="px-4 py-2 text-slate-600">{STATUS_LABEL[item.status] ?? item.status}</td>
+                    <td className="px-4 py-2 text-slate-600">
+                      {item.answer_count}/{item.plan.max_questions ?? '—'}
+                    </td>
+                    <td className="px-4 py-2 text-slate-600">{formatDuration(item.duration_ms)}</td>
+                    <td className="px-4 py-2 text-slate-500">{formatTime(item.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <aside className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        {!detail ? (
+          <p className="text-sm text-slate-500">点击左侧任意一行查看该场面试的全部回合。</p>
+        ) : (
+          <>
+            <h3 className="text-sm font-semibold text-slate-800">
+              会话 #{detail.id} · {detail.target_label || '通用面试'}
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {STATUS_LABEL[detail.status] ?? detail.status} · 共 {detail.turns.length} 个回合 · 时长{' '}
+              {formatDuration(detail.duration_ms)} · 提供方 {detail.provider}
+            </p>
+            <div className="mt-3 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+              {detail.turns.map((turn) => (
+                <div key={turn.idx} className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
+                  <div className="mb-1 text-[11px] text-slate-500">
+                    {SPEAKER_LABEL[turn.speaker] ?? turn.speaker}
+                    {turn.kind ? ` · ${turn.kind}` : ''}
+                    {turn.topic ? ` · ${turn.topic}` : ''}
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{turn.text}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </aside>
+    </div>
+  )
+}
