@@ -37,6 +37,8 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
+        # 浏览器扩展发来的请求 Origin 是 chrome-extension://<id>，用正则放行
+        allow_origin_regex=r"chrome-extension://.*",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -1,5 +1,14 @@
 """请求/响应模型（对外契约）。"""
 
+from .apply import (
+    ApplicationCreate,
+    ApplicationOut,
+    ImportBatchOut,
+    ImportIn,
+    ImportOutcomeOut,
+    IngestIn,
+    StatusChangeIn,
+)
 from .core import (
     JobTargetCreate,
     JobTargetOut,
@@ -48,9 +57,15 @@ from .training import (
 __all__ = [
     "AnswerIn",
     "AnswerOut",
+    "ApplicationCreate",
+    "ApplicationOut",
     "DimensionScoreOut",
     "EvidenceTurnOut",
+    "ImportBatchOut",
+    "ImportIn",
+    "ImportOutcomeOut",
     "ImprovementItemOut",
+    "IngestIn",
     "JobTargetCreate",
     "JobTargetOut",
     "MasteryChangeOut",
@@ -75,6 +90,7 @@ __all__ = [
     "SessionDetail",
     "SessionListItem",
     "SessionOut",
+    "StatusChangeIn",
     "TrainingGradeIn",
     "TrainingGradeOut",
     "TrainingQuestionOut",

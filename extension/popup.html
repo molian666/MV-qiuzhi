@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>同步投递记录</title>
+    <style>
+      body {
+        width: 320px;
+        margin: 0;
+        padding: 12px;
+        font: 13px/1.5 system-ui, "Microsoft YaHei", sans-serif;
+        color: #0f172a;
+      }
+      h1 {
+        font-size: 14px;
+        margin: 0 0 8px;
+      }
+      p {
+        margin: 0 0 8px;
+        color: #475569;
+      }
+      button {
+        width: 100%;
+        padding: 8px;
+        border: 0;
+        border-radius: 6px;
+        background: #0284c7;
+        color: #fff;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .secondary {
+        background: #e2e8f0;
+        color: #0f172a;
+        margin-top: 6px;
+      }
+      #result {
+        margin-top: 10px;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+      .ok {
+        color: #047857;
+      }
+      .warn {
+        color: #b45309;
+      }
+      .err {
+        color: #b91c1c;
+      }
+      code {
+        background: #f1f5f9;
+        padding: 0 3px;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>同步投递记录</h1>
+    <p>在你已登录的平台页面点击同步，只读取当前页面的投递表格。</p>
+    <button id="sync">同步这一页的投递记录</button>
+    <button id="openOptions" class="secondary">后端地址设置</button>
+    <div id="result"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

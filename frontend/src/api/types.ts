@@ -331,3 +331,113 @@ export interface ProfileDetail extends InterviewerProfile {
   policy: ProfilePolicy
   samples: PacingSample[]
 }
+
+// --------------------------------------------------------------------------- //
+// 投递数据（M6）
+// --------------------------------------------------------------------------- //
+export interface FunnelStep {
+  stage: string
+  label: string
+  count: number
+  rate_from_previous: number
+  rate_from_first: number
+}
+
+export interface ChannelStats {
+  channel: string
+  total: number
+  responded: number
+  interviewed: number
+  offers: number
+  response_rate: number
+  interview_rate: number
+  offer_rate: number
+}
+
+export interface WeekPoint {
+  week: string
+  applied: number
+  responded: number
+  interviewed: number
+}
+
+export interface ResumeVersionStats {
+  version: string
+  total: number
+  responded: number
+  response_rate: number
+}
+
+export interface ResponseTimeStats {
+  samples: number
+  median_hours: number | null
+  average_hours: number | null
+  fastest_hours: number | null
+  slowest_hours: number | null
+}
+
+export interface FollowUpItem {
+  application_id: number
+  company: string
+  title: string
+  channel: string
+  status: string
+  days_since: number
+}
+
+export interface ApplicationStats {
+  total: number
+  responded: number
+  interviewed: number
+  offers: number
+  response_rate: number
+  interview_rate: number
+  offer_rate: number
+  funnel: FunnelStep[]
+  by_channel: ChannelStats[]
+  weekly: WeekPoint[]
+  resume_versions: ResumeVersionStats[]
+  response_time: ResponseTimeStats
+  follow_ups: FollowUpItem[]
+}
+
+export interface ApplicationItem {
+  id: number
+  company: string
+  title: string
+  channel: string
+  status: string
+  applied_at: string
+  salary_range: string
+  city: string
+  resume_version: string
+  jd_url: string
+  note: string
+  source: string
+  created_at: string
+}
+
+export interface ImportOutcome {
+  batch_id: number
+  source: string
+  rows: number
+  inserted: number
+  updated: number
+  skipped: number
+  matched_columns: Record<string, string>
+  unmatched_headers: string[]
+  skipped_details: [number, string][]
+  note: string
+}
+
+export interface ImportBatch {
+  id: number
+  channel: string
+  source: string
+  at: string
+  rows: number
+  inserted: number
+  updated: number
+  skipped: number
+  note: string
+}

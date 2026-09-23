@@ -2,11 +2,15 @@
 
 import type {
   AnswerResult,
+  ApplicationItem,
+  ApplicationStats,
   CreateRecordingPayload,
   CreateResumePayload,
   CreateSessionPayload,
   CreateTargetPayload,
   Health,
+  ImportBatch,
+  ImportOutcome,
   JobTarget,
   MasteryEvent,
   MasteryOverview,
@@ -125,4 +129,32 @@ export const api = {
     }),
   getProfile: (id: number) => request<ProfileDetail>(`/interviewer-profiles/${id}`),
   deleteProfile: (id: number) => request<void>(`/interviewer-profiles/${id}`, { method: 'DELETE' }),
+
+  // 投递数据（M6）
+  applicationStats: (weeks = 8) => request<ApplicationStats>(`/applications/stats?weeks=${weeks}`),
+  listApplications: (channel?: string, status?: string) => {
+    const query = new URLSearchParams()
+    if (channel) {
+      query.set('channel', channel)
+    }
+    if (status) {
+      query.set('status', status)
+    }
+    const suffix = query.size > 0 ? `?${query.toString()}` : ''
+    return request<ApplicationItem[]>(`/applications${suffix}`)
+  },
+  importApplications: (text: string, channel = 'other') =>
+    request<ImportOutcome>('/applications/import', {
+      method: 'POST',
+      body: JSON.stringify({ text, channel }),
+    }),
+  createApplication: (payload: { company: string; title?: string; channel?: string; status?: string }) =>
+    request<ApplicationItem>('/applications', { method: 'POST', body: JSON.stringify(payload) }),
+  updateApplicationStatus: (id: number, toStatus: string) =>
+    request<ApplicationItem>(`/applications/${id}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ to_status: toStatus }),
+    }),
+  deleteApplication: (id: number) => request<void>(`/applications/${id}`, { method: 'DELETE' }),
+  listImportBatches: () => request<ImportBatch[]>('/applications/imports'),
 }
