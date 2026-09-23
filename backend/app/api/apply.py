@@ -13,7 +13,7 @@ from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
-from ..apply.adapters import BossAdapter, MockPlatformAdapter, PlatformAdapter
+from ..apply.adapters import PLATFORM_LABELS, PLATFORMS, MockPlatformAdapter, PlatformAdapter
 from ..apply.adapters.base import ApplyAdapterError, SearchQuery
 from ..apply.breaker import is_broken
 from ..apply.filters import FilterRule
@@ -81,17 +81,24 @@ DEFAULT_RULES: tuple[dict[str, object], ...] = (
 # 装配
 # --------------------------------------------------------------------------- #
 def _build_adapter(settings: ApplySettings) -> PlatformAdapter:
-    if settings.platform == "boss":
-        base_dir = get_settings().data_dir / "browser" / "boss"
-        return BossAdapter(
-            user_data_dir=settings.user_data_dir or str(base_dir),
-            selectors=settings.selectors,
-        )
-    return MockPlatformAdapter()
+    """按配置里的平台造适配器。
+
+    平台注册表在 `apply/adapters/__init__.py`，所以接新平台只要在那边加一行——
+    这里不需要知道有哪些平台。
+    """
+    factory = PLATFORMS.get(settings.platform)
+    if factory is None or factory is MockPlatformAdapter:
+        return MockPlatformAdapter()
+
+    base_dir = get_settings().data_dir / "browser" / settings.platform
+    return factory(  # type: ignore[return-value]
+        user_data_dir=settings.user_data_dir or str(base_dir),
+        selectors=settings.selectors,
+    )
 
 
 def _adapter_readiness(settings: ApplySettings) -> tuple[bool, str]:
-    if settings.platform != "boss":
+    if settings.platform == "mock":
         return True, "Mock 适配器：不会真的投递，用来把确认式流程跑通。"
 
     try:
@@ -101,7 +108,8 @@ def _adapter_readiness(settings: ApplySettings) -> tuple[bool, str]:
 
     from ..apply.adapters.selectors import load_selectors
 
-    selectors = load_selectors("boss", settings.selectors)
+    label = PLATFORM_LABELS.get(settings.platform, settings.platform)
+    selectors = load_selectors(settings.platform, settings.selectors)
     missing = selectors.missing(
         "search_input",
         "job_card",
@@ -111,7 +119,7 @@ def _adapter_readiness(settings: ApplySettings) -> tuple[bool, str]:
         "greet_send",
     )
     if missing:
-        return False, f"还有 {len(missing)} 个选择器未校准（{missing[0]} 等），见 docs/APPLY_SELECTORS.md。"
+        return False, f"{label}还有 {len(missing)} 个选择器未校准（{missing[0]} 等），见 docs/APPLY_SELECTORS.md。"
 
     return True, ""
 

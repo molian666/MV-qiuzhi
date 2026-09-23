@@ -12,6 +12,14 @@ from .apply import (
 )
 from .core import JobTarget, QuestionAttempt, QuestionBank, Resume
 from .expression import ExpressionSnapshot
+from .network import (
+    CONTACT_RELATIONS,
+    INTERACTION_KINDS,
+    LEARNING_STATUSES,
+    Contact,
+    ContactInteraction,
+    LearningItem,
+)
 from .offer import OFFER_STATUS_LABELS, OFFER_STATUSES, Offer
 from .pacing import InterviewerProfile, PacingSample, Recording, TranscriptSegment
 from .scoring import (
@@ -37,7 +45,11 @@ __all__ = [
     "ApplyTask",
     "AudioAsset",
     "Blacklist",
+    "CONTACT_RELATIONS",
+    "Contact",
+    "ContactInteraction",
     "ExpressionSnapshot",
+    "INTERACTION_KINDS",
     "ImportBatch",
     "ImprovementItem",
     "InterviewSession",
@@ -45,6 +57,8 @@ __all__ = [
     "JobPosting",
     "JobTarget",
     "LLMCall",
+    "LEARNING_STATUSES",
+    "LearningItem",
     "MasteryEvent",
     "OFFER_STATUSES",
     "OFFER_STATUS_LABELS",

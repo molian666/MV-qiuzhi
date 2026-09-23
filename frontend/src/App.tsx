@@ -5,6 +5,7 @@ import ApplyDesk from './pages/ApplyDesk'
 import Expression from './pages/Expression'
 import InterviewLive from './pages/InterviewLive'
 import InterviewVoice from './pages/InterviewVoice'
+import NetworkDesk from './pages/NetworkDesk'
 import OfferDesk from './pages/OfferDesk'
 import Report from './pages/Report'
 import Recordings from './pages/Recordings'
@@ -26,6 +27,7 @@ const TABS = [
   { key: 'apply', label: '投递执行台' },
   { key: 'applications', label: '投递分析' },
   { key: 'offer', label: 'Offer 与谈判' },
+  { key: 'network', label: '人脉与学习' },
   { key: 'sessions', label: '历史面试' },
   { key: 'system', label: '系统与用量' },
 ] as const
@@ -56,7 +58,7 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-baseline gap-3">
             <h1 className="text-lg font-semibold">mianshi · 求职操作系统</h1>
-            <span className="text-xs text-slate-500">M12：Offer 与决策</span>
+            <span className="text-xs text-slate-500">M14：人脉与学习计划</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
@@ -95,6 +97,7 @@ export default function App() {
         {tab === 'apply' && <ApplyDesk />}
         {tab === 'applications' && <Applications />}
         {tab === 'offer' && <OfferDesk />}
+        {tab === 'network' && <NetworkDesk />}
         {tab === 'system' && <System />}
       </main>
     </div>

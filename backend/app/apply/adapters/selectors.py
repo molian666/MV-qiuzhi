@@ -62,14 +62,12 @@ class BossSelectors(SelectorSet):
 
 
 @dataclass(slots=True)
-class LiepinSelectors(SelectorSet):
-    """猎聘（M14 接入第二平台时再校准）。"""
+class LiepinSelectors(BossSelectors):
+    """猎聘。字段用途与 Boss 相同（都是"搜索框/卡片/详情/招呼"这几件事），
+    所以直接复用同一套字段定义——**只有值不同**。多一层继承比复制一遍字段更不容易漏。"""
 
-    search_input: str = ""
-    job_card: str = ""
-    card_title: str = ""
-    card_company: str = ""
-    greet_button: str = ""
+    #: 猎聘特有的"猎头标记"在列表页也有
+    list_headhunter_marker: str = ""
 
 
 SELECTOR_SETS: dict[str, type[SelectorSet]] = {

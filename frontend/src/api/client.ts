@@ -15,6 +15,13 @@ import type {
   ApplyStatus,
   AtsIssue,
   ContractReport,
+  ContactDetail,
+  ContactItem,
+  FollowUpItem,
+  LearningItemData,
+  LearningSummaryData,
+  MasteryLink,
+  NetworkOptions,
   CreateRecordingPayload,
   CreateResumePayload,
   CreateSessionPayload,
@@ -297,4 +304,41 @@ export const api = {
   getNegotiation: (id: number) => request<Negotiation>(`/negotiations/${id}`),
   replyNegotiation: (id: number, text: string) =>
     request<Negotiation>(`/negotiations/${id}/reply`, { method: 'POST', body: JSON.stringify({ text }) }),
+
+  // 人脉与学习计划（M14）
+  networkOptions: () => request<NetworkOptions>('/network/options'),
+  listContacts: (relation?: string) => {
+    const suffix = relation ? `?relation=${relation}` : ''
+    return request<ContactItem[]>(`/contacts${suffix}`)
+  },
+  createContact: (payload: Partial<ContactItem>) =>
+    request<ContactItem>('/contacts', { method: 'POST', body: JSON.stringify(payload) }),
+  getContact: (id: number) => request<ContactDetail>(`/contacts/${id}`),
+  updateContact: (id: number, payload: Partial<ContactItem>) =>
+    request<ContactItem>(`/contacts/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteContact: (id: number) => request<void>(`/contacts/${id}`, { method: 'DELETE' }),
+  addInteraction: (
+    contactId: number,
+    payload: { summary: string; kind?: string; promised?: string; at?: string; direction?: string },
+  ) =>
+    request<{ id: number }>(`/contacts/${contactId}/interactions`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  /** 该跟进的人（逾期优先，每条都带可直接发的话术） */
+  followUps: (horizonDays = 14, includeLater = false) =>
+    request<FollowUpItem[]>(`/follow-ups?horizon_days=${horizonDays}&include_later=${includeLater}`),
+
+  listLearning: (status?: string) => {
+    const suffix = status ? `?status=${status}` : ''
+    return request<LearningItemData[]>(`/learning${suffix}`)
+  },
+  generateLearning: (payload: { limit?: number; replace?: boolean; resume_id?: number | null } = {}) =>
+    request<LearningItemData[]>('/learning/generate', { method: 'POST', body: JSON.stringify(payload) }),
+  updateLearning: (id: number, payload: Partial<LearningItemData>) =>
+    request<LearningItemData>(`/learning/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteLearning: (id: number) => request<void>(`/learning/${id}`, { method: 'DELETE' }),
+  learningSummary: () => request<LearningSummaryData>('/learning/summary'),
+  /** 把「我学完了」和「我掌握了」对上 */
+  learningInsight: () => request<MasteryLink[]>('/learning/insight'),
 }

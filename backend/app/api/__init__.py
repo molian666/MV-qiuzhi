@@ -11,6 +11,7 @@ from . import (
     decision,
     expression,
     interview_options,
+    network,
     profiles,
     questions,
     recordings,
@@ -53,4 +54,5 @@ api_router.include_router(story.router)
 api_router.include_router(expression.router)
 api_router.include_router(interview_options.router)
 api_router.include_router(decision.router)
+api_router.include_router(network.router)
 api_router.include_router(ws.router)

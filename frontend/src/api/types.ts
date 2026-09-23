@@ -277,6 +277,107 @@ export interface DecisionOptions {
   offer_statuses: { key: string; label: string }[]
 }
 
+// -------------------------------------------------------------------------- //
+// 人脉与学习计划（M14）
+// -------------------------------------------------------------------------- //
+
+export interface ContactItem {
+  id: number
+  name: string
+  relation: string
+  company: string
+  title: string
+  channel: string
+  contact_info: string
+  note: string
+  /** 0 = 用该关系的默认节奏 */
+  follow_up_days: number
+  key_dates: { label?: string; month?: number; day?: number }[]
+  application_id: number | null
+  last_contact_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TimelineRow {
+  at: string
+  direction: string
+  direction_label: string
+  kind: string
+  kind_label: string
+  summary: string
+  promised: string
+  next_follow_up_at: string | null
+}
+
+export interface ContactDetail {
+  contact: ContactItem
+  timeline: TimelineRow[]
+  health: { level?: string; days_since?: number | null; ratio?: number }
+  next_follow_up_at: string | null
+  greeting: string | null
+}
+
+export interface FollowUpItem {
+  contact_id: number
+  name: string
+  relation: string
+  relation_label: string
+  company: string
+  channel: string
+  due_at: string | null
+  days_overdue: number
+  urgency: 'overdue' | 'today' | 'soon' | 'later'
+  reason: string
+  suggested: string
+  promise: string
+}
+
+export interface LearningItemData {
+  id: number
+  title: string
+  topic: string
+  source: string
+  priority: number
+  reason: string
+  action: string
+  hours: number
+  status: string
+  done_at: string | null
+  breakdown: Record<string, number>
+  created_at: string
+  updated_at: string
+}
+
+export interface LearningSummaryData {
+  total: number
+  done: number
+  doing: number
+  todo: number
+  hours_total: number
+  hours_done: number
+  progress: number
+  note: string
+}
+
+export interface MasteryLink {
+  topic: string
+  status: string
+  priority: number
+  mastery: number
+  /** 没有掌握度记录时为 false —— 没数据不等于掌握度 0 */
+  has_data: boolean
+  attempts: number
+  note: string
+}
+
+export interface NetworkOptions {
+  relations: { key: string; label: string; default_follow_up_days: number }[]
+  interaction_kinds: { key: string; label: string }[]
+  learning_statuses: { key: string; label: string }[]
+  learning_sources: { key: string; label: string }[]
+}
+
 export interface JobTarget {
   id: number
   company: string
