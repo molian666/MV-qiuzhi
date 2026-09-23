@@ -14,8 +14,11 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Sequence
+
+from .locale import LOCALES, filler_words
 
 # --------------------------------------------------------------------------- #
 # 阈值（都是一眼能看懂的经验值，改了会影响所有报告，所以集中放在这里）
@@ -32,34 +35,13 @@ PAUSE_MIN_MS = 600
 PAUSE_LONG_MS = 1500
 PAUSE_VERY_LONG_MS = 3000
 
-#: 强填充词：一听就是"卡壳"，也是录回听时最容易数出来的
-STRONG_FILLERS: tuple[str, ...] = (
-    "嗯",
-    "呃",
-    "啊",
-    "那个",
-    "就是说",
-    "怎么说呢",
-    "对不对",
-    "是吧",
-    "你知道吗",
-)
-#: 弱填充词：日常口语里很常见，用多了显得啰嗦，但不至于"卡壳"
-WEAK_FILLERS: tuple[str, ...] = (
-    "然后",
-    "就是",
-    "其实",
-    "反正",
-    "所以说",
-    "我觉得吧",
-    "然后呢",
-    "接下来呢",
-    "那个时候",
-)
+#: 默认（中文）填充词表。英文表在 analysis/locale.py 里，按 locale 切
+STRONG_FILLERS: tuple[str, ...] = LOCALES["zh"].strong_fillers
+WEAK_FILLERS: tuple[str, ...] = LOCALES["zh"].weak_fillers
 
 #: 加权密度：强填充词的权重高，因为"嗯"和"然后"对听感的伤害不是一个量级
-FILLER_WEIGHT: dict[str, float] = {word: 1.0 for word in STRONG_FILLERS}
-FILLER_WEIGHT.update({word: 0.35 for word in WEAK_FILLERS})
+FILLER_STRONG_WEIGHT = 1.0
+FILLER_WEAK_WEIGHT = 0.35
 
 #: 每千字加权填充词数超过这个值就值得改
 FILLER_RATE_WARN = 8.0
@@ -175,24 +157,36 @@ class ExpressionReport:
 # --------------------------------------------------------------------------- #
 # 填充词
 # --------------------------------------------------------------------------- #
-def count_fillers(text: str, *, include_weak: bool = True) -> list[FillerHit]:
-    """数填充词。按出现次数降序，强填充词优先。"""
+def _count_occurrences(text: str, word: str, *, locale: str) -> int:
+    """英文必须按**词边界**匹配：不加边界的话「um」会命中「number」、「er」会命中「over」，
+    填充词统计直接失真。中文没有词边界概念，用子串即可。
+    """
+    if locale == "en":
+        return len(re.findall(rf"(?<![A-Za-z]){re.escape(word)}(?![A-Za-z])", text, re.IGNORECASE))
+    return text.count(word)
+
+
+def count_fillers(text: str, *, locale: str = "zh", include_weak: bool = True) -> list[FillerHit]:
+    """数填充词（按语言取词表）。按加权次数降序，强填充词优先。"""
     content = text or ""
     if not content:
         return []
 
-    words = list(STRONG_FILLERS) + (list(WEAK_FILLERS) if include_weak else [])
+    strong, weak = filler_words(locale, include_weak=include_weak)
+    strong_set = set(strong)
+
     hits: list[FillerHit] = []
-    for word in words:
-        count = content.count(word)
+    for word in list(strong) + list(weak):
+        count = _count_occurrences(content, word, locale=locale)
         if count <= 0:
             continue
+        is_strong = word in strong_set
         hits.append(
             FillerHit(
                 word=word,
                 count=count,
-                weight=FILLER_WEIGHT.get(word, 0.35),
-                strong=word in STRONG_FILLERS,
+                weight=FILLER_STRONG_WEIGHT if is_strong else FILLER_WEAK_WEIGHT,
+                strong=is_strong,
             )
         )
 
@@ -671,10 +665,12 @@ def analyze(
     volume: Sequence[float] | None = None,
     frame_ms: int = 50,
     speaker: str = "candidate",
+    locale: str = "zh",
 ) -> ExpressionReport:
     """做一次表达体检。
 
     `volume` 是逐帧 RMS（0–1）；没有音频时传 None，报告会降级为文字层面的分析。
+    `locale` 决定填充词表（英文面的 um/you know 与中文的「嗯/那个」不是一回事）。
     """
     report = ExpressionReport()
     report.has_audio = bool(volume)
@@ -690,7 +686,7 @@ def analyze(
     report.chars = chars
     report.overall_cpm = overall_cpm
 
-    fillers = count_fillers(text)
+    fillers = count_fillers(text, locale=locale)
     report.fillers = fillers
     report.filler_total = sum(item.count for item in fillers)
     report.filler_weighted = round(sum(item.weighted for item in fillers), 2)

@@ -13,7 +13,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from ..analysis.interviewer_styles import resolve_style, style_prompt_block
+from ..analysis.locale import locale_prompt_block, resolve_locale
 from ..analysis.pacing import build_policy, policy_prompt_block, policy_summary
+from ..analysis.panels import panel_prompt_block, parse_panel
+from ..analysis.pressure import normalize_pressure, pressure_prompt_block
 from ..clock import utcnow
 from ..config import get_settings
 from ..deps import get_llm, get_session
@@ -58,6 +62,45 @@ def _target_label(target: JobTarget | None) -> str:
     if target is None:
         return ""
     return " · ".join(p for p in (target.company, target.title) if p)
+
+
+def _compose_policy_block(
+    *,
+    style: Any,
+    panel: Any,
+    panel_round: int,
+    pressure: Any,
+    policy: Any,
+    locale: str,
+) -> str:
+    """把"这场面试怎么问"的几类指令合成一个块。
+
+    顺序有讲究：越靠近末尾的指令越容易被模型遵守，
+    所以风格与角色放前面、画像节奏其次、"用什么语言"放最后。
+    """
+    blocks: list[str] = []
+    if style is not None:
+        blocks.append(style_prompt_block(style, locale=locale))
+    if panel is not None:
+        blocks.append(panel_prompt_block(panel, panel_round, locale=locale))
+    if pressure is not None and pressure.enabled:
+        blocks.append(pressure_prompt_block(pressure, locale=locale))
+    if policy is not None:
+        blocks.append(policy_prompt_block(policy))
+    if locale != "zh":
+        blocks.append(locale_prompt_block(locale))
+    return "\n\n".join(block for block in blocks if block.strip())
+
+
+def _session_options(session_row: InterviewSession) -> tuple[Any, Any, Any, str]:
+    """从 session.plan 里还原这场面试的配置（压力 / 连环面 / 风格 / 语言）。"""
+    plan = session_row.plan or {}
+    pressure = normalize_pressure(plan.get("pressure"))
+    panel = parse_panel(plan.get("panel"))
+    style_key = plan.get("style_key")
+    style = resolve_style(style_key) if style_key else None
+    locale_key = str(plan.get("locale") or "zh")
+    return pressure, panel, style, locale_key
 
 
 def _load_target(db: Session, session_row: InterviewSession) -> JobTarget | None:
@@ -124,8 +167,17 @@ async def create_session(
             raise HTTPException(status_code=404, detail=f"简历不存在：{payload.resume_id}")
 
     max_questions = payload.max_questions or settings.default_max_questions
-    style = payload.style or DEFAULT_STYLE
     provider = getattr(llm, "name", "")
+
+    # M11：压力模式 / 面试官风格预设 / 连环面 / 语言
+    pressure = normalize_pressure(payload.pressure)
+    locale_key = resolve_locale(payload.locale).key
+    panel = parse_panel(payload.panel)
+    style_preset = resolve_style(payload.style_key) if payload.style_key else None
+    if panel is not None:
+        # 连环面时每轮的角色由 panel 决定，单独的 style_key 让位
+        style_preset = panel.style_for(0)
+    style = payload.style or (style_preset.label if style_preset else DEFAULT_STYLE)
 
     # M4：选了面试官画像 → 这场面试按那个节奏来
     profile: InterviewerProfile | None = None
@@ -134,7 +186,20 @@ async def create_session(
         if profile is None:
             raise HTTPException(status_code=404, detail=f"面试官画像不存在：{payload.interviewer_profile_id}")
 
-    session_plan: dict[str, Any] = {"max_questions": max_questions, "style": style}
+    session_plan: dict[str, Any] = {
+        "max_questions": max_questions,
+        "style": style,
+        "locale": locale_key,
+        "pressure": pressure.to_dict(),
+    }
+    if style_preset is not None:
+        session_plan["style_key"] = style_preset.key
+        session_plan["style_label"] = style_preset.label
+        # 语音链路按角色选音色（多角色连环面时每轮都不同）
+        session_plan["interviewer_voice"] = style_preset.voice
+    if panel is not None:
+        session_plan["panel"] = panel.to_dict()
+        session_plan["panel_current"] = panel.current(0)
     policy = (
         build_policy(
             profile.params,
@@ -165,6 +230,15 @@ async def create_session(
     session_id = session_row.id or 0
 
     interviewer = Interviewer(llm)
+    # M11：开场用的行为指令（风格 → 角色 → 压力 → 画像 → 语言）
+    opening_policy_block = _compose_policy_block(
+        style=style_preset,
+        panel=panel,
+        panel_round=0,
+        pressure=pressure,
+        policy=policy,
+        locale=locale_key,
+    )
     try:
         plan, result = await interviewer.next_question(
             turns=[],
@@ -172,7 +246,7 @@ async def create_session(
             resume=resume,
             max_questions=max_questions,
             style=style,
-            policy_block=policy_prompt_block(policy) if policy is not None else "",
+            policy_block=opening_policy_block,
         )
     except LLMError as exc:
         log_llm_error(db, task="interview_turn", provider=provider, error=str(exc), session_id=session_id)
@@ -190,7 +264,7 @@ async def create_session(
         text=plan.question,
         kind=plan.kind or "opening",
         topic=plan.topic,
-        meta=plan.raw,
+        meta={**dict(plan.raw or {}), "interviewer": panel.current(0)} if panel is not None else plan.raw,
         start_ms=0,
         end_ms=0,
     )
@@ -247,6 +321,22 @@ async def submit_answer(
     # M8：按"上一个问题 + 这次回答"挑出最相关的故事卡，让追问落在你真做过的经历上
     last_question = next((turn.text for turn in reversed(turns) if turn.speaker == "interviewer"), "")
     story_block = prompt_block_for(db, question=f"{last_question}\n{payload.text}", limit=2) if last_question else ""
+
+    # M11：这一轮该由谁问（连环面会换人，音色也跟着换）
+    pressure, panel, style_preset, locale_key = _session_options(session_row)
+    round_index = answer_count
+    if panel is not None:
+        style_preset = panel.style_for(round_index)
+    question_policy_block = _compose_policy_block(
+        style=style_preset,
+        panel=panel,
+        panel_round=round_index,
+        pressure=pressure,
+        policy=policy,
+        locale=locale_key,
+    )
+    current_interviewer = panel.current(round_index) if panel is not None else {}
+
     try:
         plan, result = await interviewer.next_question(
             turns=turns,
@@ -255,7 +345,7 @@ async def submit_answer(
             max_questions=max_questions,
             style=style,
             closing=closing,
-            policy_block=policy_prompt_block(policy) if policy is not None else "",
+            policy_block=question_policy_block,
             story_block=story_block,
         )
     except LLMError as exc:
@@ -272,7 +362,7 @@ async def submit_answer(
         kind="closing" if closing else (plan.kind or "new_topic"),
         topic=plan.topic,
         is_followup=plan.is_followup and not closing,
-        meta=plan.raw,
+        meta={**dict(plan.raw or {}), "interviewer": current_interviewer} if current_interviewer else plan.raw,
         start_ms=elapsed,
         end_ms=elapsed,
     )

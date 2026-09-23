@@ -18,6 +18,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
+from ..analysis.pressure import exceeded_time_limit, normalize_pressure, should_interrupt
 from ..clock import utcnow
 from ..db import session_scope
 from ..models.core import JobTarget, Resume
@@ -50,6 +51,11 @@ class VoiceRuntimeConfig:
     policy_block: str = ""
     # M8：按当前问题挑出的故事卡事实底稿（由调用方查库拼好，编排层不碰 DB）
     story_block: str = ""
+    # M11：压力模式里"运行时能管"的两项（追问深度由文本链路管）
+    #: >0 表示候选人说这么久还没停就插话（打断模式）
+    interrupt_after_ms: int = 0
+    #: >0 表示每题限时多少秒（限时模式）
+    answer_seconds: int = 0
 
 
 class VoiceSessionRuntime:
@@ -91,6 +97,19 @@ class VoiceSessionRuntime:
         self._last_metrics_ms = -(10**9)
         self._busy = False
         self._closed = False
+
+        # M11：压力模式（0 表示关着，normalize 会把 0 翻译成"这个模式没开"）
+        self._pressure = normalize_pressure(
+            {
+                "interrupt": self.config.interrupt_after_ms > 0,
+                "interrupt_after_ms": self.config.interrupt_after_ms or 12_000,
+                "time_limit": self.config.answer_seconds > 0,
+                "answer_seconds": self.config.answer_seconds or 90,
+            }
+        )
+        #: 本回合开口时的**音频时长**（压力模式据此算"他说了多久"）。
+        #: 用音频时长而不是墙上时钟：处理音频可能比采集快或慢，只有音频时长才等于"他说了多久"。
+        self._answer_started_ms: int | None = None
 
     # ------------------------------------------------------------------ #
     # 生命周期
@@ -193,6 +212,8 @@ class VoiceSessionRuntime:
         if event.kind == "speech_started":
             self._turn_start_ms = self._store.duration_ms
             self._speech_started_at_ms = event.at_ms
+            # M11：开始计时（打断与限时都从这里算；基准是音频时长，见 _answer_started_ms 的说明）
+            self._answer_started_ms = self._now_ms()
             self._store.begin_turn(self._turn_index)
             # 回填"开口"的那几帧：它们已经在 full.wav 里，但语音起点必须属于本回合
             for buffered in list(self._frame_buffer)[-self._vad.config.start_frames :]:
@@ -223,7 +244,51 @@ class VoiceSessionRuntime:
         elif event.kind == "error":
             await self._send({"type": "error", "message": event.message})
 
+    async def _check_pressure(self) -> None:
+        """压力模式：说太久就插话，超时就收口。
+
+        两件事都通过**结束当前回合**实现——这在听感上就是"被打断"或"时间到了"。
+        如果只是发个提示让用户自己停，那就练不到东西了。
+        """
+        config = self._pressure
+        if not config.enabled or self._answer_started_ms is None or self._busy or self._closed:
+            return
+
+        settings = config.clamped()
+        elapsed = self._now_ms() - self._answer_started_ms
+
+        if exceeded_time_limit(elapsed, config):
+            self._answer_started_ms = None
+            await self._send(
+                {
+                    "type": "pressure",
+                    "mode": "time_limit",
+                    "elapsed_ms": elapsed,
+                    "limit_seconds": settings.answer_seconds,
+                    "message": f"限时 {settings.answer_seconds} 秒已到，进入下一题",
+                }
+            )
+            await self._end_turn(self._turns.decide_manual(self._now_ms()))
+            return
+
+        if should_interrupt(elapsed, config):
+            self._answer_started_ms = None
+            await self._send(
+                {
+                    "type": "pressure",
+                    "mode": "interrupt",
+                    "elapsed_ms": elapsed,
+                    "after_ms": settings.interrupt_after_ms,
+                    "message": "面试官插话了：他会针对你刚说的内容追问",
+                }
+            )
+            await self._end_turn(self._turns.decide_manual(self._now_ms()))
+
     async def _maybe_emit_metrics(self) -> None:
+        # M11：压力模式的时间检查搭在这里 —— 音频帧驱动，500ms 的精度对"打断"完全够用，
+        # 也就不需要再起一个定时器（少一个并发源）
+        await self._check_pressure()
+
         audio_ms = self._store.duration_ms
         if audio_ms - self._last_metrics_ms < self.config.metrics_interval_ms:
             return
@@ -272,6 +337,9 @@ class VoiceSessionRuntime:
     async def _end_turn(self, decision: TurnDecision) -> None:
         if self._busy or self._closed:
             return
+
+        # M11：这一回合结束了，压力计时归零
+        self._answer_started_ms = None
 
         # 收好这一回合的音频切片，稍后写进 session_turn.audio_path（回放要靠它）
         turn_audio = self._store.end_turn()

@@ -15,6 +15,8 @@ export interface Turn {
   created_at: string
   /** 该回合的录音切片地址（M1 起有；空表示该回合没有音频） */
   audio_url: string | null
+  /** 编排附加信息（M11 起含当前面试官角色，用于显示"现在是谁在问"） */
+  meta?: Record<string, unknown>
 }
 
 export interface SessionSummary {
@@ -55,6 +57,77 @@ export interface CreateSessionPayload {
   mode?: 'text' | 'realtime'
   max_questions?: number | null
   style?: string | null
+  /** M11：压力模式（可叠加） */
+  pressure?: Partial<PressureSettings> | null
+  /** M11：面试官风格预设（配了 panel 时会被忽略） */
+  style_key?: string | null
+  /** M11：多角色连环面 */
+  panel?: PanelStageSpec[] | null
+  /** M11：面试语言 */
+  locale?: string
+}
+
+// -------------------------------------------------------------------------- //
+// 压力模式与多角色（M11）
+// -------------------------------------------------------------------------- //
+
+export interface PressureSettings {
+  deep_drill: boolean
+  max_depth: number
+  interrupt: boolean
+  interrupt_after_ms: number
+  time_limit: boolean
+  answer_seconds: number
+  speed: number
+}
+
+export interface PressureModeOption {
+  key: string
+  label: string
+  summary: string
+  defaults: Record<string, number>
+}
+
+export interface InterviewerStyleOption {
+  key: string
+  label: string
+  summary: string
+  tone: string
+  voice: string
+  voice_label: string
+  followup_depth: number
+  stress_level: number
+  question_mix: Record<string, number>
+}
+
+export interface LocaleOption {
+  key: string
+  label: string
+  speech_note: string
+}
+
+export interface PanelStageSpec {
+  style_key: string
+  rounds: number
+}
+
+export interface InterviewOptions {
+  pressure_modes: PressureModeOption[]
+  styles: InterviewerStyleOption[]
+  default_panel: PanelStageSpec[]
+  voices: { key: string; label: string }[]
+  locales: LocaleOption[]
+}
+
+/** 当前面试官（从 turn.meta.interviewer 读） */
+export interface InterviewerMeta {
+  index: number
+  total: number
+  style_key: string
+  label: string
+  voice: string
+  voice_label: string
+  is_handover: boolean
 }
 
 export interface JobTarget {

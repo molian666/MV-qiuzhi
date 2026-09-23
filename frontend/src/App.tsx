@@ -54,7 +54,7 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-baseline gap-3">
             <h1 className="text-lg font-semibold">mianshi · 求职操作系统</h1>
-            <span className="text-xs text-slate-500">M9：表达体检</span>
+            <span className="text-xs text-slate-500">M11：压力模式与多角色</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">

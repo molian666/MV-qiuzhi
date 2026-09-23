@@ -9,6 +9,7 @@ from . import (
     applications,
     apply,
     expression,
+    interview_options,
     profiles,
     questions,
     recordings,
@@ -49,4 +50,5 @@ api_router.include_router(applications.router)
 api_router.include_router(apply.router)
 api_router.include_router(story.router)
 api_router.include_router(expression.router)
+api_router.include_router(interview_options.router)
 api_router.include_router(ws.router)

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { JobTarget, ProfileListItem, ResumeItem, SessionDetail } from '../api/types'
+import InterviewSetup, { DEFAULT_SETUP, interviewerOf, setupToPayload, type SetupValue } from '../components/InterviewSetup'
+import type { InterviewOptions, JobTarget, ProfileListItem, ResumeItem, SessionDetail } from '../api/types'
 
 const SPEAKER_LABEL: Record<string, string> = {
   interviewer: '面试官',
@@ -34,6 +35,9 @@ export default function InterviewLive({ onOpenReport }: Props) {
   const [resumeId, setResumeId] = useState('')
   const [maxQuestions, setMaxQuestions] = useState(5)
   const [style, setStyle] = useState('标准技术面')
+  // M11：压力模式 / 面试官风格 / 连环面 / 语言
+  const [options, setOptions] = useState<InterviewOptions | null>(null)
+  const [setup, setSetup] = useState<SetupValue>(DEFAULT_SETUP)
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -72,6 +76,17 @@ export default function InterviewLive({ onOpenReport }: Props) {
   const isLive = session?.status === 'live'
   const maxQ = session?.plan.max_questions ?? maxQuestions
 
+  const currentInterviewer = session
+    ? interviewerOf(session.turns.filter((turn) => turn.speaker === 'interviewer').slice(-1)[0]?.meta)
+    : null
+
+  useEffect(() => {
+    api
+      .interviewOptions()
+      .then(setOptions)
+      .catch(() => setOptions(null))
+  }, [])
+
   const startSession = async () => {
     setBusy(true)
     setError('')
@@ -82,6 +97,8 @@ export default function InterviewLive({ onOpenReport }: Props) {
         interviewer_profile_id: profileId ? Number(profileId) : null,
         max_questions: maxQuestions,
         style,
+        // M11：压力模式 / 面试官风格 / 连环面 / 语言
+        ...setupToPayload(setup),
       })
       setSession(created)
     } catch (err) {
@@ -242,6 +259,14 @@ export default function InterviewLive({ onOpenReport }: Props) {
           </div>
         </header>
 
+        {currentInterviewer && (
+          <div className="border-b border-violet-100 bg-violet-50 px-4 py-1.5 text-xs text-violet-900">
+            当前面试官：第 {currentInterviewer.index + 1}/{currentInterviewer.total} 位 · {currentInterviewer.label} ·{' '}
+            {currentInterviewer.voice_label}
+            {currentInterviewer.is_handover && <span className="ml-2 font-medium">（刚换人）</span>}
+          </div>
+        )}
+
         <div ref={streamRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {!session && (
             <div className="rounded-lg border border-dashed border-slate-300 p-6 text-sm leading-relaxed text-slate-500">
@@ -369,6 +394,8 @@ export default function InterviewLive({ onOpenReport }: Props) {
               </option>
             ))}
           </select>
+
+          <InterviewSetup options={options} value={setup} onChange={setSetup} disabled={busy} />
 
           <button
             type="button"

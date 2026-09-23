@@ -17,6 +17,15 @@ class SessionCreate(BaseModel):
     max_questions: int | None = Field(default=None, ge=1, le=30)
     style: str | None = None
 
+    # M11：压力模式（追问到底 / 打断 / 限时，可叠加）
+    pressure: dict[str, Any] | None = None
+    #: 面试官风格预设（technical / cross / manager / hr / behavioral / stress）
+    style_key: str | None = None
+    #: 多角色连环面：按轮次切换面试官，配了它就忽略 style_key
+    panel: list[dict[str, Any]] | None = None
+    #: 面试语言（zh / en）
+    locale: str = "zh"
+
 
 class AnswerIn(BaseModel):
     text: str = Field(min_length=1, max_length=8000)
@@ -32,6 +41,8 @@ class TurnOut(BaseModel):
     kind: str = ""
     topic: str = ""
     is_followup: bool = False
+    #: 模型原始输出 + 编排附加信息（M11 起含当前面试官角色，前端据此显示"现在是谁在问"）
+    meta: dict[str, Any] = Field(default_factory=dict)
     start_ms: int | None = None
     end_ms: int | None = None
     created_at: datetime

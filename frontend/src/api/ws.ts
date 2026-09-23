@@ -111,6 +111,18 @@ export interface PongEvent {
   seq: number
 }
 
+export interface PressureEvent {
+  type: 'pressure'
+  /** 每个下行事件都带 seq，前端据此去重与续接 */
+  seq: number
+  /** interrupt=面试官插话；time_limit=这题时间到了 */
+  mode: 'interrupt' | 'time_limit'
+  elapsed_ms: number
+  message: string
+  limit_seconds?: number
+  after_ms?: number
+}
+
 export type ServerEvent =
   | StateEvent
   | InterviewerTextEvent
@@ -123,6 +135,7 @@ export type ServerEvent =
   | TurnMetaEvent
   | AwaitingTextEvent
   | FinishedEvent
+  | PressureEvent
   | ErrorEvent
   | PongEvent
 

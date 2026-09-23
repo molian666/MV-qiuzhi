@@ -8,7 +8,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { JobTarget, ProfileListItem, ResumeItem, SessionDetail, Turn } from '../api/types'
+import InterviewSetup, { DEFAULT_SETUP, interviewerOf, setupToPayload, type SetupValue } from '../components/InterviewSetup'
+import type { InterviewOptions, JobTarget, ProfileListItem, ResumeItem, SessionDetail, Turn } from '../api/types'
 import type { ServerEvent } from '../api/ws'
 import { SessionSocket } from '../api/ws'
 import { startMicCapture } from '../audio/mic'
@@ -44,6 +45,10 @@ export default function InterviewVoice({ onOpenReport }: Props) {
   const [targetId, setTargetId] = useState('')
   const [resumeId, setResumeId] = useState('')
   const [maxQuestions, setMaxQuestions] = useState(4)
+  // M11：压力模式 / 面试官风格 / 连环面 / 语言
+  const [options, setOptions] = useState<InterviewOptions | null>(null)
+  const [setup, setSetup] = useState<SetupValue>(DEFAULT_SETUP)
+  const [pressureNote, setPressureNote] = useState('')
 
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [turns, setTurns] = useState<Turn[]>([])
@@ -70,9 +75,26 @@ export default function InterviewVoice({ onOpenReport }: Props) {
     setTurns((previous) => (previous.some((item) => item.idx === turn.idx) ? previous : [...previous, turn]))
   }, [])
 
+  const currentInterviewer = interviewerOf(
+    turns.filter((turn) => turn.speaker === 'interviewer').slice(-1)[0]?.meta,
+  )
+
+  useEffect(() => {
+    api
+      .interviewOptions()
+      .then(setOptions)
+      .catch(() => setOptions(null))
+  }, [])
+
   const handleEvent = useCallback(
     (event: ServerEvent) => {
       switch (event.type) {
+        case 'pressure':
+          // M11：压力模式到点了 —— 服务端已经结束了这一回合，这里只负责说清楚为什么
+          setPressureNote(event.message)
+          setStatus(event.mode === 'interrupt' ? '面试官插话了' : '这题时间到了')
+          break
+
         case 'state':
           setAudioMode(event.audio_mode)
           setTextFallback(event.text_fallback)
@@ -236,6 +258,8 @@ export default function InterviewVoice({ onOpenReport }: Props) {
         interviewer_profile_id: profileId ? Number(profileId) : null,
         max_questions: maxQuestions,
         mode: 'realtime',
+        // M11：压力模式 / 面试官风格 / 连环面 / 语言
+        ...setupToPayload(setup),
       })
       setSession(created)
       setTurns(created.turns)
@@ -353,6 +377,26 @@ export default function InterviewVoice({ onOpenReport }: Props) {
             )}
           </div>
         </header>
+
+        {(currentInterviewer || pressureNote) && (
+          <div className="space-y-1 border-b border-violet-100 bg-violet-50 px-4 py-1.5 text-xs text-violet-900">
+            {currentInterviewer && (
+              <div>
+                当前面试官：第 {currentInterviewer.index + 1}/{currentInterviewer.total} 位 ·{' '}
+                {currentInterviewer.label} · {currentInterviewer.voice_label}
+                {currentInterviewer.is_handover && <span className="ml-2 font-medium">（刚换人）</span>}
+              </div>
+            )}
+            {pressureNote && (
+              <div className="text-rose-800">
+                {pressureNote}
+                <button type="button" className="ml-2 underline" onClick={() => setPressureNote('')}>
+                  知道了
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div ref={streamRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {turns.length === 0 && (
@@ -537,6 +581,8 @@ export default function InterviewVoice({ onOpenReport }: Props) {
               </option>
             ))}
           </select>
+
+          <InterviewSetup options={options} value={setup} onChange={setSetup} disabled={busy || connected} />
 
           <button
             type="button"

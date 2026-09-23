@@ -17,6 +17,7 @@ from ..deps import get_llm, get_speech_provider
 from ..models.session import InterviewSession
 from ..pacing_service import load_policy_for_session
 from ..realtime.audio_store import AudioStore
+from ..analysis.pressure import normalize_pressure
 from ..realtime.session_runtime import VoiceRuntimeConfig, VoiceSessionRuntime
 from ..story_service import starred_block
 router = APIRouter(tags=["realtime"])
@@ -48,6 +49,9 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
     llm = get_llm()
     store = AudioStore(settings.audio_dir, session_id, sample_rate=speech.sample_rate)
 
+    # M11：压力模式（语音这边只管打断与限时；追问深度由文本链路管）
+    pressure = normalize_pressure(plan.get("pressure"))
+
     runtime = VoiceSessionRuntime(
         session_id=session_id,
         llm=llm,
@@ -66,6 +70,9 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
             policy_block=policy_prompt_block(policy) if policy is not None else "",
             # M8：语音会话的底稿在开始时固定，所以给"主推的故事卡"而不是每轮重挑
             story_block=starred_block(db),
+            # M11：0 表示这个模式没开
+            interrupt_after_ms=(pressure.clamped().interrupt_after_ms if pressure.interrupt else 0),
+            answer_seconds=(pressure.clamped().answer_seconds if pressure.time_limit else 0),
         ),
     )
 

@@ -20,6 +20,7 @@ import type {
   CreateTargetPayload,
   ExpressionReport,
   Health,
+  InterviewOptions,
   ImportBatch,
   ImportOutcome,
   JobTarget,
@@ -258,4 +259,7 @@ export const api = {
     request<ExpressionReport>(`/sessions/${sessionId}/expression?with_audio=${withAudio ? 'true' : 'false'}`, {
       method: 'POST',
     }),
+
+  // 压力模式与多角色（M11）
+  interviewOptions: () => request<InterviewOptions>('/interview-options'),
 }
