@@ -12,6 +12,7 @@ from .apply import (
 )
 from .core import JobTarget, QuestionAttempt, QuestionBank, Resume
 from .expression import ExpressionSnapshot
+from .offer import OFFER_STATUS_LABELS, OFFER_STATUSES, Offer
 from .pacing import InterviewerProfile, PacingSample, Recording, TranscriptSegment
 from .scoring import (
     ImprovementItem,
@@ -45,6 +46,9 @@ __all__ = [
     "JobTarget",
     "LLMCall",
     "MasteryEvent",
+    "OFFER_STATUSES",
+    "OFFER_STATUS_LABELS",
+    "Offer",
     "PacingSample",
     "PlatformAccount",
     "ProviderConfig",

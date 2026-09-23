@@ -14,10 +14,12 @@ import type {
   ApplySettings,
   ApplyStatus,
   AtsIssue,
+  ContractReport,
   CreateRecordingPayload,
   CreateResumePayload,
   CreateSessionPayload,
   CreateTargetPayload,
+  DecisionOptions,
   ExpressionReport,
   Health,
   InterviewOptions,
@@ -28,6 +30,9 @@ import type {
   MasteryOverview,
   MatchBandReport,
   MatchResult,
+  Negotiation,
+  OfferItem,
+  OfferMatrix,
   ProfileDetail,
   ProfileListItem,
   ProviderStatus,
@@ -35,6 +40,7 @@ import type {
   RecordingDetail,
   ReportSummary,
   ResumeItem,
+  RiskReport,
   ScoreReport,
   SessionDetail,
   SessionSummary,
@@ -262,4 +268,33 @@ export const api = {
 
   // 压力模式与多角色（M11）
   interviewOptions: () => request<InterviewOptions>('/interview-options'),
+
+  // Offer 与决策（M12）
+  decisionOptions: () => request<DecisionOptions>('/decision/options'),
+  listOffers: () => request<OfferItem[]>('/offers'),
+  createOffer: (payload: Partial<OfferItem>) =>
+    request<OfferItem>('/offers', { method: 'POST', body: JSON.stringify(payload) }),
+  updateOffer: (id: number, payload: Partial<OfferItem>) =>
+    request<OfferItem>(`/offers/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteOffer: (id: number) => request<void>(`/offers/${id}`, { method: 'DELETE' }),
+  /** 权重一变排名就可能翻转，所以每次都重新算 */
+  offerMatrix: (weights: Record<string, number>) =>
+    request<OfferMatrix>('/offers/matrix', { method: 'POST', body: JSON.stringify({ weights }) }),
+  scanRisk: (text: string) =>
+    request<RiskReport>('/decision/risk', { method: 'POST', body: JSON.stringify({ text }) }),
+  scanContract: (text: string) =>
+    request<ContractReport>('/decision/contract', { method: 'POST', body: JSON.stringify({ text }) }),
+
+  listNegotiations: () => request<Negotiation[]>('/negotiations'),
+  startNegotiation: (payload: {
+    company?: string
+    title?: string
+    bottom_line?: number
+    target?: number
+    ceiling?: number | null
+    script?: string
+  }) => request<Negotiation>('/negotiations', { method: 'POST', body: JSON.stringify(payload) }),
+  getNegotiation: (id: number) => request<Negotiation>(`/negotiations/${id}`),
+  replyNegotiation: (id: number, text: string) =>
+    request<Negotiation>(`/negotiations/${id}/reply`, { method: 'POST', body: JSON.stringify({ text }) }),
 }

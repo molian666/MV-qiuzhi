@@ -130,6 +130,153 @@ export interface InterviewerMeta {
   is_handover: boolean
 }
 
+// -------------------------------------------------------------------------- //
+// Offer 与决策（M12）
+// -------------------------------------------------------------------------- //
+
+export interface OfferItem {
+  id: number
+  company: string
+  title: string
+  application_id: number | null
+  monthly_salary: number
+  months_per_year: number
+  annual_bonus: number
+  equity_per_year: number
+  signing_bonus: number
+  factors: Record<string, number>
+  status: string
+  deadline: string | null
+  note: string
+  /** 首年总包（服务端算） */
+  total_comp: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ScoreRow {
+  offer_id: number
+  company: string
+  title: string
+  total: number
+  rank: number
+  breakdown: Record<string, number>
+  stars: Record<string, number>
+}
+
+export interface FlipPoint {
+  factor: string
+  label: string
+  weight: number
+  winner: number
+  winner_company: string
+  loser: number
+  loser_company: string
+  message: string
+}
+
+export interface OfferMatrix {
+  rows: ScoreRow[]
+  flips: FlipPoint[]
+  weights: Record<string, number>
+  notes: string[]
+  disclaimer: string
+}
+
+export interface RiskSource {
+  label: string
+  url: string
+  what: string
+  /** 工具没有访问过这些来源，所以永远是 false */
+  verified: boolean
+}
+
+export interface RiskSignal {
+  key: string
+  label: string
+  severity: 'warn' | 'info'
+  why: string
+  action: string
+  sources: string[]
+  matched: string[]
+  disclaimer: string
+}
+
+export interface RiskReport {
+  signals: RiskSignal[]
+  sources: RiskSource[]
+  disclaimer: string
+  checked_chars: number
+}
+
+export interface ContractClauseItem {
+  key: string
+  label: string
+  severity: 'must_ask' | 'should_ask'
+  question: string
+  why: string
+  trap: string
+}
+
+export interface ClauseHit {
+  clause: ContractClauseItem
+  matched: string[]
+}
+
+export interface ContractReport {
+  mentioned: ClauseHit[]
+  checklist: ClauseHit[]
+  missing: ClauseHit[]
+  disclaimer: string
+  checked_chars: number
+}
+
+export interface NegotiationTurn {
+  speaker: string
+  text: string
+  kind: string
+  created_at: string | null
+}
+
+export interface NegotiationBrief {
+  rounds: number
+  bottom_line: number
+  target: number
+  candidate_quotes: number[]
+  interviewer_quotes: number[]
+  first_ask: number | null
+  last_ask: number | null
+  final_offer: number | null
+  bottom_line_held: boolean | null
+  concession_ratio: number
+  gap_to_target: number | null
+  tactics_used: string[]
+  tactics_missed: string[]
+  issues: string[]
+  score: number
+  summary: string
+  caveat: string
+}
+
+export interface Negotiation {
+  id: number
+  company: string
+  title: string
+  status: string
+  plan: Record<string, unknown>
+  turns: NegotiationTurn[]
+  brief: NegotiationBrief | null
+}
+
+export interface DecisionOptions {
+  dimensions: { key: string; label: string; default: number }[]
+  tactics: { key: string; label: string; summary: string; when: string }[]
+  risk_signals: { key: string; label: string; severity: string; why: string; action: string; sources: string[] }[]
+  sources: RiskSource[]
+  contract_clauses: ContractClauseItem[]
+  offer_statuses: { key: string; label: string }[]
+}
+
 export interface JobTarget {
   id: number
   company: string

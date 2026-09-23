@@ -8,6 +8,7 @@ from ..config import get_settings
 from . import (
     applications,
     apply,
+    decision,
     expression,
     interview_options,
     profiles,
@@ -51,4 +52,5 @@ api_router.include_router(apply.router)
 api_router.include_router(story.router)
 api_router.include_router(expression.router)
 api_router.include_router(interview_options.router)
+api_router.include_router(decision.router)
 api_router.include_router(ws.router)

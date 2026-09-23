@@ -398,6 +398,8 @@ def list_sessions(
 ) -> list[SessionListItem]:
     statement = (
         select(InterviewSession)
+        # M12：薪资谈判复用 interview_session，但它不是面试，不该出现在历史面试里
+        .where(InterviewSession.mode != "negotiation")
         .order_by(InterviewSession.id.desc())  # type: ignore[attr-defined]
         .offset(offset)
         .limit(limit)
