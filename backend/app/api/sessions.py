@@ -6,8 +6,6 @@ M0 走文字模式；M1 的 realtime 模式会复用这里完全相同的落库�
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import func
@@ -30,7 +28,7 @@ from ..schemas import (
     SessionOut,
     TurnOut,
 )
-from ..services import log_llm_error, log_llm_result, mark_finished
+from ..services import log_llm_error, log_llm_result, mark_finished, turn_audio_url
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -70,17 +68,7 @@ def _elapsed_ms(session_row: InterviewSession) -> int:
 
 
 def _audio_url(session_id: int, audio_path: str | None) -> str | None:
-    """把库里的 `42/turn_003.wav` 转成前端可直接播放的地址。"""
-    if not audio_path:
-        return None
-    name = Path(audio_path).name
-    if not (name.startswith("turn_") and name.endswith(".wav")):
-        return None
-    try:
-        index = int(name[len("turn_") : -len(".wav")])
-    except ValueError:
-        return None
-    return f"/api/sessions/{session_id}/audio/turns/{index}"
+    return turn_audio_url(session_id, audio_path)
 
 
 def _turn_out(session_id: int, turn: SessionTurn) -> TurnOut:

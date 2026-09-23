@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 
 from .base import LLMClient, LLMMessage, LLMResult
+from .mock_scoring import build_mock_scoring_json
 
 # (kind, topic, question)
 _MOCK_SCRIPT: list[tuple[str, str, str]] = [
@@ -38,6 +39,8 @@ class MockLLMClient(LLMClient):  # type: ignore[misc]
     ) -> LLMResult:
         if task == "interview_turn":
             text = self._next_question(messages)
+        elif task == "scoring":
+            text = build_mock_scoring_json(messages)
         else:
             text = json.dumps(
                 {

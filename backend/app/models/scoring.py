@@ -47,6 +47,8 @@ class ImprovementItem(SQLModel, table=True):
     suggestion: str = Field(default="", sa_column=Column(Text))
     corrected_answer: str = Field(default="", sa_column=Column(Text))
     drill: str = Field(default="", sa_column=Column(Text))
+    # M3 直接落模型给的原始标签（字符串）；M5 再把它们映射成 skill_topic 并写 topic_ids
+    topics: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     topic_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON))
 
 

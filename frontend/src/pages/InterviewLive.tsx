@@ -21,7 +21,11 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export default function InterviewLive() {
+interface Props {
+  onOpenReport?: (sessionId: number) => void
+}
+
+export default function InterviewLive({ onOpenReport }: Props) {
   const [targets, setTargets] = useState<JobTarget[]>([])
   const [resumes, setResumes] = useState<ResumeItem[]>([])
   const [targetId, setTargetId] = useState('')
@@ -208,13 +212,24 @@ export default function InterviewLive() {
               </button>
             )}
             {session && !isLive && (
-              <button
-                type="button"
-                onClick={() => setSession(null)}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white hover:bg-slate-800"
-              >
-                新开一场
-              </button>
+              <>
+                {onOpenReport && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenReport(session.id)}
+                    className="rounded-md bg-sky-600 px-3 py-1.5 text-xs text-white hover:bg-sky-700"
+                  >
+                    查看报告
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSession(null)}
+                  className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white hover:bg-slate-800"
+                >
+                  新开一场
+                </button>
+              </>
             )}
           </div>
         </header>

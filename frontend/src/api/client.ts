@@ -8,7 +8,9 @@ import type {
   Health,
   JobTarget,
   ProviderStatus,
+  ReportSummary,
   ResumeItem,
+  ScoreReport,
   SessionDetail,
   SessionSummary,
   Usage,
@@ -64,4 +66,10 @@ export const api = {
 
   providers: () => request<ProviderStatus>('/system/providers'),
   usage: () => request<Usage>('/system/usage'),
+
+  // 报告（M3）：GET 只读已有报告，没有就 404；POST 才会真的跑模型
+  getReport: (sessionId: number) => request<ScoreReport>(`/sessions/${sessionId}/report`),
+  createReport: (sessionId: number, force = true) =>
+    request<ScoreReport>(`/sessions/${sessionId}/report?force=${force ? 'true' : 'false'}`, { method: 'POST' }),
+  listReports: () => request<ReportSummary[]>('/reports'),
 }

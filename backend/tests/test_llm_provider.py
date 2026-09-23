@@ -71,8 +71,19 @@ async def test_mock_recognises_closing_instruction() -> None:
     assert payload["kind"] == "closing"
 
 
-async def test_mock_has_other_tasks_fallback() -> None:
-    """M3 会用到 scoring 等任务，Mock 必须能返回可解析的 JSON，别让链路提前炸。"""
+async def test_mock_scoring_returns_report_shape() -> None:
+    """scoring 任务返回完整报告结构（M3 起不再是通用兜底 JSON）。"""
     client = MockLLMClient()
     payload = extract_json((await client.complete(task="scoring", messages=[])).text)
-    assert payload["task"] == "scoring"
+    assert "overall" in payload
+    assert isinstance(payload["dimensions"], dict)
+    assert payload["dimensions"]
+    assert isinstance(payload["items"], list)
+    assert payload["summary"]
+
+
+async def test_mock_unknown_task_falls_back_to_generic_json() -> None:
+    """还没实现的任务（M8 的 resume_match 等）也要返回可解析 JSON，别让链路提前炸。"""
+    client = MockLLMClient()
+    payload = extract_json((await client.complete(task="resume_match", messages=[])).text)
+    assert payload["task"] == "resume_match"

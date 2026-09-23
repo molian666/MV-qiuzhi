@@ -8,6 +8,13 @@ from .core import (
     ResumeCreate,
     ResumeOut,
 )
+from .report import (
+    DimensionScoreOut,
+    EvidenceTurnOut,
+    ImprovementItemOut,
+    ReportSummaryOut,
+    ScoreReportOut,
+)
 from .session import (
     AnswerIn,
     AnswerOut,
@@ -21,12 +28,17 @@ from .session import (
 __all__ = [
     "AnswerIn",
     "AnswerOut",
+    "DimensionScoreOut",
+    "EvidenceTurnOut",
+    "ImprovementItemOut",
     "JobTargetCreate",
     "JobTargetOut",
     "QuestionCreate",
     "QuestionOut",
+    "ReportSummaryOut",
     "ResumeCreate",
     "ResumeOut",
+    "ScoreReportOut",
     "SessionCreate",
     "SessionDetail",
     "SessionListItem",

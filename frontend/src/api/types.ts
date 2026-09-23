@@ -25,6 +25,8 @@ export interface SessionSummary {
   resume_id: number | null
   provider: string
   plan: { max_questions?: number; style?: string }
+  /** 生成报告后回填的摘要 */
+  summary: string
   created_at: string
   started_at: string | null
   ended_at: string | null
@@ -126,4 +128,59 @@ export interface Health {
   app: string
   llm_provider: string
   data_dir: string
+}
+
+// --------------------------------------------------------------------------- //
+// 评分报告（M3）
+// --------------------------------------------------------------------------- //
+export interface DimensionScore {
+  key: string
+  label: string
+  score: number
+  comment: string
+  evidence_turn_ids: number[]
+}
+
+export interface EvidenceTurn {
+  turn_id: number
+  speaker: string
+  text: string
+  start_ms: number | null
+  end_ms: number | null
+  audio_url: string | null
+}
+
+export interface ImprovementItem {
+  id: number
+  severity: 'high' | 'medium' | 'low' | string
+  dimension: string
+  dimension_label: string
+  problem: string
+  suggestion: string
+  corrected_answer: string
+  drill: string
+  topics: string[]
+  evidence: EvidenceTurn[]
+}
+
+export interface ScoreReport {
+  id: number
+  session_id: number | null
+  overall: number
+  summary: string
+  model: string
+  generated_at: string
+  target_label: string
+  /** true = 直接复用了已有报告，没有重新跑模型 */
+  reused: boolean
+  dimensions: DimensionScore[]
+  items: ImprovementItem[]
+}
+
+export interface ReportSummary {
+  id: number
+  session_id: number | null
+  overall: number
+  generated_at: string
+  summary: string
 }

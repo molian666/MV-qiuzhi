@@ -16,6 +16,12 @@ class LLMError(RuntimeError):
     """LLM 调用失败：网络、鉴权、额度、返回体异常。"""
 
 
+# 结构化输入的包裹标记：放在协议层，让 Mock / 离线实现也能稳定解析输入，
+# 不必去猜 prompt 的自然语言文本（真实模型与 Mock 共用同一份约定）。
+RECORD_MARKER_START = "【本场面试记录 JSON】"
+RECORD_MARKER_END = "【记录结束】"
+
+
 @dataclass(slots=True)
 class LLMMessage:
     role: str  # system | user | assistant

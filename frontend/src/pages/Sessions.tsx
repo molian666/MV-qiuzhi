@@ -33,7 +33,11 @@ function formatTime(value: string | null): string {
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
-export default function Sessions() {
+interface Props {
+  onOpenReport?: (sessionId: number) => void
+}
+
+export default function Sessions({ onOpenReport }: Props) {
   const [items, setItems] = useState<SessionSummary[]>([])
   const [detail, setDetail] = useState<SessionDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -136,9 +140,20 @@ export default function Sessions() {
           <p className="text-sm text-slate-500">点击左侧任意一行查看该场面试的全部回合。</p>
         ) : (
           <>
-            <h3 className="text-sm font-semibold text-slate-800">
-              会话 #{detail.id} · {detail.target_label || '通用面试'}
-            </h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-sm font-semibold text-slate-800">
+                会话 #{detail.id} · {detail.target_label || '通用面试'}
+              </h3>
+              {onOpenReport && (
+                <button
+                  type="button"
+                  onClick={() => onOpenReport(detail.id)}
+                  className="shrink-0 rounded-md bg-sky-600 px-2.5 py-1 text-xs text-white hover:bg-sky-700"
+                >
+                  查看报告
+                </button>
+              )}
+            </div>
             <p className="mt-1 text-xs text-slate-500">
               {STATUS_LABEL[detail.status] ?? detail.status} · 共 {detail.turns.length} 个回合 · 时长{' '}
               {formatDuration(detail.duration_ms)} · 提供方 {detail.provider}

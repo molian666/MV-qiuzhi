@@ -32,7 +32,11 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
-export default function InterviewVoice() {
+interface Props {
+  onOpenReport?: (sessionId: number) => void
+}
+
+export default function InterviewVoice({ onOpenReport }: Props) {
   const [targets, setTargets] = useState<JobTarget[]>([])
   const [resumes, setResumes] = useState<ResumeItem[]>([])
   const [targetId, setTargetId] = useState('')
@@ -455,7 +459,7 @@ export default function InterviewVoice() {
           </div>
 
           {session !== null && session.status === 'finished' && (
-            <div className="rounded-lg bg-slate-50 px-3 py-2">
+            <div className="space-y-2 rounded-lg bg-slate-50 px-3 py-2">
               {audioAvailable ? (
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-slate-600">本场录音</span>
@@ -463,6 +467,15 @@ export default function InterviewVoice() {
                 </div>
               ) : (
                 <p className="text-xs text-slate-500">本场没有音频（可能一直在文字模式作答）。</p>
+              )}
+              {onOpenReport && (
+                <button
+                  type="button"
+                  onClick={() => onOpenReport(session.id)}
+                  className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700"
+                >
+                  去看评分报告
+                </button>
               )}
             </div>
           )}

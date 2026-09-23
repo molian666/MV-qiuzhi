@@ -47,6 +47,8 @@ class SessionOut(BaseModel):
     resume_id: int | None = None
     provider: str = ""
     plan: dict[str, Any] = Field(default_factory=dict)
+    # 生成报告后回填摘要：历史列表不用打开报告就能看个大概
+    summary: str = ""
     created_at: datetime
     started_at: datetime | None = None
     ended_at: datetime | None = None
