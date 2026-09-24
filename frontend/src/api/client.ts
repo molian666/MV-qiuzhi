@@ -14,14 +14,25 @@ import type {
   ApplySettings,
   ApplyStatus,
   AtsIssue,
+  BenchmarkItem,
+  BenchmarkSummary,
+  CareerOptions,
   ContractReport,
   ContactDetail,
   ContactItem,
+  ExportPreview,
   FollowUpItem,
+  KrView,
   LearningItemData,
   LearningSummaryData,
   MasteryLink,
   NetworkOptions,
+  ObjectiveView,
+  OnboardingData,
+  OnboardingTask,
+  PlanItem,
+  ReviewDraft,
+  TimingData,
   CreateRecordingPayload,
   CreateResumePayload,
   CreateSessionPayload,
@@ -341,4 +352,51 @@ export const api = {
   learningSummary: () => request<LearningSummaryData>('/learning/summary'),
   /** 把「我学完了」和「我掌握了」对上 */
   learningInsight: () => request<MasteryLink[]>('/learning/insight'),
+
+  // 入职与长期 + 导出（M15）
+  careerOptions: () => request<CareerOptions>('/career/options'),
+  onboarding: () => request<OnboardingData>('/onboarding'),
+  seedOnboarding: () => request<{ added: number }>('/onboarding/seed', { method: 'POST' }),
+  createOnboarding: (payload: Partial<OnboardingTask>) =>
+    request<OnboardingTask>('/onboarding', { method: 'POST', body: JSON.stringify(payload) }),
+  checkOnboarding: (id: number, done: boolean) =>
+    request<OnboardingTask>(`/onboarding/${id}/check`, { method: 'PUT', body: JSON.stringify({ done }) }),
+  deleteOnboarding: (id: number) => request<void>(`/onboarding/${id}`, { method: 'DELETE' }),
+
+  okr: () => request<ObjectiveView[]>('/okr'),
+  createObjective: (payload: { title: string; period?: string; note?: string }) =>
+    request<ObjectiveView>('/okr/objectives', { method: 'POST', body: JSON.stringify(payload) }),
+  updateObjective: (id: number, payload: Partial<ObjectiveView>) =>
+    request<ObjectiveView>(`/okr/objectives/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteObjective: (id: number) => request<void>(`/okr/objectives/${id}`, { method: 'DELETE' }),
+  addKeyResult: (objectiveId: number, payload: { title: string; unit?: string; target_value?: number }) =>
+    request<ObjectiveView>(`/okr/objectives/${objectiveId}/krs`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateKrProgress: (krId: number, currentValue: number, confidence?: number) =>
+    request<KrView>(`/okr/krs/${krId}/progress`, {
+      method: 'PATCH',
+      body: JSON.stringify({ current_value: currentValue, confidence }),
+    }),
+  deleteKr: (krId: number) => request<void>(`/okr/krs/${krId}`, { method: 'DELETE' }),
+  /** 转正述职稿：由 OKR 与本地记录确定性合成，不调模型 */
+  okrReview: () => request<ReviewDraft>('/okr/review'),
+
+  careerPlan: () => request<PlanItem[]>('/career-plan'),
+  createPlanItem: (payload: Partial<PlanItem>) =>
+    request<PlanItem>('/career-plan', { method: 'POST', body: JSON.stringify(payload) }),
+  deletePlanItem: (id: number) => request<void>(`/career-plan/${id}`, { method: 'DELETE' }),
+  careerTiming: () => request<TimingData>('/career/timing'),
+
+  benchmarks: () => request<BenchmarkItem[]>('/benchmarks'),
+  createBenchmark: (payload: Partial<BenchmarkItem>) =>
+    request<BenchmarkItem>('/benchmarks', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteBenchmark: (id: number) => request<void>(`/benchmarks/${id}`, { method: 'DELETE' }),
+  benchmarkSummary: () => request<BenchmarkSummary>('/benchmarks/summary'),
+
+  exportPreview: (token: string) => request<ExportPreview>(`/export/preview?token=${encodeURIComponent(token)}`),
+  /** 导出文件的下载地址（带令牌，直接挂到 <a href> 上） */
+  exportFileUrl: (format: 'markdown' | 'csv' | 'json', token: string) =>
+    `/api/export/${format}?token=${encodeURIComponent(token)}`,
 }

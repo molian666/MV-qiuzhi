@@ -18,6 +18,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
     """隔离的应用实例：数据落在 tmp_path，模型走 Mock，不碰真实 data 目录。"""
     monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("LLM_PROVIDER", "mock")
+    # 导出接口的令牌：测试统一用 good（401 用例靠「不带令牌」触发）
+    monkeypatch.setenv("EXPORT_TOKEN", "good")
     get_settings.cache_clear()
     reset_llm_client()
     db_module.reset_engine()

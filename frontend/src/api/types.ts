@@ -378,6 +378,157 @@ export interface NetworkOptions {
   learning_sources: { key: string; label: string }[]
 }
 
+// -------------------------------------------------------------------------- //
+// 入职与长期 + 导出（M15）
+// -------------------------------------------------------------------------- //
+
+export interface OnboardingTask {
+  id: number
+  category: string
+  title: string
+  /** 为什么需要：不解释清楚，清单会被当成"反正 HR 会催"的空话 */
+  why_needed: string
+  /** 具体到 APP / 网站 / 找谁 */
+  where_to_do: string
+  note: string
+  done: boolean
+  done_at: string | null
+  sort_order: number
+}
+
+export interface CategoryProgress {
+  category: string
+  total: number
+  done: number
+}
+
+export interface OnboardingProgress {
+  total: number
+  done: number
+  remaining: number
+  pct: number
+  complete: boolean
+  by_category: CategoryProgress[]
+}
+
+export interface OnboardingData {
+  tasks: OnboardingTask[]
+  progress: OnboardingProgress
+}
+
+export interface KrView {
+  id: number
+  title: string
+  unit: string
+  target_value: number
+  current_value: number
+  confidence: number
+  sort_order: number
+  pct: number
+  status: string
+  updated_at: string | null
+}
+
+export interface ObjectiveView {
+  id: number
+  title: string
+  period: string
+  note: string
+  status: string
+  status_label: string
+  sort_order: number
+  pct: number
+  kr_done: number
+  krs: KrView[]
+}
+
+export interface ReviewDraft {
+  title: string
+  sections: { title?: string; lines?: string[] }[]
+  markdown: string
+  note: string
+}
+
+export interface PlanItem {
+  id: number
+  kind: string
+  title: string
+  detail: string
+  target_date: string | null
+  status: string
+  updated_at: string | null
+}
+
+export interface BenchmarkItem {
+  id: number
+  company: string
+  title: string
+  city: string
+  range_low: number
+  range_high: number
+  currency: string
+  period: string
+  source: string
+  source_url: string
+  /** 绝大多数来源（同学打听、匿名社区）都是未经验证的 */
+  verified: boolean
+  note: string
+  recorded_at: string | null
+}
+
+export interface BenchmarkSummary {
+  count: number
+  verified_count: number
+  min_low: number | null
+  median_low: number | null
+  max_low: number | null
+  min_high: number | null
+  median_high: number | null
+  max_high: number | null
+  median_range: number[] | null
+  sources: string[]
+  note: string
+}
+
+export interface TimingItem {
+  kind: string
+  question: string
+  why: string
+  where: string
+}
+
+export interface TimingSignal {
+  label: string
+  items: string[]
+}
+
+export interface TimingData {
+  promotion: TimingItem[]
+  switch: TimingItem[]
+  signals: TimingSignal[]
+  note: string
+}
+
+export interface CareerOptions {
+  categories: string[]
+  okr_statuses: { key: string; label: string }[]
+  plan_kinds: { key: string; label: string }[]
+  plan_statuses: { key: string; label: string }[]
+}
+
+export interface ExportSectionStat {
+  key: string
+  title: string
+  rows: number
+}
+
+export interface ExportPreview {
+  generated_at: string
+  sections: ExportSectionStat[]
+  formats: { key: string; label: string; endpoint: string }[]
+  integrations: { key: string; label: string; status: string; detail: string }[]
+}
+
 export interface JobTarget {
   id: number
   company: string

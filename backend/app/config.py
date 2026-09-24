@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # 默认 False：DeepSeek、百炼都是国内直连，跟着墙外代理走通常直接失败。
     trust_env_proxy: bool = False
 
+    # 导出接口的访问令牌（M15）。为空时 /api/export/* 一律 401 并提示如何配置——
+    # 本地也不能裸奔：同网段的任何进程都能读你的全量求职数据。
+    export_token: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
