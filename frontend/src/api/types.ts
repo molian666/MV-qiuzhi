@@ -720,6 +720,81 @@ export interface VisionAttempt {
   tally: Record<string, number>
 }
 
+// -------------------------------------------------------------------------- //
+// 系统设计白板（M13）
+// -------------------------------------------------------------------------- //
+
+export interface DesignDimensionBrief {
+  dimension: string
+  /** core（及格线）或 normal / bonus */
+  weight: string
+}
+
+export interface DesignQuestionBrief {
+  slug: string
+  title: string
+  difficulty: number
+  tags: string[]
+  statement: string
+  constraints: string[]
+  dimensions: DesignDimensionBrief[]
+  attempts: number
+  last_verdict: string
+}
+
+export interface DesignQuestion extends DesignQuestionBrief {
+  /** 题面故意不给、需要自己问清的约束 */
+  open_questions: string[]
+  followups: string[]
+  hints: string[]
+}
+
+export interface DesignMention {
+  point: string
+  /** stated（候选人明确说了）或 inferred（模型推断） */
+  kind: 'stated' | 'inferred'
+}
+
+export interface DesignDimensionReview {
+  dimension: string
+  weight: string
+  score: 'strong' | 'ok' | 'weak' | 'missing'
+  assessment: string
+  mentioned: DesignMention[]
+  missing: string[]
+}
+
+export interface DesignReview {
+  dimensions: DesignDimensionReview[]
+  strengths: string[]
+  gaps: string[]
+  followups: string[]
+  summary: string
+  verdict: string
+  notes: string
+}
+
+export interface DesignAttempt {
+  id: number
+  created_at: string
+  question_slug: string
+  question_title: string
+  writeup: string
+  /** 列表接口为空，详情里才有完整场景 JSON */
+  scene: string
+  scene_labels: string[]
+  review: DesignReview
+  verdict: string
+  summary: string
+}
+
+export interface DesignAttemptIn {
+  question_slug: string
+  writeup: string
+  scene: string
+  target_id?: number | null
+}
+
 export interface JobTarget {
   id: number
   company: string

@@ -26,6 +26,7 @@ from .career import (
     SalaryBenchmark,
 )
 from .core import JobTarget, QuestionAttempt, QuestionBank, Resume
+from .design import DesignAttempt
 from .expression import ExpressionSnapshot
 from .network import (
     CONTACT_RELATIONS,
@@ -65,6 +66,7 @@ __all__ = [
     "CareerPlanItem",
     "Contact",
     "ContactInteraction",
+    "DesignAttempt",
     "ExpressionSnapshot",
     "INTERACTION_KINDS",
     "ImportBatch",

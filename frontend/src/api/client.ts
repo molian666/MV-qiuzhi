@@ -20,6 +20,10 @@ import type {
   AtsIssue,
   AuthStatus,
   BenchmarkItem,
+  DesignAttempt,
+  DesignAttemptIn,
+  DesignQuestion,
+  DesignQuestionBrief,
   BenchmarkSummary,
   CareerOptions,
   ContractReport,
@@ -209,6 +213,17 @@ export const api = {
     request<{ removed: number }>(`/vision/uploads/${encodeURIComponent(batch)}`, {
       method: 'DELETE',
     }),
+
+  // 系统设计白板（M13）
+  designQuestions: () => request<DesignQuestionBrief[]>('/design/questions'),
+  designQuestion: (slug: string) => request<DesignQuestion>(`/design/questions/${encodeURIComponent(slug)}`),
+  submitDesignAttempt: (payload: DesignAttemptIn) =>
+    request<DesignAttempt>('/design/attempts', { method: 'POST', body: JSON.stringify(payload) }),
+  designAttempts: (slug?: string) =>
+    request<DesignAttempt[]>(
+      slug ? `/design/attempts?slug=${encodeURIComponent(slug)}` : '/design/attempts',
+    ),
+  designAttempt: (attemptId: number) => request<DesignAttempt>(`/design/attempts/${attemptId}`),
 
   listTargets: () => request<JobTarget[]>('/targets'),
   createTarget: (payload: CreateTargetPayload) =>
