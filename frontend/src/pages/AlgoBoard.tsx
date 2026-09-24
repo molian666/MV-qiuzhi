@@ -21,6 +21,7 @@ import type {
   AlgoReview,
 } from '../api/types'
 import { runTests, toReportedCases, type SandboxCaseResult } from '../sandbox/runner'
+import Markdown from '../components/Markdown'
 
 // Monaco 约 2MB，只有打开这个页面才下载
 const CodeEditor = lazy(() => import('../components/CodeEditor'))
@@ -76,47 +77,9 @@ function show(value: unknown): string {
   }
 }
 
-/** 题干只有 `**加粗**`、`` `代码` ``、``` 代码块 ``` 和换行几种标记，手写渲染即可。 */
+/** 题干用共享的 Markdown 组件渲染（与题库答案同一套解析，避免两份实现漂移）。 */
 function Statement({ text }: { text: string }) {
-  const blocks = useMemo(() => text.split('\n\n'), [text])
-  return (
-    <div className="space-y-2 text-sm leading-relaxed text-slate-700">
-      {blocks.map((block, blockIndex) => {
-        if (block.trim().startsWith('```')) {
-          const body = block.replace(/```[a-z]*\n?/g, '').replace(/```/g, '')
-          return (
-            <pre
-              key={blockIndex}
-              className="overflow-x-auto rounded-md bg-slate-900 px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-100"
-            >
-              {body.trimEnd()}
-            </pre>
-          )
-        }
-        return (
-          <p key={blockIndex} className="whitespace-pre-wrap">
-            {block.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((piece, pieceIndex) => {
-              if (piece.startsWith('**') && piece.endsWith('**')) {
-                return (
-                  <strong key={pieceIndex} className="font-semibold text-slate-900">
-                    {piece.slice(2, -2)}
-                  </strong>
-                )
-              }
-              if (piece.startsWith('`') && piece.endsWith('`')) {
-                return (
-                  <code key={pieceIndex} className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">
-                    {piece.slice(1, -1)}
-                  </code>
-                )
-              }
-              return <span key={pieceIndex}>{piece}</span>
-            })}
-          </p>
-        )
-      })}
-    </div>
-  )
+  return <Markdown text={text} />
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

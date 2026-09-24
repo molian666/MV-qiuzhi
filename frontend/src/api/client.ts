@@ -73,6 +73,10 @@ import type {
   TrainingGrade,
   TrainingQuestion,
   Usage,
+  VisionAttempt,
+  VisionMeta,
+  VisionQuestion,
+  VisionQuestionBrief,
 } from './types'
 
 const TOKEN_KEY = 'mianshi.token'
@@ -168,6 +172,29 @@ export const api = {
       slug ? `/algo/attempts?slug=${encodeURIComponent(slug)}` : '/algo/attempts',
     ),
   algoAttempt: (attemptId: number) => request<AlgoAttempt>(`/algo/attempts/${attemptId}`),
+
+  // 机器视觉面试题库（M13 的主线功能）
+  visionMeta: () => request<VisionMeta>('/vision/meta'),
+  visionQuestions: (params?: {
+    role?: string
+    category?: string
+    maxDifficulty?: number
+    keyword?: string
+  }) => {
+    const search = new URLSearchParams()
+    if (params?.role) search.set('role', params.role)
+    if (params?.category) search.set('category', params.category)
+    if (params?.maxDifficulty) search.set('max_difficulty', String(params.maxDifficulty))
+    if (params?.keyword) search.set('keyword', params.keyword)
+    const query = search.toString()
+    return request<VisionQuestionBrief[]>(`/vision/questions${query ? `?${query}` : ''}`)
+  },
+  visionQuestion: (questionId: number) => request<VisionQuestion>(`/vision/questions/${questionId}`),
+  rateVisionQuestion: (questionId: number, rating: string, note = '') =>
+    request<VisionAttempt>(`/vision/questions/${questionId}/attempt`, {
+      method: 'POST',
+      body: JSON.stringify({ rating, note }),
+    }),
 
   listTargets: () => request<JobTarget[]>('/targets'),
   createTarget: (payload: CreateTargetPayload) =>

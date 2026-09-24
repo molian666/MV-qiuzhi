@@ -18,6 +18,7 @@ import Sessions from './pages/Sessions'
 import SpeechKit from './pages/SpeechKit'
 import System from './pages/System'
 import Training from './pages/Training'
+import VisionBank from './pages/VisionBank'
 
 const TABS = [
   { key: 'interview', label: '面试间' },
@@ -25,6 +26,7 @@ const TABS = [
   { key: 'report', label: '报告' },
   { key: 'expression', label: '表达体检' },
   { key: 'training', label: '训练' },
+  { key: 'bank', label: 'CV 面试题' },
   { key: 'algo', label: '算法题' },
   { key: 'pacing', label: '节奏学习' },
   { key: 'resume', label: '简历体检' },
@@ -79,7 +81,7 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-baseline gap-3">
             <h1 className="text-lg font-semibold">mianshi · 求职操作系统</h1>
-            <span className="text-xs text-slate-500">M13：硬核技术面（算法题白板）</span>
+            <span className="text-xs text-slate-500">M13：机器视觉面试题库</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
@@ -124,6 +126,7 @@ export default function App() {
         {tab === 'report' && <Report sessionId={reportSessionId} onSelectSession={setReportSessionId} />}
         {tab === 'expression' && <Expression />}
         {tab === 'training' && <Training />}
+        {tab === 'bank' && <VisionBank />}
         {tab === 'algo' && <AlgoBoard />}
         {tab === 'pacing' && <Recordings />}
         {tab === 'resume' && <ResumeHealth />}

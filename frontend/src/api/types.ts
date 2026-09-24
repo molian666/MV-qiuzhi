@@ -650,6 +650,49 @@ export interface AlgoAttemptIn {
   target_id?: number | null
 }
 
+// -------------------------------------------------------------------------- //
+// 机器视觉面试题库（M13）
+// -------------------------------------------------------------------------- //
+
+export interface VisionRoleOption {
+  key: string
+  label: string
+  description: string
+  count: number
+}
+
+export interface VisionMeta {
+  roles: VisionRoleOption[]
+  categories: string[]
+  total: number
+}
+
+export interface VisionQuestionBrief {
+  id: number
+  text: string
+  role: string
+  role_label: string
+  category: string
+  difficulty: number
+  attempts: number
+  last_rating: string
+}
+
+export interface VisionQuestion extends VisionQuestionBrief {
+  points: string[]
+  answer: string
+  followups: string[]
+  pitfalls: string[]
+}
+
+export interface VisionAttempt {
+  question_id: number
+  rating: string
+  attempts: number
+  last_rating: string
+  tally: Record<string, number>
+}
+
 export interface JobTarget {
   id: number
   company: string

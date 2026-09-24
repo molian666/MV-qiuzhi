@@ -26,6 +26,7 @@ from . import (
     system,
     targets,
     training,
+    vision,
     ws,
 )
 
@@ -52,6 +53,7 @@ api_router.include_router(system.router)
 api_router.include_router(reports.router)
 api_router.include_router(training.router)
 api_router.include_router(algo.router)
+api_router.include_router(vision.router)
 api_router.include_router(recordings.router)
 api_router.include_router(profiles.router)
 api_router.include_router(applications.router)
