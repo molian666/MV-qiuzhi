@@ -13,20 +13,36 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlmodel import Session
 
 from ..deps import get_session
 from ..schemas.vision import (
     VisionAttemptIn,
     VisionAttemptOut,
+    VisionImportOut,
     VisionMetaOut,
     VisionQuestionBriefOut,
     VisionQuestionOut,
+    VisionUploadOut,
 )
-from ..vision_service import VisionError, get_question, list_questions, meta, record_attempt
+from ..vision.import_doc import decode_bytes, parse_document
+from ..vision_service import (
+    VisionError,
+    delete_upload,
+    get_question,
+    import_questions,
+    list_questions,
+    list_uploads,
+    meta,
+    record_attempt,
+)
 
 router = APIRouter(prefix="/api/vision", tags=["vision"])
+
+#: 上传文档的大小上限。题库文档是纯文本，2MB 已经非常宽裕；
+#: 设个上限是为了不让一个误传的大文件把内存吃满。
+MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 
 
 @router.get("/meta", response_model=VisionMetaOut, summary="岗位方向与分类（给筛选器用）")
@@ -60,6 +76,54 @@ def read_question(question_id: int, db: Session = Depends(get_session)) -> Visio
     if detail is None:
         raise HTTPException(status_code=404, detail=f"没有这道题：{question_id}")
     return VisionQuestionOut(**detail)  # type: ignore[arg-type]
+
+
+@router.post(
+    "/import",
+    response_model=VisionImportOut,
+    summary="上传题库文档（JSON / CSV / Markdown / TXT）",
+)
+async def import_document(
+    file: UploadFile = File(...),
+    role: str = Form(default="uploaded"),
+    db: Session = Depends(get_session),
+) -> VisionImportOut:
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="文件是空的")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件超过 {MAX_UPLOAD_BYTES // 1024 // 1024}MB。题库文档是纯文本，不该这么大。",
+        )
+
+    filename = file.filename or "未命名"
+    content, encoding = decode_bytes(raw)
+    parsed = parse_document(filename, content)
+
+    if not parsed.questions:
+        detail = "；".join(parsed.warnings) or "没能从文件里解析出题目"
+        raise HTTPException(status_code=400, detail=detail)
+
+    info = import_questions(db, filename=filename, questions=parsed.questions, role=role)
+    return VisionImportOut(
+        **info,  # type: ignore[arg-type]
+        source_format=parsed.source_format,
+        warnings=[f"按 {encoding} 解码", *parsed.warnings],
+    )
+
+
+@router.get("/uploads", response_model=list[VisionUploadOut], summary="已上传的题库批次")
+def read_uploads(db: Session = Depends(get_session)) -> list[VisionUploadOut]:
+    return [VisionUploadOut(**item) for item in list_uploads(db)]  # type: ignore[arg-type]
+
+
+@router.delete("/uploads/{batch}", summary="删掉一个上传批次（连带它的自测记录）")
+def remove_upload(batch: str, db: Session = Depends(get_session)) -> dict[str, int]:
+    removed = delete_upload(db, batch)
+    if removed == 0:
+        raise HTTPException(status_code=404, detail=f"没有这个批次：{batch}")
+    return {"removed": removed}
 
 
 @router.post("/questions/{question_id}/attempt", response_model=VisionAttemptOut, summary="记录一次自测（自评）")

@@ -74,9 +74,11 @@ import type {
   TrainingQuestion,
   Usage,
   VisionAttempt,
+  VisionImportResult,
   VisionMeta,
   VisionQuestion,
   VisionQuestionBrief,
+  VisionUpload,
 } from './types'
 
 const TOKEN_KEY = 'mianshi.token'
@@ -194,6 +196,18 @@ export const api = {
     request<VisionAttempt>(`/vision/questions/${questionId}/attempt`, {
       method: 'POST',
       body: JSON.stringify({ rating, note }),
+    }),
+  /** 上传题库文档。FormData 不设 Content-Type，让浏览器自己带 boundary。 */
+  visionImport: (file: File, role = 'uploaded') => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('role', role)
+    return request<VisionImportResult>('/vision/import', { method: 'POST', body: form })
+  },
+  visionUploads: () => request<VisionUpload[]>('/vision/uploads'),
+  visionDeleteUpload: (batch: string) =>
+    request<{ removed: number }>(`/vision/uploads/${encodeURIComponent(batch)}`, {
+      method: 'DELETE',
     }),
 
   listTargets: () => request<JobTarget[]>('/targets'),

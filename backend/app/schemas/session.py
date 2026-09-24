@@ -26,6 +26,16 @@ class SessionCreate(BaseModel):
     #: 面试语言（zh / en）
     locale: str = "zh"
 
+    # M13：题源与占比。None = 让模型自由出题；
+    # {"builtin": 2, "uploaded": 1} = 内置题占 2/3、自己上传的占 1/3
+    question_mix: dict[str, float] | None = None
+    #: 抽题筛选条件（在选中的来源里筛）
+    question_role: Literal["development", "application", "implementation"] | None = None
+    question_category: str | None = None
+    question_max_difficulty: int | None = Field(default=None, ge=1, le=5)
+    #: 抽几道题；不填则按 max_questions 取
+    question_count: int | None = Field(default=None, ge=1, le=30)
+
 
 class AnswerIn(BaseModel):
     text: str = Field(min_length=1, max_length=8000)

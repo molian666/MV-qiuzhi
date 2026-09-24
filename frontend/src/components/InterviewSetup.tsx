@@ -4,7 +4,12 @@
  * 各写一份的话每加一个选项就要改两处，早晚会漂移。
  */
 
-import type { InterviewOptions, PanelStageSpec, PressureSettings } from '../api/types'
+import { useEffect, useState } from 'react'
+import { api } from '../api/client'
+import type { InterviewOptions, PanelStageSpec, PressureSettings, VisionMeta } from '../api/types'
+
+/** 用哪套题：让模型自由出，还是从题库里抽。 */
+export type QuestionMode = 'free' | 'builtin' | 'mixed'
 
 export interface SetupValue {
   pressure: PressureSettings
@@ -13,6 +18,13 @@ export interface SetupValue {
   panelEnabled: boolean
   panel: PanelStageSpec[]
   locale: string
+  /** M13：题源。free = 模型自由出；builtin = 只用内置题库；mixed = 按比例混合 */
+  questionMode: QuestionMode
+  /** mixed 时的占比。两个数只是相对比例，不必凑成 100 */
+  questionRatio: { builtin: number; uploaded: number }
+  /** 从题库抽题时的筛选（free 模式下忽略） */
+  questionRole?: string
+  questionMaxDifficulty?: number
 }
 
 export const DEFAULT_SETUP: SetupValue = {
@@ -29,16 +41,29 @@ export const DEFAULT_SETUP: SetupValue = {
   panelEnabled: false,
   panel: [],
   locale: 'zh',
+  questionMode: 'free',
+  questionRatio: { builtin: 2, uploaded: 1 },
 }
 
 /** 把面板状态转成创建会话的参数（两个页面共用，避免传参漂移）。 */
 export function setupToPayload(value: SetupValue) {
   const anyPressure = value.pressure.deep_drill || value.pressure.interrupt || value.pressure.time_limit
+  // question_count 不传：服务端会按 max_questions 取，两者保持一致，
+  // 否则「问 6 个问题」和「抽 6 道题」会对不上。
+  const questionMix =
+    value.questionMode === 'builtin'
+      ? { builtin: 1 }
+      : value.questionMode === 'mixed'
+        ? { builtin: value.questionRatio.builtin, uploaded: value.questionRatio.uploaded }
+        : null
   return {
     pressure: anyPressure ? { ...value.pressure } : null,
     style_key: value.panelEnabled ? null : value.styleKey,
     panel: value.panelEnabled && value.panel.length > 0 ? value.panel : null,
     locale: value.locale,
+    question_mix: questionMix,
+    question_role: value.questionMode === 'free' ? null : value.questionRole ?? null,
+    question_max_difficulty: value.questionMode === 'free' ? null : value.questionMaxDifficulty ?? null,
   }
 }
 
@@ -73,6 +98,23 @@ export default function InterviewSetup({
   const styles = options?.styles ?? []
   const pressureModes = options?.pressure_modes ?? []
   const locales = options?.locales ?? [{ key: 'zh', label: '中文', speech_note: '' }]
+
+  // 题源占比要显示「现有多少题」，否则用户设了比例也不知道够不够
+  const [visionMeta, setVisionMeta] = useState<VisionMeta | null>(null)
+  useEffect(() => {
+    api
+      .visionMeta()
+      .then(setVisionMeta)
+      .catch(() => setVisionMeta(null))
+  }, [])
+
+  const countOf = (key: string) =>
+    visionMeta?.sources.find((item) => item.key === key)?.count ?? 0
+  const builtinCount = countOf('builtin')
+  const uploadedCount = countOf('uploaded')
+  const ratioTotal = value.questionRatio.builtin + value.questionRatio.uploaded
+  const builtinPercent =
+    ratioTotal > 0 ? Math.round((value.questionRatio.builtin / ratioTotal) * 100) : 100
 
   const patchPressure = (patch: Partial<PressureSettings>) =>
     onChange({ ...value, pressure: { ...value.pressure, ...patch } })
@@ -136,6 +178,130 @@ export default function InterviewSetup({
           <span className="max-w-md text-[11px] text-slate-500">
             {styleFor(value.styleKey)?.summary}（{styleFor(value.styleKey)?.tone}）
           </span>
+        )}
+      </div>
+
+      {/* M13：题源。默认让面试官自由出题；也可以只从题库抽，或按比例混合 */}
+      <div className="rounded-md border border-slate-200 bg-white p-2">
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <span className="font-medium text-slate-700">题目来源</span>
+          <select
+            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+            value={value.questionMode}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange({ ...value, questionMode: event.target.value as QuestionMode })
+            }
+          >
+            <option value="free">让面试官自由出题</option>
+            <option value="builtin">只用内置题库（{builtinCount} 题）</option>
+            <option value="mixed">按比例混合</option>
+          </select>
+
+          {value.questionMode !== 'free' && (
+            <>
+              <label className="flex items-center gap-1 text-slate-500">
+                岗位
+                <select
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  value={value.questionRole ?? ''}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    onChange({ ...value, questionRole: event.target.value || undefined })
+                  }
+                >
+                  <option value="">不限</option>
+                  {(visionMeta?.roles ?? [])
+                    .filter((item) => item.key !== 'uploaded')
+                    .map((item) => (
+                      <option key={item.key} value={item.key}>
+                        {item.label}（{item.count}）
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <label className="flex items-center gap-1 text-slate-500">
+                难度上限
+                <select
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  value={value.questionMaxDifficulty ?? 0}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    const level = Number(event.target.value)
+                    onChange({ ...value, questionMaxDifficulty: level || undefined })
+                  }}
+                >
+                  <option value={0}>不限</option>
+                  {[2, 3, 4, 5].map((level) => (
+                    <option key={level} value={level}>
+                      ≤{level}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+        </div>
+
+        {value.questionMode === 'mixed' && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            <span>占比</span>
+            <label className="flex items-center gap-1">
+              内置
+              <input
+                type="number"
+                min={0}
+                max={20}
+                disabled={disabled}
+                className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-xs"
+                value={value.questionRatio.builtin}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    questionRatio: { ...value.questionRatio, builtin: Math.max(0, Number(event.target.value) || 0) },
+                  })
+                }
+              />
+            </label>
+            <span className="text-slate-400">:</span>
+            <label className="flex items-center gap-1">
+              我上传的
+              <input
+                type="number"
+                min={0}
+                max={20}
+                disabled={disabled}
+                className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-xs"
+                value={value.questionRatio.uploaded}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    questionRatio: { ...value.questionRatio, uploaded: Math.max(0, Number(event.target.value) || 0) },
+                  })
+                }
+              />
+            </label>
+            <span className="text-slate-400">
+              ≈ 内置 {builtinPercent}%、上传 {100 - builtinPercent}%
+            </span>
+            <span className="text-slate-400">
+              （现有 内置 {builtinCount} 题、上传 {uploadedCount} 题）
+            </span>
+          </div>
+        )}
+
+        {value.questionMode === 'mixed' && uploadedCount === 0 && (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-amber-700">
+            还没有上传过题库。到「CV 面试题」页可以上传自己的面经或题库文档（JSON / CSV / Markdown / TXT）。
+            某个来源题不够时，会从另一个来源补足——比例是尽量满足，不是保证。
+          </p>
+        )}
+
+        {value.questionMode !== 'free' && (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+            抽中的题会在开场时固定下来，中途不再更换；面试官会按顺序问，并在你的回答上追问。
+          </p>
         )}
       </div>
 

@@ -11,7 +11,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
-import type { VisionMeta, VisionQuestion, VisionQuestionBrief } from '../api/types'
+import type {
+  VisionImportResult,
+  VisionMeta,
+  VisionQuestion,
+  VisionQuestionBrief,
+  VisionUpload,
+} from '../api/types'
 import Markdown from '../components/Markdown'
 
 const DIFFICULTY_STYLES: Record<number, string> = {
@@ -56,13 +62,26 @@ export default function VisionBank() {
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [uploads, setUploads] = useState<VisionUpload[]>([])
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<VisionImportResult | null>(null)
+  const [importWarnings, setImportWarnings] = useState<string[]>([])
+
+  const loadUploads = useCallback(async () => {
+    try {
+      setUploads(await api.visionUploads())
+    } catch {
+      setUploads([])
+    }
+  }, [])
 
   useEffect(() => {
     api
       .visionMeta()
       .then(setMeta)
       .catch((err) => setError(errorMessage(err)))
-  }, [])
+    void loadUploads()
+  }, [loadUploads])
 
   const loadList = useCallback(async () => {
     setLoading(true)
@@ -109,6 +128,41 @@ export default function VisionBank() {
       await api.rateVisionQuestion(selectedId, rating)
       await loadList()
       setDetail(await api.visionQuestion(selectedId))
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  const handleImport = async (file: File | undefined) => {
+    if (!file) {
+      return
+    }
+    setImporting(true)
+    setImportResult(null)
+    setImportWarnings([])
+    setError('')
+    try {
+      const result = await api.visionImport(file)
+      setImportResult(result)
+      setImportWarnings(result.warnings)
+      await loadUploads()
+      await loadList()
+      setMeta(await api.visionMeta())
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleDelete = async (batch: string) => {
+    setError('')
+    try {
+      await api.visionDeleteUpload(batch)
+      setSelectedId(null)
+      await loadUploads()
+      await loadList()
+      setMeta(await api.visionMeta())
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -224,6 +278,59 @@ export default function VisionBank() {
                 </>
               )}
             </p>
+          )}
+        </div>
+
+        {/* 导入自己的题库 */}
+        <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <h4 className="text-xs font-semibold text-slate-700">导入自己的题库</h4>
+          <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+            JSON / CSV 最可靠；Markdown、TXT 靠「问题以问号结尾」推断，导入后请核对。
+          </p>
+          <input
+            type="file"
+            accept=".json,.csv,.md,.markdown,.txt"
+            disabled={importing}
+            onChange={(event) => {
+              void handleImport(event.target.files?.[0])
+              event.target.value = ''
+            }}
+            className="mt-2 w-full text-[11px] file:mr-2 file:rounded file:border-0 file:bg-slate-900 file:px-2 file:py-1 file:text-[11px] file:text-white disabled:opacity-50"
+          />
+          {importing && <p className="mt-1 text-[11px] text-slate-500">正在解析…</p>}
+          {importResult && (
+            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[11px] leading-relaxed text-emerald-800">
+              {importResult.filename}（{importResult.source_format}）：解析出 {importResult.total} 道，
+              新增 {importResult.added} 道
+              {importResult.skipped > 0 && `，跳过 ${importResult.skipped} 道（题干已存在）`}
+            </div>
+          )}
+          {importWarnings.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5 text-[10px] leading-relaxed text-amber-700">
+              {importWarnings.map((warning, index) => (
+                <li key={index}>· {warning}</li>
+              ))}
+            </ul>
+          )}
+          {uploads.length > 0 && (
+            <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+              <div className="text-[10px] font-medium text-slate-500">已导入的批次</div>
+              {uploads.map((item) => (
+                <div key={item.batch} className="flex items-center gap-2 text-[11px]">
+                  <span className="flex-1 truncate text-slate-600" title={item.filename}>
+                    {item.filename}
+                  </span>
+                  <span className="shrink-0 text-slate-400">{item.count} 题</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(item.batch)}
+                    className="shrink-0 text-rose-600 hover:underline"
+                  >
+                    删除
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 

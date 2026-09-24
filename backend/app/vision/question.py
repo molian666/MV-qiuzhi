@@ -25,13 +25,18 @@ ROLE_LABELS: dict[str, str] = {
     "development": "开发工程师",
     "application": "应用工程师",
     "implementation": "实施工程师",
+    "uploaded": "我上传的",
 }
 
 ROLE_DESCRIPTIONS: dict[str, str] = {
     "development": "算法选型与实现、底层算子、性能优化、标定的数学模型。偏「为什么会这样」。",
     "application": "相机/镜头/光源选型、精度评估、方案取舍。偏「给个需求你怎么定方案」。",
     "implementation": "现场部署、标定落地、故障排查、验收。偏「现场出问题你怎么下手」。",
+    "uploaded": "你自己上传的题库文档解析出来的题。可以只练这些，也可以和内置题按比例混着练。",
 }
+
+#: 内置题库覆盖的三个岗位。`uploaded` 是来源而不是岗位，不该要求它有内置题。
+BUILTIN_ROLES: tuple[str, ...] = ("development", "application", "implementation")
 
 
 @dataclass(frozen=True, slots=True)

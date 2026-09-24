@@ -15,8 +15,9 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from app.vision.question import ROLE_LABELS, all_questions, by_role
-from app.vision_service import render_answer, reset_seed_flag
+from app.vision.import_doc import decode_bytes, parse_document
+from app.vision.question import BUILTIN_ROLES, ROLE_LABELS, all_questions, by_role
+from app.vision_service import _allocate, render_answer, reset_seed_flag
 
 # --------------------------------------------------------------------------- #
 # 内容质量
@@ -24,10 +25,13 @@ from app.vision_service import render_answer, reset_seed_flag
 
 
 def test_every_role_has_questions() -> None:
-    """三类岗位都得有题——只做开发方向的题库，对应用和实施岗没有意义。"""
-    for role, label in ROLE_LABELS.items():
+    """三类岗位都得有题——只做开发方向的题库，对应用和实施岗没有意义。
+
+    `uploaded` 不在其中：它是**来源**而不是岗位，不该要求它有内置题。
+    """
+    for role in BUILTIN_ROLES:
         questions = by_role(role)
-        assert len(questions) >= 5, f"{label}方向只有 {len(questions)} 道题，太少"
+        assert len(questions) >= 5, f"{ROLE_LABELS[role]}方向只有 {len(questions)} 道题，太少"
 
 
 def test_question_texts_are_unique() -> None:
@@ -127,9 +131,20 @@ def test_meta_lists_roles_and_categories(client: TestClient) -> None:
 
     assert body["total"] == len(all_questions())
     assert {item["key"] for item in body["roles"]} == set(ROLE_LABELS)
-    assert all(item["count"] >= 5 for item in body["roles"])
+    assert all(
+        item["count"] >= 5 for item in body["roles"] if item["key"] in BUILTIN_ROLES
+    )
     assert len(body["categories"]) >= 6
     assert all(item["description"] for item in body["roles"])
+
+
+def test_meta_reports_sources_for_mix_setting(client: TestClient) -> None:
+    """前端要用它判断「上传的题够不够撑起想要的占比」。"""
+    sources = {item["key"]: item for item in client.get("/api/vision/meta").json()["sources"]}
+
+    assert sources["builtin"]["count"] == len(all_questions())
+    assert sources["uploaded"]["count"] == 0
+    assert sources["uploaded"]["label"] == "我上传的"
 
 
 def test_list_questions_hides_answers(client: TestClient) -> None:
@@ -231,3 +246,253 @@ def test_attempts_do_not_leak_into_interview_sessions(client: TestClient) -> Non
 
     sessions = client.get("/api/sessions").json()
     assert sessions == []
+
+
+# --------------------------------------------------------------------------- #
+# 文档导入
+# --------------------------------------------------------------------------- #
+
+JSON_DOC = """[
+  {"question": "什么是远心镜头，什么时候该用它？", "answer": "远心镜头把主光线做成平行光……",
+   "points": ["消除透视误差", "测量场景常用"], "category": "镜头与光学", "difficulty": 3}
+]"""
+
+CSV_DOC = (
+    "question,answer,points,category,difficulty\n"
+    "什么叫景深？,景深是清晰成像的范围,清晰范围|影响因素,镜头与光学,4\n"
+)
+
+MD_DOC = """# 相机与传感器
+
+选相机时分辨率该怎么估？
+先算像素当量，再留 3-5 倍安全系数。
+
+- 安全系数要留够
+- 运动物体要用全局快门
+"""
+
+
+def test_parse_json_imports_all_fields() -> None:
+    result = parse_document("bank.json", JSON_DOC)
+
+    assert result.source_format == "json"
+    assert len(result.questions) == 1
+    question = result.questions[0]
+    assert "远心镜头" in question.text
+    assert question.points == ["消除透视误差", "测量场景常用"]
+    assert question.category == "镜头与光学"
+    assert question.difficulty == 3
+
+
+def test_parse_csv_splits_points() -> None:
+    result = parse_document("bank.csv", CSV_DOC)
+
+    assert result.source_format == "csv"
+    assert result.questions[0].points == ["清晰范围", "影响因素"]
+    assert result.questions[0].difficulty == 4
+
+
+def test_parse_markdown_finds_question_answer_and_category() -> None:
+    result = parse_document("面经.md", MD_DOC)
+
+    assert result.source_format == "text"
+    assert len(result.questions) == 1
+    question = result.questions[0]
+    assert question.text.startswith("选相机时分辨率该怎么估")
+    assert "像素当量" in question.answer
+    assert question.category == "相机与传感器"
+    assert "安全系数要留够" in question.points
+    # 规则推断出来的结果必须带提醒，不能让人以为它是准的
+    assert any("规则推断" in warning for warning in result.warnings)
+
+
+def test_decode_gbk_document() -> None:
+    """中文面经从 Windows 里导出来经常是 GBK，只认 UTF-8 会直接乱码。"""
+    text, encoding = decode_bytes("中文题目：什么是标定？".encode("gbk"))
+
+    assert "标定" in text
+    assert "gbk" in encoding
+
+
+def test_parse_document_without_questions_warns() -> None:
+    result = parse_document("note.txt", "这里没有任何问题，只是普通说明文字。")
+
+    assert result.questions == []
+    assert result.warnings
+
+
+# --------------------------------------------------------------------------- #
+# 导入 API
+# --------------------------------------------------------------------------- #
+
+
+def upload(client: TestClient, *, filename: str, content: str, role: str = "uploaded") -> dict:
+    response = client.post(
+        "/api/vision/import",
+        files={"file": (filename, content.encode("utf-8"), "text/plain")},
+        data={"role": role},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def uploaded_items(client: TestClient) -> list[dict]:
+    return [item for item in client.get("/api/vision/questions").json() if item["role"] == "uploaded"]
+
+
+def test_import_adds_questions_to_bank(client: TestClient) -> None:
+    info = upload(client, filename="面经.md", content=MD_DOC)
+
+    assert info["added"] == 1
+    assert info["source"].startswith("upload:")
+    assert len(client.get("/api/vision/questions").json()) == len(all_questions()) + 1
+
+    sources = {item["key"]: item["count"] for item in client.get("/api/vision/meta").json()["sources"]}
+    assert sources["uploaded"] == 1
+
+
+def test_import_is_idempotent_by_question_text(client: TestClient) -> None:
+    """重复上传同一份文档只补新增：整批失败和整批重复都不能接受。"""
+    upload(client, filename="面经.md", content=MD_DOC)
+    second = upload(client, filename="面经.md", content=MD_DOC)
+
+    assert second["added"] == 0
+    assert second["skipped"] == 1
+    assert len(client.get("/api/vision/questions").json()) == len(all_questions()) + 1
+
+
+def test_import_rejects_empty_file(client: TestClient) -> None:
+    response = client.post("/api/vision/import", files={"file": ("empty.txt", b"", "text/plain")})
+    assert response.status_code == 400
+
+
+def test_import_rejects_unparseable_document(client: TestClient) -> None:
+    response = client.post(
+        "/api/vision/import",
+        files={"file": ("note.txt", "只是一段说明，没有问题。".encode("utf-8"), "text/plain")},
+    )
+    assert response.status_code == 400
+
+
+def test_uploaded_question_detail_works(client: TestClient) -> None:
+    upload(client, filename="面经.md", content=MD_DOC)
+    items = uploaded_items(client)
+    assert len(items) == 1
+
+    detail = client.get(f"/api/vision/questions/{items[0]['id']}").json()
+    assert detail["role_label"] == "我上传的"
+    assert detail["points"]
+    assert "像素当量" in detail["answer"]
+    # 分类要从文档里取，不能被来源文件名（上传:xxx.md）顶掉
+    assert detail["category"] not in {"", "未分类"}
+    assert "上传:" not in detail["category"], detail["category"]
+
+
+def test_uploaded_question_can_be_self_tested(client: TestClient) -> None:
+    upload(client, filename="面经.md", content=MD_DOC)
+    items = uploaded_items(client)
+
+    result = client.post(
+        f"/api/vision/questions/{items[0]['id']}/attempt", json={"rating": "got_it"}
+    ).json()
+    assert result["attempts"] == 1
+
+
+def test_uploads_listing_and_delete(client: TestClient) -> None:
+    info = upload(client, filename="面经.md", content=MD_DOC)
+
+    listed = client.get("/api/vision/uploads").json()
+    assert len(listed) == 1
+    assert listed[0]["batch"] == info["batch"]
+    assert listed[0]["filename"] == "面经.md"
+
+    assert client.delete(f"/api/vision/uploads/{info['batch']}").json()["removed"] == 1
+    assert client.get("/api/vision/uploads").json() == []
+    assert len(client.get("/api/vision/questions").json()) == len(all_questions())
+
+
+def test_delete_unknown_batch_404(client: TestClient) -> None:
+    assert client.delete("/api/vision/uploads/nope").status_code == 404
+
+
+def test_delete_upload_removes_its_attempts(client: TestClient) -> None:
+    """外键约束会拦住直接删题，所以批次删除必须连自测记录一起清。"""
+    info = upload(client, filename="面经.md", content=MD_DOC)
+    items = uploaded_items(client)
+    client.post(f"/api/vision/questions/{items[0]['id']}/attempt", json={"rating": "missed"})
+
+    assert client.delete(f"/api/vision/uploads/{info['batch']}").json()["removed"] == 1
+    assert len(client.get("/api/vision/questions").json()) == len(all_questions())
+
+
+# --------------------------------------------------------------------------- #
+# 题源占比
+# --------------------------------------------------------------------------- #
+
+
+def test_allocate_splits_exactly() -> None:
+    """名额按最大余数法分配，各来源相加必须正好等于总数。"""
+    assert _allocate(6, {"builtin": 1, "uploaded": 1}) == {"builtin": 3, "uploaded": 3}
+    assert sum(_allocate(10, {"builtin": 1, "uploaded": 1, "other": 1}).values()) == 10
+
+    uneven = _allocate(5, {"builtin": 2, "uploaded": 3})
+    assert sum(uneven.values()) == 5
+    assert uneven["uploaded"] > uneven["builtin"]
+
+
+def test_allocate_skips_empty_sources() -> None:
+    """不能把名额分给一个没有题的来源。"""
+    quota = _allocate(4, {"builtin": 1, "uploaded": 1}, available={"builtin": 10, "uploaded": 0})
+    assert quota["uploaded"] == 0
+    assert quota["builtin"] >= 1
+
+
+def test_session_uses_bank_mix(client: TestClient) -> None:
+    """按题源占比组题：上传的题只有 1 道，所以它占 1、内置占 3。"""
+    upload(client, filename="面经.md", content=MD_DOC)
+
+    created = client.post(
+        "/api/sessions",
+        json={
+            "max_questions": 4,
+            "question_count": 4,
+            "question_mix": {"builtin": 1, "uploaded": 1},
+        },
+    ).json()
+    plan = created["plan"]
+
+    assert len(plan["questions"]) == 4
+    assert sum(plan["question_sources"].values()) == 4
+    assert plan["question_sources"]["uploaded"] == 1
+    assert plan["question_sources"]["builtin"] == 3
+    # 要点也存进 plan，报告里要拿它对照「哪些点答到了」
+    assert all(question["points"] for question in plan["questions"])
+
+
+def test_session_without_mix_lets_model_choose(client: TestClient) -> None:
+    """不传 mix 就退回自由出题：不会硬塞题库的题进去。"""
+    created = client.post("/api/sessions", json={"max_questions": 2}).json()
+    assert "questions" not in created["plan"]
+
+
+def test_session_records_actual_mix_when_uploaded_is_scarce(client: TestClient) -> None:
+    """请求的比例可能因为某来源题不够而被调整，实际值要如实记录。
+
+    否则用户会以为「我设了 1:1 为什么出来的全是内置题」。
+    """
+    upload(client, filename="面经.md", content=MD_DOC)
+
+    created = client.post(
+        "/api/sessions",
+        json={
+            "max_questions": 6,
+            "question_count": 6,
+            "question_mix": {"builtin": 1, "uploaded": 1},
+        },
+    ).json()
+    plan = created["plan"]
+
+    assert len(plan["questions"]) == 6, "某来源不够时要补足，不能少给题"
+    # 请求的比例仍原样记着，实际分布另存——两个都留着才解释得清
+    assert plan["question_mix"] == {"builtin": 1, "uploaded": 1}
+    assert plan["question_sources"]["uploaded"] == 1

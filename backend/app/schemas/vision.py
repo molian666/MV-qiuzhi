@@ -26,10 +26,43 @@ class RoleOptionOut(BaseModel):
     count: int
 
 
+class VisionSourceStatOut(BaseModel):
+    """题源统计。前端拿它来配「面试时各来源占多少」。"""
+
+    key: str
+    """builtin（内置题库）或 uploaded（自己上传的）"""
+    label: str
+    count: int
+
+
 class VisionMetaOut(BaseModel):
     roles: list[RoleOptionOut]
     categories: list[str]
     total: int
+    sources: list[VisionSourceStatOut] = Field(default_factory=list)
+
+
+class VisionImportOut(BaseModel):
+    batch: str
+    source: str
+    filename: str
+    role: str
+    added: int
+    """新入库的题数"""
+    skipped: int
+    """因为题干已存在而跳过的数量"""
+    total: int
+    """文件里解析出的总数"""
+    source_format: str
+    warnings: list[str] = Field(default_factory=list)
+
+
+class VisionUploadOut(BaseModel):
+    batch: str
+    source: str
+    filename: str
+    role: str
+    count: int
 
 
 class VisionQuestionBriefOut(BaseModel):

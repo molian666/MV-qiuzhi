@@ -18,6 +18,7 @@ from ..analysis.locale import locale_prompt_block, resolve_locale
 from ..analysis.pacing import build_policy, policy_prompt_block, policy_summary
 from ..analysis.panels import panel_prompt_block, parse_panel
 from ..analysis.pressure import normalize_pressure, pressure_prompt_block
+from ..analysis.question_bank import BankQuestion, bank_prompt_block
 from ..clock import utcnow
 from ..config import get_settings
 from ..deps import get_llm, get_session
@@ -29,6 +30,7 @@ from ..providers.llm.base import LLMClient, LLMError
 from ..realtime.interviewer import Interviewer
 from ..repositories import count_turns, ordered_turns
 from ..story_service import prompt_block_for
+from ..vision_service import pick_questions
 from ..schemas import (
     AnswerIn,
     AnswerOut,
@@ -56,6 +58,28 @@ def _turns(db: Session, session_id: int) -> list[SessionTurn]:
 
 def _counts(turns: list[SessionTurn]) -> tuple[int, int]:
     return count_turns(turns)
+
+
+def _bank_block_from_session(session_row: InterviewSession) -> str:
+    """从会话的 plan 里还原题库清单。
+
+    每轮都要把清单带上，模型才知道按序问到了哪——所以它存在 plan 里，
+    而不是只活在创建会话时的那个局部变量里。
+    """
+    stored = (session_row.plan or {}).get("questions") or []
+    if not stored:
+        return ""
+    return bank_prompt_block(
+        [
+            BankQuestion(
+                id=int(item.get("id") or 0),
+                text=str(item.get("text") or ""),
+                points=[str(point) for point in (item.get("points") or [])],
+                category=str(item.get("category") or ""),
+            )
+            for item in stored
+        ]
+    )
 
 
 def _target_label(target: JobTarget | None) -> str:
@@ -186,12 +210,45 @@ async def create_session(
         if profile is None:
             raise HTTPException(status_code=404, detail=f"面试官画像不存在：{payload.interviewer_profile_id}")
 
+    # M13：按题源占比组题。抽出来就固定进 plan——面试过程中不再变，
+    # 否则题目会中途换掉，事后也说不清到底问了哪些。
+    bank_questions: list[BankQuestion] = []
+    if payload.question_mix:
+        bank_questions = pick_questions(
+            db,
+            mix=payload.question_mix,
+            role=payload.question_role,
+            category=payload.question_category,
+            max_difficulty=payload.question_max_difficulty,
+            count=payload.question_count or max_questions,
+        )
+        # 抽不到题时不报错：退回自由出题，而不是让一场面试开不起来
+    bank_block = bank_prompt_block(bank_questions)
+
     session_plan: dict[str, Any] = {
         "max_questions": max_questions,
         "style": style,
         "locale": locale_key,
         "pressure": pressure.to_dict(),
     }
+    if bank_questions:
+        # 要点也一起存：报告里要拿它对照「哪些点答到了」
+        session_plan["questions"] = [
+            {"id": item.id, "text": item.text, "category": item.category, "points": item.points}
+            for item in bank_questions
+        ]
+        session_plan["question_mix"] = payload.question_mix
+        # 实际抽到的来源分布——请求的比例可能因为某来源题不够而被调整，
+        # 记录实际值才能解释「为什么这套题的配比和我设的不一样」
+        actual: dict[str, int] = {}
+        for item in bank_questions:
+            actual[item.origin] = actual.get(item.origin, 0) + 1
+        session_plan["question_sources"] = actual
+        session_plan["question_filters"] = {
+            "role": payload.question_role,
+            "category": payload.question_category,
+            "max_difficulty": payload.question_max_difficulty,
+        }
     if style_preset is not None:
         session_plan["style_key"] = style_preset.key
         session_plan["style_label"] = style_preset.label
@@ -247,6 +304,7 @@ async def create_session(
             max_questions=max_questions,
             style=style,
             policy_block=opening_policy_block,
+            bank_block=bank_block,
         )
     except LLMError as exc:
         log_llm_error(db, task="interview_turn", provider=provider, error=str(exc), session_id=session_id)
@@ -347,6 +405,7 @@ async def submit_answer(
             closing=closing,
             policy_block=question_policy_block,
             story_block=story_block,
+            bank_block=_bank_block_from_session(session_row),
         )
     except LLMError as exc:
         log_llm_error(db, task="interview_turn", provider=provider, error=str(exc), session_id=session_id)

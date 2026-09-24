@@ -661,10 +661,37 @@ export interface VisionRoleOption {
   count: number
 }
 
+export interface VisionSourceStat {
+  key: string
+  /** builtin（内置题库）或 uploaded（自己上传的） */
+  label: string
+  count: number
+}
+
 export interface VisionMeta {
   roles: VisionRoleOption[]
   categories: string[]
   total: number
+  sources: VisionSourceStat[]
+}
+
+export interface VisionImportResult {
+  batch: string
+  source: string
+  filename: string
+  added: number
+  skipped: number
+  total: number
+  source_format: string
+  warnings: string[]
+}
+
+export interface VisionUpload {
+  batch: string
+  source: string
+  filename: string
+  role: string
+  count: number
 }
 
 export interface VisionQuestionBrief {

@@ -129,11 +129,16 @@ class Interviewer:
         closing: bool = False,
         policy_block: str = "",
         story_block: str = "",
+        bank_block: str = "",
     ) -> tuple[QuestionPlan, LLMResult]:
         context = build_context(target, resume, max_questions=max_questions, style=style)
         if story_block.strip():
             # 事实底稿放在画像指令之前：先给事实，再给"怎么问"
             context = f"{context}\n\n{story_block.strip()}"
+        if bank_block.strip():
+            # 题库清单管「问什么」，policy 管「怎么问」。越靠近末尾的越容易被遵守，
+            # 两者相比「怎么问」更该压轴，所以清单放在 policy 之前。
+            context = f"{context}\n\n{bank_block.strip()}"
         if policy_block.strip():
             # 画像指令放最后：越靠近末尾的指令越容易被遵守（题型配比、追问深度都在这）
             context = f"{context}\n\n{policy_block.strip()}"
