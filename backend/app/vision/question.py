@@ -55,12 +55,20 @@ class VisionQuestion:
 
 
 def _bank() -> tuple[VisionQuestion, ...]:
-    # 延迟导入：三个题库文件互相独立，这里只做汇总
+    # 延迟导入：各题库文件互相独立，这里只做汇总
     from .bank_application import APPLICATION_QUESTIONS
     from .bank_development import DEVELOPMENT_QUESTIONS
     from .bank_implementation import IMPLEMENTATION_QUESTIONS
+    from .bank_operators import OPERATOR_QUESTIONS
+    from .bank_software import SOFTWARE_QUESTIONS
 
-    return DEVELOPMENT_QUESTIONS + APPLICATION_QUESTIONS + IMPLEMENTATION_QUESTIONS
+    return (
+        DEVELOPMENT_QUESTIONS
+        + SOFTWARE_QUESTIONS
+        + OPERATOR_QUESTIONS
+        + APPLICATION_QUESTIONS
+        + IMPLEMENTATION_QUESTIONS
+    )
 
 
 _QUESTIONS: tuple[VisionQuestion, ...] | None = None
