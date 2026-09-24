@@ -16,10 +16,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlmodel import Session
 
-from ..deps import get_session
+from ..deps import get_llm, get_session
+from ..providers.llm.base import LLMClient
 from ..schemas.vision import (
     VisionAttemptIn,
     VisionAttemptOut,
+    VisionDraftOut,
+    VisionGenerateIn,
+    VisionGenerateOut,
     VisionImportOut,
     VisionMetaOut,
     VisionQuestionBriefOut,
@@ -29,9 +33,13 @@ from ..schemas.vision import (
 from ..vision.import_doc import decode_bytes, parse_document
 from ..vision_service import (
     VisionError,
+    adopt_draft,
     delete_upload,
+    discard_draft,
+    generate_draft,
     get_question,
     import_questions,
+    list_drafts,
     list_questions,
     list_uploads,
     meta,
@@ -137,3 +145,59 @@ def create_attempt(
     except VisionError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return VisionAttemptOut(**result)  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------- #
+# 模型出题：草稿 → 采纳
+# --------------------------------------------------------------------------- #
+
+
+@router.post(
+    "/generate",
+    response_model=VisionGenerateOut,
+    summary="让模型出题（先存为草稿，采纳后才进入抽题池）",
+)
+async def generate_questions_route(
+    payload: VisionGenerateIn,
+    db: Session = Depends(get_session),
+    llm: LLMClient = Depends(get_llm),
+) -> VisionGenerateOut:
+    try:
+        result = await generate_draft(
+            db,
+            llm=llm,
+            role=payload.role,
+            count=payload.count,
+            category=payload.category,
+            difficulty=payload.difficulty,
+            mode=payload.mode,
+            batch=payload.batch,
+            note=payload.note,
+        )
+    except VisionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return VisionGenerateOut(**result)  # type: ignore[arg-type]
+
+
+@router.get("/drafts", response_model=list[VisionDraftOut], summary="待采纳的草稿批次")
+def read_drafts(db: Session = Depends(get_session)) -> list[VisionDraftOut]:
+    return [VisionDraftOut(**item) for item in list_drafts(db)]  # type: ignore[arg-type]
+
+
+@router.post("/drafts/{batch}/adopt", summary="采纳这批草稿（进入抽题池）")
+def adopt_draft_route(batch: str, db: Session = Depends(get_session)) -> dict[str, int]:
+    try:
+        adopted = adopt_draft(db, batch)
+    except VisionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"adopted": adopted}
+
+
+@router.delete("/drafts/{batch}", summary="丢弃这批草稿")
+def discard_draft_route(batch: str, db: Session = Depends(get_session)) -> dict[str, int]:
+    try:
+        removed = discard_draft(db, batch)
+    except VisionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"removed": removed}

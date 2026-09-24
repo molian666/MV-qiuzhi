@@ -20,13 +20,29 @@ from typing import Sequence
 
 from sqlmodel import Session, select
 
-from .analysis.question_bank import BankQuestion
+from .analysis.question_bank import BankQuestion, origin_of
+from .analysis.question_generate import (
+    MAX_GENERATE_COUNT,
+    compose_answer_text,
+    generate_questions,
+    parse_generated,
+)
 from .models.core import QuestionAttempt, QuestionBank
+from .providers.llm.base import LLMClient
 from .vision.import_doc import ImportedQuestion
 from .vision.question import ROLE_DESCRIPTIONS, ROLE_LABELS, VisionQuestion, all_questions
 
 #: 播种进库的题目用这个 source 标记，方便区分内置题与用户自建题
 BUILTIN_SOURCE = "builtin:vision"
+
+#: 草稿标记。带这个 tag 的题**不进抽题池、也不出现在题库页**——
+#: 模型生成的题要用户看过、决定采纳，才进入可选范围。
+#: 这样「是否添加到提问的题库」就等价于「是否采纳」，语义直接对应得上。
+DRAFT_TAG = "草稿"
+
+#: 模型出题时带上多少条已有题干（防止重复出题）。太多会把 prompt 撑爆，
+#: 太少又挡不住重复——60 条是个折中。
+EXISTING_HINT_LIMIT = 60
 
 #: 进程内标记：播种是幂等的，没必要每次请求都查一遍去重
 _seeded = False
@@ -182,7 +198,17 @@ def delete_upload(db: Session, batch: str) -> int:
     **先删引用它的自测记录**：`question_attempt.question_id` 有外键约束，
     直接删题会被数据库拦下来（`PRAGMA foreign_keys=ON`）。
     """
-    source = f"upload:{batch}"
+    return _delete_batch_rows(db, prefix="upload", batch=batch)
+
+
+# --------------------------------------------------------------------------- #
+# 模型生成：草稿 → 采纳
+# --------------------------------------------------------------------------- #
+GENERATE_SOURCE_PREFIX = "generated"
+
+
+def _delete_batch_rows(db: Session, *, prefix: str, batch: str) -> int:
+    source = f"{prefix}:{batch}"
     rows = list(db.exec(select(QuestionBank).where(QuestionBank.source == source)).all())
     for row in rows:
         attempts = db.exec(
@@ -193,6 +219,186 @@ def delete_upload(db: Session, batch: str) -> int:
         db.delete(row)
     db.commit()
     return len(rows)
+
+
+def _rows_of_batch(db: Session, batch: str) -> list[QuestionBank]:
+    source = f"{GENERATE_SOURCE_PREFIX}:{batch}"
+    return list(db.exec(select(QuestionBank).where(QuestionBank.source == source)).all())
+
+
+def _existing_hints(db: Session, *, exclude_batch: str | None, own: list[QuestionBank]) -> list[BankQuestion]:
+    """给模型的「不要重复这些」清单。
+
+    本批次已有的题干排最前——点「继续生成」时最要紧的就是别和刚生成的撞车。
+    再补上题库里其他题（内置、上传、已采纳的），避免和现有素材重复。
+    """
+    hints: list[BankQuestion] = []
+
+    def add(row: QuestionBank) -> None:
+        hints.append(
+            BankQuestion(
+                id=row.id or 0,
+                text=row.text,
+                points=[],
+                category=(row.tags or [""])[0],
+                source=row.source,
+            )
+        )
+
+    for row in own:
+        add(row)
+
+    others = list(db.exec(select(QuestionBank)).all())
+    for row in others:
+        if len(hints) >= EXISTING_HINT_LIMIT:
+            break
+        if exclude_batch and row.source == f"{GENERATE_SOURCE_PREFIX}:{exclude_batch}":
+            continue
+        add(row)
+
+    return hints[:EXISTING_HINT_LIMIT]
+
+
+async def generate_draft(
+    db: Session,
+    *,
+    llm: LLMClient,
+    role: str,
+    count: int,
+    category: str | None = None,
+    difficulty: int | None = None,
+    mode: str = "new",
+    batch: str | None = None,
+    note: str = "",
+) -> dict[str, object]:
+    """让模型出一批题，**以草稿状态入库**（带 `草稿` tag，不进抽题池）。
+
+    `mode`：
+    - `new`：新建一个批次；
+    - `append`：在 `batch` 上继续生成——把该批已有题干带给模型，要求它别重复；
+    - `replace`：丢掉 `batch` 的现有草稿，按这次给的参数重新生成一批。
+
+    生成结果**不自动进入抽题池**：用户要看过、决定采纳。这样「选择是否添加到
+    提问的题库」就落在了一个明确动作上，而不是靠默认行为。
+    """
+    count = max(1, min(count, MAX_GENERATE_COUNT))
+
+    own: list[QuestionBank] = []
+    if mode in ("append", "replace") and batch:
+        found = _rows_of_batch(db, batch)
+        if not found:
+            raise VisionError(f"没有这个生成批次：{batch}")
+        if mode == "replace":
+            _delete_batch_rows(db, prefix=GENERATE_SOURCE_PREFIX, batch=batch)
+        else:
+            own = found
+    if mode == "new" or not batch:
+        batch = hashlib.sha1(f"{role}|{time.time()}".encode()).hexdigest()[:8]
+
+    # 重新生成时，被丢掉那批的题干也不该再出现——所以它们要从 hints 里排除掉
+    hints = _existing_hints(db, exclude_batch=None if mode == "replace" else batch, own=own)
+
+    questions = await generate_questions(
+        llm,
+        role=role,
+        count=count,
+        difficulty=difficulty,
+        category=category,
+        existing=hints,
+        extra_note=note,
+    )
+    if not questions:
+        return {
+            "batch": batch or "",
+            "mode": mode,
+            "added": 0,
+            "skipped": 0,
+            "drafts": _drafts_out(db, batch) if batch else [],
+            "note": "模型这次没有给出可解析的题目，可以直接重试。",
+        }
+
+    source = f"{GENERATE_SOURCE_PREFIX}:{batch}"
+    existing_texts = {row.text for row in db.exec(select(QuestionBank)).all()}
+    added = 0
+    skipped = 0
+    for item in questions:
+        if item.text in existing_texts:
+            skipped += 1
+            continue
+        tags = [DRAFT_TAG, item.category or "未分类"]
+        db.add(
+            QuestionBank(
+                text=item.text,
+                type=role,
+                tags=[tag for tag in tags if tag],
+                difficulty=item.difficulty,
+                reference_points=list(item.points),
+                sample_answer=compose_answer_text(item.answer, item.followups, item.pitfalls),
+                source=source,
+            )
+        )
+        existing_texts.add(item.text)
+        added += 1
+
+    db.commit()
+    return {
+        "batch": batch,
+        "mode": mode,
+        "added": added,
+        "skipped": skipped,
+        "drafts": _drafts_out(db, batch),
+        "note": "" if added else "生成的题目与题库里已有的重复，都被跳过了。",
+    }
+
+
+def _drafts_out(db: Session, batch: str) -> list[dict[str, object]]:
+    rows = _rows_of_batch(db, batch)
+    return [_row_to_brief(row, {}) for row in rows]
+
+
+def list_drafts(db: Session) -> list[dict[str, object]]:
+    """所有草稿批次（带题数），供生成面板展示。"""
+    rows = [
+        row
+        for row in db.exec(
+            select(QuestionBank).where(
+                QuestionBank.source.startswith(f"{GENERATE_SOURCE_PREFIX}:")  # type: ignore[attr-defined]
+            )
+        ).all()
+        if DRAFT_TAG in (row.tags or [])
+    ]
+    batches: dict[str, int] = {}
+    for row in rows:
+        batches[row.source] = batches.get(row.source, 0) + 1
+    return [
+        {"batch": source.split(":", 1)[1], "count": count, "source": source}
+        for source, count in sorted(batches.items(), reverse=True)
+    ]
+
+
+def adopt_draft(db: Session, batch: str) -> int:
+    """采纳：去掉草稿标记，这批题进入抽题池。"""
+    rows = _rows_of_batch(db, batch)
+    if not rows:
+        raise VisionError(f"没有这个生成批次：{batch}")
+
+    adopted = 0
+    for row in rows:
+        if DRAFT_TAG not in (row.tags or []):
+            continue
+        row.tags = [tag for tag in (row.tags or []) if tag != DRAFT_TAG]
+        db.add(row)
+        adopted += 1
+    db.commit()
+    return adopted
+
+
+def discard_draft(db: Session, batch: str) -> int:
+    """丢弃：整批删掉（连带自测记录）。"""
+    rows = _rows_of_batch(db, batch)
+    if not rows:
+        raise VisionError(f"没有这个生成批次：{batch}")
+    return _delete_batch_rows(db, prefix=GENERATE_SOURCE_PREFIX, batch=batch)
 
 
 def pick_questions(
@@ -221,6 +427,10 @@ def pick_questions(
         "builtin": _query_pool(db, source=BUILTIN_SOURCE, role=role, max_difficulty=max_difficulty),
         "uploaded": _query_pool(
             db, source_prefix="upload:", role=role, max_difficulty=max_difficulty
+        ),
+        # 模型生成的题：采纳之后才会出现在这个池子里（_query_pool 会滤掉草稿）
+        "generated": _query_pool(
+            db, source_prefix=f"{GENERATE_SOURCE_PREFIX}:", role=role, max_difficulty=max_difficulty
         ),
     }
     if category:
@@ -276,7 +486,9 @@ def _query_pool(
         statement = statement.where(QuestionBank.type == role)
     if max_difficulty is not None:
         statement = statement.where(QuestionBank.difficulty <= max_difficulty)
-    return list(db.exec(statement).all())
+
+    # 草稿不进抽题池：模型生成的东西要人看过才该被问到
+    return [row for row in db.exec(statement).all() if DRAFT_TAG not in (row.tags or [])]
 
 
 def _allocate(
@@ -387,6 +599,8 @@ def list_questions(
         statement = statement.where(QuestionBank.text.contains(keyword))  # type: ignore[attr-defined]
 
     rows = list(db.exec(statement.order_by(QuestionBank.id)).all())  # type: ignore[attr-defined]
+    # 草稿只在生成面板里管，题库页不显示
+    rows = [row for row in rows if DRAFT_TAG not in (row.tags or [])]
     items = [_row_to_brief(row, stats) for row in rows]
     if category:
         items = [item for item in items if item["category"] == category]
@@ -430,17 +644,22 @@ def meta(db: Session) -> dict[str, object]:
     """题库总览：按岗位、分类、来源三个维度统计。
 
     来源统计是给「面试时各来源占多少」那个设置用的——没有它，用户没法判断
-    「我上传的题够不够撑起想要的占比」。
+    「我上传的题够不够撑起想要的占比」。**草稿不计入来源统计**（它们不在抽题池里），
+    但会单独给出数量。
     """
     ensure_seeded(db)
-    rows = list(db.exec(select(QuestionBank)).all())
+    rows = [
+        row
+        for row in db.exec(select(QuestionBank)).all()
+        if DRAFT_TAG not in (row.tags or [])
+    ]
 
     counts: dict[str, int] = {}
     categories: list[str] = []
     source_counts: dict[str, int] = {}
     for row in rows:
         counts[row.type] = counts.get(row.type, 0) + 1
-        origin = "uploaded" if row.source.startswith("upload:") else "builtin"
+        origin = _origin_of(row.source)
         source_counts[origin] = source_counts.get(origin, 0) + 1
         for tag in row.tags or []:
             if tag.startswith("上传:"):
@@ -463,8 +682,29 @@ def meta(db: Session) -> dict[str, object]:
         "sources": [
             {"key": "builtin", "label": "内置题库", "count": source_counts.get("builtin", 0)},
             {"key": "uploaded", "label": "我上传的", "count": source_counts.get("uploaded", 0)},
+            {"key": "generated", "label": "模型生成", "count": source_counts.get("generated", 0)},
         ],
+        "draft_count": _draft_count(db),
     }
+
+
+def _origin_of(source: str) -> str:
+    """把 `source` 归一成来源标签，用于统计与占比。
+
+    实现在 `analysis/question_bank.origin_of`——那里是唯一定义处，
+    免得两处漂移（之前就因此把模型生成的题算成了内置题）。
+    """
+    return origin_of(source)
+
+
+def _draft_count(db: Session) -> int:
+    return len(
+        [
+            row
+            for row in db.exec(select(QuestionBank).where(QuestionBank.source.startswith("generated:"))).all()  # type: ignore[attr-defined]
+            if DRAFT_TAG in (row.tags or [])
+        ]
+    )
 
 
 def record_attempt(db: Session, *, question_id: int, rating: str, note: str = "") -> dict[str, object]:

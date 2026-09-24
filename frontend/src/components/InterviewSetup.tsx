@@ -20,8 +20,8 @@ export interface SetupValue {
   locale: string
   /** M13：题源。free = 模型自由出；builtin = 只用内置题库；mixed = 按比例混合 */
   questionMode: QuestionMode
-  /** mixed 时的占比。两个数只是相对比例，不必凑成 100 */
-  questionRatio: { builtin: number; uploaded: number }
+  /** mixed 时的占比。三个数只是相对比例，不必凑成 100 */
+  questionRatio: { builtin: number; uploaded: number; generated: number }
   /** 从题库抽题时的筛选（free 模式下忽略） */
   questionRole?: string
   questionMaxDifficulty?: number
@@ -42,7 +42,7 @@ export const DEFAULT_SETUP: SetupValue = {
   panel: [],
   locale: 'zh',
   questionMode: 'free',
-  questionRatio: { builtin: 2, uploaded: 1 },
+  questionRatio: { builtin: 2, uploaded: 1, generated: 0 },
 }
 
 /** 把面板状态转成创建会话的参数（两个页面共用，避免传参漂移）。 */
@@ -54,7 +54,11 @@ export function setupToPayload(value: SetupValue) {
     value.questionMode === 'builtin'
       ? { builtin: 1 }
       : value.questionMode === 'mixed'
-        ? { builtin: value.questionRatio.builtin, uploaded: value.questionRatio.uploaded }
+        ? {
+            builtin: value.questionRatio.builtin,
+            uploaded: value.questionRatio.uploaded,
+            generated: value.questionRatio.generated,
+          }
         : null
   return {
     pressure: anyPressure ? { ...value.pressure } : null,
@@ -112,9 +116,11 @@ export default function InterviewSetup({
     visionMeta?.sources.find((item) => item.key === key)?.count ?? 0
   const builtinCount = countOf('builtin')
   const uploadedCount = countOf('uploaded')
-  const ratioTotal = value.questionRatio.builtin + value.questionRatio.uploaded
-  const builtinPercent =
-    ratioTotal > 0 ? Math.round((value.questionRatio.builtin / ratioTotal) * 100) : 100
+  const generatedCount = countOf('generated')
+  const ratioTotal =
+    value.questionRatio.builtin + value.questionRatio.uploaded + value.questionRatio.generated
+  const percentOf = (value_: number) =>
+    ratioTotal > 0 ? Math.round((value_ / ratioTotal) * 100) : 0
 
   const patchPressure = (patch: Partial<PressureSettings>) =>
     onChange({ ...value, pressure: { ...value.pressure, ...patch } })
@@ -247,53 +253,52 @@ export default function InterviewSetup({
         {value.questionMode === 'mixed' && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
             <span>占比</span>
-            <label className="flex items-center gap-1">
-              内置
-              <input
-                type="number"
-                min={0}
-                max={20}
-                disabled={disabled}
-                className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-xs"
-                value={value.questionRatio.builtin}
-                onChange={(event) =>
-                  onChange({
-                    ...value,
-                    questionRatio: { ...value.questionRatio, builtin: Math.max(0, Number(event.target.value) || 0) },
-                  })
-                }
-              />
-            </label>
-            <span className="text-slate-400">:</span>
-            <label className="flex items-center gap-1">
-              我上传的
-              <input
-                type="number"
-                min={0}
-                max={20}
-                disabled={disabled}
-                className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-xs"
-                value={value.questionRatio.uploaded}
-                onChange={(event) =>
-                  onChange({
-                    ...value,
-                    questionRatio: { ...value.questionRatio, uploaded: Math.max(0, Number(event.target.value) || 0) },
-                  })
-                }
-              />
-            </label>
+            {(
+              [
+                { key: 'builtin' as const, label: '内置', total: builtinCount },
+                { key: 'uploaded' as const, label: '我上传的', total: uploadedCount },
+                { key: 'generated' as const, label: '模型生成', total: generatedCount },
+              ]
+            ).map((item, index) => (
+              <span key={item.key} className="flex items-center gap-1">
+                {index > 0 && <span className="text-slate-300">:</span>}
+                <label className="flex items-center gap-1" title={`现有 ${item.total} 题`}>
+                  {item.label}
+                  <input
+                    type="number"
+                    min={0}
+                    max={20}
+                    disabled={disabled}
+                    className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-xs"
+                    value={value.questionRatio[item.key]}
+                    onChange={(event) =>
+                      onChange({
+                        ...value,
+                        questionRatio: {
+                          ...value.questionRatio,
+                          [item.key]: Math.max(0, Number(event.target.value) || 0),
+                        },
+                      })
+                    }
+                  />
+                </label>
+              </span>
+            ))}
             <span className="text-slate-400">
-              ≈ 内置 {builtinPercent}%、上传 {100 - builtinPercent}%
+              ≈ 内置 {percentOf(value.questionRatio.builtin)}%、上传{' '}
+              {percentOf(value.questionRatio.uploaded)}%、生成{' '}
+              {percentOf(value.questionRatio.generated)}%
             </span>
             <span className="text-slate-400">
-              （现有 内置 {builtinCount} 题、上传 {uploadedCount} 题）
+              （现有 内置 {builtinCount}、上传 {uploadedCount}、生成 {generatedCount}）
             </span>
           </div>
         )}
 
-        {value.questionMode === 'mixed' && uploadedCount === 0 && (
+        {value.questionMode === 'mixed' && uploadedCount + generatedCount === 0 && (
           <p className="mt-1.5 text-[11px] leading-relaxed text-amber-700">
-            还没有上传过题库。到「CV 面试题」页可以上传自己的面经或题库文档（JSON / CSV / Markdown / TXT）。
+            除了内置题库还没有别的题源：到「CV 面试题」页可以上传自己的面经，
+            或者让模型出一批题并采纳。
             某个来源题不够时，会从另一个来源补足——比例是尽量满足，不是保证。
           </p>
         )}

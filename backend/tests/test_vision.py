@@ -10,11 +10,13 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.analysis.question_bank import BankQuestion
 from app.vision.import_doc import decode_bytes, parse_document
 from app.vision.question import BUILTIN_ROLES, ROLE_LABELS, all_questions, by_role
 from app.vision_service import _allocate, render_answer, reset_seed_flag
@@ -496,3 +498,211 @@ def test_session_records_actual_mix_when_uploaded_is_scarce(client: TestClient) 
     # 请求的比例仍原样记着，实际分布另存——两个都留着才解释得清
     assert plan["question_mix"] == {"builtin": 1, "uploaded": 1}
     assert plan["question_sources"]["uploaded"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# 模型出题：草稿 → 采纳
+# --------------------------------------------------------------------------- #
+
+
+def generate(client: TestClient, **payload) -> dict:
+    body = {"role": "development", "count": 3, **payload}
+    response = client.post("/api/vision/generate", json=body)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_generate_creates_drafts_outside_the_pool(client: TestClient) -> None:
+    """★ 生成的题先存为草稿：**不进题库页、也不进抽题池**。"""
+    before = len(client.get("/api/vision/questions").json())
+    result = generate(client)
+
+    assert result["added"] == 3, result
+    assert result["batch"]
+    assert len(result["drafts"]) == 3
+    assert all(question["role"] == "development" for question in result["drafts"])
+
+    # 题库页看不到草稿
+    assert len(client.get("/api/vision/questions").json()) == before
+    # 待采纳数量单独统计
+    assert client.get("/api/vision/meta").json()["draft_count"] == 3
+
+
+def test_drafts_are_not_in_the_source_stats(client: TestClient) -> None:
+    """草稿不算进来源占比——它们还没被采纳，不该影响「能抽多少题」。"""
+    generate(client)
+    sources = {item["key"]: item["count"] for item in client.get("/api/vision/meta").json()["sources"]}
+
+    assert sources["generated"] == 0, sources
+    assert client.get("/api/vision/drafts").json()[0]["count"] == 3
+
+
+def test_adopt_moves_drafts_into_the_pool(client: TestClient) -> None:
+    """★ 采纳之后才进抽题池，才可能被面试抽到。"""
+    batch = generate(client)["batch"]
+
+    adopted = client.post(f"/api/vision/drafts/{batch}/adopt").json()
+    assert adopted["adopted"] == 3
+    assert client.get("/api/vision/meta").json()["draft_count"] == 0
+
+    sources = {item["key"]: item["count"] for item in client.get("/api/vision/meta").json()["sources"]}
+    assert sources["generated"] == 3
+
+    items = client.get("/api/vision/questions").json()
+    assert len([item for item in items if item["role"] == "development" and item["category"] != ""]) >= 3
+    assert client.get("/api/vision/drafts").json() == []
+
+
+def test_discard_removes_drafts(client: TestClient) -> None:
+    batch = generate(client)["batch"]
+
+    assert client.delete(f"/api/vision/drafts/{batch}").json()["removed"] == 3
+    assert client.get("/api/vision/drafts").json() == []
+    assert client.get("/api/vision/meta").json()["draft_count"] == 0
+
+
+def test_append_adds_to_the_same_batch(client: TestClient) -> None:
+    """「继续生成」是在同一批上累加，不是另开一批。"""
+    first = generate(client)
+    second = generate(client, mode="append", batch=first["batch"])
+
+    assert second["batch"] == first["batch"]
+    assert second["added"] == 3
+    assert len(second["drafts"]) == 6
+    assert len(client.get("/api/vision/drafts").json()) == 1
+    assert client.get("/api/vision/meta").json()["draft_count"] == 6
+
+
+def test_replace_discards_the_old_batch(client: TestClient) -> None:
+    """「重新生成」是丢掉这批重来，不是追加。"""
+    first = generate(client)
+    second = generate(client, mode="replace", batch=first["batch"])
+
+    assert second["batch"] == first["batch"]
+    assert len(second["drafts"]) == 3, "旧的那批该被丢掉"
+    assert client.get("/api/vision/meta").json()["draft_count"] == 3
+
+
+def test_replace_needs_an_existing_batch(client: TestClient) -> None:
+    assert client.post(
+        "/api/vision/generate",
+        json={"role": "development", "count": 2, "mode": "append", "batch": "nope"},
+    ).status_code == 404
+
+
+def test_generate_skips_duplicates(client: TestClient) -> None:
+    """同一批里继续生成时，模型给的题干可能与已有重复——要跳过而不是重号入库。"""
+    first = generate(client)
+    again = generate(client, mode="append", batch=first["batch"], count=3)
+    texts = [item["text"] for item in again["drafts"]]
+    assert len(texts) == len(set(texts)), "草稿里不该出现重复题干"
+
+
+def test_generate_asks_model_not_to_repeat_existing(client: TestClient) -> None:
+    """「继续生成」必须把已有题干带给模型，否则连点几次会得到一堆近义题。"""
+    from app.analysis.question_generate import build_messages
+
+    existing = [
+        BankQuestion(id=1, text="怎么选相机？"),
+        BankQuestion(id=2, text="景深受什么影响？"),
+    ]
+    messages = build_messages(role="development", count=3, existing=existing)
+    body = "\n".join(message.content for message in messages)
+
+    assert "怎么选相机？" in body
+    assert "景深受什么影响？" in body
+    assert "不要再出同义或近似的问题" in body
+
+
+def test_mock_generated_questions_are_marked_as_placeholders() -> None:
+    """Mock 生成的题必须一眼看出是占位内容。
+
+    Mock 编不出真实题目；如果它生成的东西看起来像真题（尤其带具体数值），
+    用户会误以为是可用的面试素材——那比「功能不可用」严重得多。
+    """
+    from app.providers.llm.base import LLMMessage
+    from app.providers.llm.mock_generate import build_mock_generated_questions
+
+    raw = build_mock_generated_questions(
+        [LLMMessage(role="user", content="请出 2 道题。")], count=2
+    )
+    parsed = json.loads(raw)
+
+    assert parsed["mock"] is True
+    assert len(parsed["questions"]) == 2
+    for question in parsed["questions"]:
+        assert "Mock" in question["question"]
+        assert any("Mock" in point for point in question["points"])
+        assert "不是真实面试题" in question["answer"]
+
+
+def test_generate_rejects_bad_role(client: TestClient) -> None:
+    assert client.post(
+        "/api/vision/generate", json={"role": "not-a-role", "count": 2}
+    ).status_code == 422
+
+
+def test_generate_rejects_out_of_range_count(client: TestClient) -> None:
+    assert client.post(
+        "/api/vision/generate", json={"role": "development", "count": 99}
+    ).status_code == 422
+
+
+def test_adopt_unknown_batch_404(client: TestClient) -> None:
+    assert client.post("/api/vision/drafts/nope/adopt").status_code == 404
+    assert client.delete("/api/vision/drafts/nope").status_code == 404
+
+
+def test_adopted_generated_questions_can_be_interviewed(client: TestClient) -> None:
+    """★ 端到端：生成 → 采纳 → 面试按占比抽到它。"""
+    batch = generate(client)["batch"]
+    client.post(f"/api/vision/drafts/{batch}/adopt")
+
+    # 抽 3 道（正好是这批的数量）：要 4 道的话 generated 池不够，
+    # fallback 会从内置题补足——那是设计好的行为，但会让这个断言失去意义
+    created = client.post(
+        "/api/sessions",
+        json={
+            "max_questions": 3,
+            "question_count": 3,
+            "question_mix": {"generated": 1},
+        },
+    ).json()
+
+    assert created["plan"]["question_sources"].get("generated", 0) == 3
+    assert all("Mock" in question["text"] for question in created["plan"]["questions"]), (
+        "只抽模型生成的题时，抽到的几道都该是生成的那批"
+    )
+
+
+def test_pool_falls_back_when_generated_is_not_enough(client: TestClient) -> None:
+    """某个来源题不够时从别处补足——宁可比例不准，也不能少给题。"""
+    batch = generate(client)["batch"]
+    client.post(f"/api/vision/drafts/{batch}/adopt")
+
+    created = client.post(
+        "/api/sessions",
+        json={"max_questions": 5, "question_count": 5, "question_mix": {"generated": 1}},
+    ).json()
+    sources = created["plan"]["question_sources"]
+
+    assert sum(sources.values()) == 5
+    assert sources.get("generated", 0) == 3, "只有 3 道就最多给 3 道"
+    assert sources.get("builtin", 0) == 2, "剩下的从内置题补"
+
+
+def test_generated_questions_keep_answer_and_points(client: TestClient) -> None:
+    """生成的题要带答案与要点——不然采纳了也没法自测。"""
+    result = generate(client)
+    batch = result["batch"]
+    client.post(f"/api/vision/drafts/{batch}/adopt")
+
+    # 直接用草稿返回的 id，别在列表里猜是哪一道
+    question_id = result["drafts"][0]["id"]
+    detail = client.get(f"/api/vision/questions/{question_id}").json()
+
+    assert detail["points"], "要点要在"
+    assert len(detail["answer"]) >= 100, "答案要在"
+    # 追问与常见错误拼进了答案正文（与内置题同样的拼法）
+    assert "## 面试官大概率会追问" in detail["answer"]
+    assert "## 常见错误回答" in detail["answer"]

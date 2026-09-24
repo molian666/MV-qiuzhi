@@ -19,6 +19,7 @@ import type {
   VisionUpload,
 } from '../api/types'
 import Markdown from '../components/Markdown'
+import QuestionGenerator from '../components/QuestionGenerator'
 
 const DIFFICULTY_STYLES: Record<number, string> = {
   1: 'bg-emerald-50 text-emerald-700',
@@ -333,6 +334,15 @@ export default function VisionBank() {
             </div>
           )}
         </div>
+
+        {/* 让模型出题 */}
+        <QuestionGenerator
+          meta={meta}
+          onChanged={() => {
+            void api.visionMeta().then(setMeta)
+            void loadList()
+          }}
+        />
 
         {/* 题目列表 */}
         <div className="space-y-1.5">

@@ -46,6 +46,10 @@ class ImportedQuestion:
     points: list[str] = field(default_factory=list)
     category: str = ""
     difficulty: int = 3
+    followups: list[str] = field(default_factory=list)
+    """面试官会追问什么。导入的文档里通常没有，模型生成时会有。"""
+    pitfalls: list[str] = field(default_factory=list)
+    """常见错误回答。同上。"""
 
 
 @dataclass(slots=True)
@@ -111,7 +115,7 @@ def _parse_json(content: str) -> ImportResult:
         if not isinstance(item, dict):
             skipped += 1
             continue
-        question = _build_question(item)
+        question = build_imported_question(item)
         if question is None:
             skipped += 1
             continue
@@ -142,7 +146,7 @@ def _parse_csv(content: str) -> ImportResult:
         if not row:
             skipped += 1
             continue
-        question = _build_question({k: v for k, v in row.items() if k is not None})
+        question = build_imported_question({k: v for k, v in row.items() if k is not None})
         if question is None:
             skipped += 1
             continue
@@ -268,7 +272,12 @@ def _pick_alias(payload: dict, keys: tuple[str, ...]) -> str:
     return ""
 
 
-def _build_question(payload: dict) -> ImportedQuestion | None:
+def build_imported_question(payload: dict) -> ImportedQuestion | None:
+    """从一份字段结构里构造题目。
+
+    导入文档与模型生成**共用这一个函数**：两者的目标结构相同，
+    各写一套解析早晚会漂移（一边加了字段别名，另一边没加）。
+    """
     text = _pick_alias(payload, _TEXT_KEYS)
     if not (_MIN_QUESTION_LENGTH <= len(text) <= _MAX_QUESTION_LENGTH):
         return None
@@ -304,4 +313,15 @@ def _build_question(payload: dict) -> ImportedQuestion | None:
         points=points,
         category=_pick_alias(payload, _CATEGORY_KEYS),
         difficulty=difficulty,
+        followups=_string_list(payload.get("followups") or payload.get("追问")),
+        pitfalls=_string_list(payload.get("pitfalls") or payload.get("常见错误")),
     )
+
+
+def _string_list(value: Any) -> list[str]:
+    """接受字符串数组或分隔符串起来的字符串——结构化的用前者，手写的用后者。"""
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip() for item in _POINT_SEPARATORS.split(value) if item.strip()]
+    return []

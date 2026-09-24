@@ -40,6 +40,37 @@ class VisionMetaOut(BaseModel):
     categories: list[str]
     total: int
     sources: list[VisionSourceStatOut] = Field(default_factory=list)
+    #: 待采纳的草稿题数。它们不在 sources 统计里（还没进抽题池）
+    draft_count: int = 0
+
+
+class VisionGenerateIn(BaseModel):
+    role: Literal["development", "application", "implementation"] = "development"
+    count: int = Field(default=4, ge=1, le=12)
+    category: str | None = None
+    difficulty: int | None = Field(default=None, ge=1, le=5)
+    #: new = 新建批次；append = 在既有批次上**继续生成**；replace = 丢掉这批**重新生成**
+    mode: Literal["new", "append", "replace"] = "new"
+    batch: str | None = None
+    """append / replace 时必填"""
+    note: str = Field(default="", max_length=500)
+    """补充要求，如「多出一些打光相关的」"""
+
+
+class VisionGenerateOut(BaseModel):
+    batch: str
+    mode: str
+    added: int
+    skipped: int
+    """与题库已有题目重复、被跳过的数量"""
+    drafts: list["VisionQuestionBriefOut"] = Field(default_factory=list)
+    note: str = ""
+
+
+class VisionDraftOut(BaseModel):
+    batch: str
+    count: int
+    source: str
 
 
 class VisionImportOut(BaseModel):

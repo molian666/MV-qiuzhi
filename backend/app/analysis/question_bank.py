@@ -21,12 +21,27 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 
+def origin_of(source: str) -> str:
+    """把 `source` 归一成来源标签（`builtin` / `uploaded` / `generated`）。
+
+    **只在这一个地方定义。** 之前 `BankQuestion.origin` 与
+    `vision_service._origin_of` 各写了一份，加了 `generated` 只改了一处，
+    于是「实际抽到的来源分布」把模型生成的题全算成了内置题——
+    测试抓到了这个不一致，所以合成一份。
+    """
+    if source.startswith("upload:"):
+        return "uploaded"
+    if source.startswith("generated:"):
+        return "generated"
+    return "builtin"
+
+
 @dataclass(frozen=True, slots=True)
 class BankQuestion:
     """从题库选中的一道题。
 
     `points` 是答题要点，供模型判断作答完整度；`source` 记住它来自哪个来源
-    （内置还是某批上传），这样会话记录里能说清「这套题是怎么配出来的」。
+    （内置 / 上传 / 模型生成），这样会话记录里能说清「这套题是怎么配出来的」。
     """
 
     id: int
@@ -34,12 +49,12 @@ class BankQuestion:
     points: list[str] = field(default_factory=list)
     category: str = ""
     source: str = ""
-    """`builtin:vision` 或 `upload:<批次>`"""
+    """`builtin:vision`、`upload:<批次>` 或 `generated:<批次>`"""
 
     @property
     def origin(self) -> str:
         """归一化的来源标签，用于统计占比。"""
-        return "uploaded" if self.source.startswith("upload:") else "builtin"
+        return origin_of(self.source)
 
 
 def bank_prompt_block(questions: Sequence[BankQuestion]) -> str:

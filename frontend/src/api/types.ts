@@ -673,6 +673,34 @@ export interface VisionMeta {
   categories: string[]
   total: number
   sources: VisionSourceStat[]
+  /** 待采纳的草稿题数。它们不在 sources 统计里（还没进抽题池） */
+  draft_count: number
+}
+
+export interface VisionGenerateIn {
+  role: string
+  count: number
+  category?: string | null
+  difficulty?: number | null
+  /** new = 新建批次；append = 继续生成；replace = 丢掉这批重新生成 */
+  mode: 'new' | 'append' | 'replace'
+  batch?: string | null
+  note?: string
+}
+
+export interface VisionGenerateResult {
+  batch: string
+  mode: string
+  added: number
+  skipped: number
+  drafts: VisionQuestionBrief[]
+  note: string
+}
+
+export interface VisionDraft {
+  batch: string
+  count: number
+  source: string
 }
 
 export interface VisionImportResult {

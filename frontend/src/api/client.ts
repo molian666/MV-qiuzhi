@@ -78,6 +78,9 @@ import type {
   TrainingQuestion,
   Usage,
   VisionAttempt,
+  VisionDraft,
+  VisionGenerateIn,
+  VisionGenerateResult,
   VisionImportResult,
   VisionMeta,
   VisionQuestion,
@@ -211,6 +214,22 @@ export const api = {
   visionUploads: () => request<VisionUpload[]>('/vision/uploads'),
   visionDeleteUpload: (batch: string) =>
     request<{ removed: number }>(`/vision/uploads/${encodeURIComponent(batch)}`, {
+      method: 'DELETE',
+    }),
+
+  // 让模型出题：先存为草稿，采纳后才进抽题池
+  visionGenerate: (payload: VisionGenerateIn) =>
+    request<VisionGenerateResult>('/vision/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  visionDrafts: () => request<VisionDraft[]>('/vision/drafts'),
+  visionAdoptDraft: (batch: string) =>
+    request<{ adopted: number }>(`/vision/drafts/${encodeURIComponent(batch)}/adopt`, {
+      method: 'POST',
+    }),
+  visionDiscardDraft: (batch: string) =>
+    request<{ removed: number }>(`/vision/drafts/${encodeURIComponent(batch)}`, {
       method: 'DELETE',
     }),
 
