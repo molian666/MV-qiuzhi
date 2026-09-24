@@ -2,6 +2,32 @@
 
 export type Speaker = 'interviewer' | 'candidate' | 'system'
 
+// -------------------------------------------------------------------------- //
+// 系统配置（M13 补充：可从界面改模型与密钥）
+// -------------------------------------------------------------------------- //
+
+export interface SystemSettingItem {
+  is_secret: boolean
+  configured: boolean
+  /** 非密钥项的当前值；密钥项为空 */
+  value: string
+  /** 展示用：密钥给末四位 */
+  masked: string
+  note: string
+}
+
+export interface SystemSettings {
+  settings: Record<string, SystemSettingItem>
+  note: string
+}
+
+export interface SystemSettingsUpdated {
+  updated: string[]
+  settings: Record<string, SystemSettingItem>
+  providers: ProviderStatus
+  note: string
+}
+
 export interface Turn {
   id: number
   idx: number

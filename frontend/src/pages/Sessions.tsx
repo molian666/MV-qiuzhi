@@ -68,6 +68,22 @@ export default function Sessions({ onOpenReport }: Props) {
     }
   }
 
+  /** 删除一场面试。会连带回合、作答、报告与磁盘上的录音文件——所以要先确认。 */
+  const remove = async (id: number) => {
+    if (!window.confirm(`删除面试 #${id}？它的回合、报告与录音文件都会一起删掉，不能撤销。`)) {
+      return
+    }
+    try {
+      await api.deleteSession(id)
+      if (detail?.id === id) {
+        setDetail(null)
+      }
+      await load()
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
   /** 逐回合回放：单独 new Audio，避免和"整场播放器"互相抢播放。 */
   const playTurn = async (url: string) => {
     try {
@@ -108,6 +124,7 @@ export default function Sessions({ onOpenReport }: Props) {
                   <th className="px-4 py-2 font-medium">题量</th>
                   <th className="px-4 py-2 font-medium">时长</th>
                   <th className="px-4 py-2 font-medium">开始时间</th>
+                  <th className="px-4 py-2 font-medium"></th>
                 </tr>
               </thead>
               <tbody>
@@ -127,6 +144,20 @@ export default function Sessions({ onOpenReport }: Props) {
                     </td>
                     <td className="px-4 py-2 text-slate-600">{formatDuration(item.duration_ms)}</td>
                     <td className="px-4 py-2 text-slate-500">{formatTime(item.created_at)}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          // 这一行自己也有 onClick（打开详情），别让它一起触发
+                          event.stopPropagation()
+                          void remove(item.id)
+                        }}
+                        className="text-xs text-rose-600 hover:underline"
+                        title="删除这场面试，连同它的回合、报告与录音文件"
+                      >
+                        删除
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

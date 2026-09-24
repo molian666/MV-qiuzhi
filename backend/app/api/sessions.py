@@ -21,6 +21,7 @@ from ..analysis.pressure import normalize_pressure, pressure_prompt_block
 from ..analysis.question_bank import BankQuestion, bank_prompt_block
 from ..clock import utcnow
 from ..config import get_settings
+from ..deletion import DeletionError, delete_session
 from ..deps import get_llm, get_session
 from ..models.core import JobTarget, Resume
 from ..models.pacing import InterviewerProfile
@@ -502,6 +503,18 @@ def get_session_detail(session_id: int, db: Session = Depends(get_session)) -> S
     if session_row is None:
         raise HTTPException(status_code=404, detail=f"会话不存在：{session_id}")
     return _detail(session_row, _turns(db, session_id), db)
+
+
+@router.delete(
+    "/{session_id}",
+    status_code=204,
+    summary="删除一场面试（连带回合、作答、报告与录音文件）",
+)
+def delete_session_route(session_id: int, db: Session = Depends(get_session)) -> None:
+    try:
+        delete_session(db, session_id)
+    except DeletionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{session_id}/audio", summary="整场录音（WAV）")

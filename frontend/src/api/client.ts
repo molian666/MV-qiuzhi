@@ -86,6 +86,8 @@ import type {
   VisionQuestion,
   VisionQuestionBrief,
   VisionUpload,
+  SystemSettings,
+  SystemSettingsUpdated,
 } from './types'
 
 const TOKEN_KEY = 'mianshi.token'
@@ -152,6 +154,21 @@ async function readDetail(response: Response, fallback: string): Promise<string>
 
 export const api = {
   health: () => request<Health>('/health'),
+
+  // 系统配置（M13 补充）：写进 backend/.env，密钥不回显、不入库
+  systemSettings: () => request<SystemSettings>('/system/settings'),
+  updateSystemSettings: (values: Record<string, string>) =>
+    request<SystemSettingsUpdated>('/system/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ values }),
+    }),
+
+  // 删除（M13 补充）：会话会连带回合、作答、报告与录音文件
+  deleteSession: (sessionId: number) => request<void>(`/sessions/${sessionId}`, { method: 'DELETE' }),
+  deleteAlgoAttempt: (attemptId: number) =>
+    request<void>(`/algo/attempts/${attemptId}`, { method: 'DELETE' }),
+  deleteDesignAttempt: (attemptId: number) =>
+    request<void>(`/design/attempts/${attemptId}`, { method: 'DELETE' }),
 
   // 登录（部署到云服务器时启用；服务端没配 AUTH_PASSWORD 时 auth_enabled=false）
   authStatus: () => request<AuthStatus>('/auth/status'),

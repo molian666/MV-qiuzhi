@@ -1,4 +1,4 @@
-# 本地开发启动脚本（PowerShell）
+﻿# 本地开发启动脚本（PowerShell）
 # 用法：
 #   .\scripts\dev.ps1 backend   # 只起后端（http://127.0.0.1:8000）
 #   .\scripts\dev.ps1 frontend  # 只起前端（http://127.0.0.1:5173）
@@ -34,7 +34,12 @@ switch ($Target) {
     'backend' { Start-Backend }
     'frontend' { Start-Frontend }
     'both' {
-        Start-Process pwsh -ArgumentList '-NoExit', '-File', $PSCommandPath, 'backend'
+        # 用系统自带的 powershell 而不是 pwsh：pwsh（PowerShell 7）不一定装了，
+        # 只装 5.1 的机器上这一行会直接失败。执行策略也一并传进去，
+        # 免得新窗口里又被拦一次。
+        Start-Process powershell -ArgumentList @(
+            '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, 'backend'
+        )
         Start-Frontend
     }
 }

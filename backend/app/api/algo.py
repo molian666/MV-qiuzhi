@@ -22,6 +22,7 @@ from ..algo_service import (
     require_problem,
     submit_attempt,
 )
+from ..deletion import DeletionError, delete_algo_attempt
 from ..deps import get_llm, get_session
 from ..providers.llm.base import LLMClient
 from ..schemas.algo import (
@@ -122,3 +123,11 @@ def read_attempt(attempt_id: int, db: Session = Depends(get_session)) -> AlgoAtt
     if attempt is None:
         raise HTTPException(status_code=404, detail=f"没有这次作答：{attempt_id}")
     return AlgoAttemptOut(**attempt_out(attempt))  # type: ignore[arg-type]
+
+
+@router.delete("/attempts/{attempt_id}", status_code=204, summary="删除一次作答")
+def delete_attempt(attempt_id: int, db: Session = Depends(get_session)) -> None:
+    try:
+        delete_algo_attempt(db, attempt_id)
+    except DeletionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
