@@ -1,6 +1,10 @@
 /** 后端 REST 客户端。所有请求走 Vite 代理的 /api，不直连端口。 */
 
 import type {
+  AlgoAttempt,
+  AlgoAttemptIn,
+  AlgoProblem,
+  AlgoProblemBrief,
   AnswerDraft,
   AnswerMeta,
   AnswerResult,
@@ -151,6 +155,18 @@ export const api = {
     setToken('')
     return result
   },
+
+  // 算法题白板（M13）。判题在浏览器端跑（见 src/sandbox/runner.ts），
+  // 这里提交的是判题结果，服务端据此做「思路—取舍—边界」评估。
+  algoProblems: () => request<AlgoProblemBrief[]>('/algo/problems'),
+  algoProblem: (slug: string) => request<AlgoProblem>(`/algo/problems/${encodeURIComponent(slug)}`),
+  submitAlgoAttempt: (payload: AlgoAttemptIn) =>
+    request<AlgoAttempt>('/algo/attempts', { method: 'POST', body: JSON.stringify(payload) }),
+  algoAttempts: (slug?: string) =>
+    request<AlgoAttempt[]>(
+      slug ? `/algo/attempts?slug=${encodeURIComponent(slug)}` : '/algo/attempts',
+    ),
+  algoAttempt: (attemptId: number) => request<AlgoAttempt>(`/algo/attempts/${attemptId}`),
 
   listTargets: () => request<JobTarget[]>('/targets'),
   createTarget: (payload: CreateTargetPayload) =>

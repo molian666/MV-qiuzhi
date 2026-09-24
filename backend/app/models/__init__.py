@@ -1,5 +1,6 @@
 """数据模型总入口：导入所有模型模块，保证 SQLModel 元数据完整。"""
 
+from .algo import AlgoAttempt
 from .apply import (
     Application,
     ApplicationEvent,
@@ -51,6 +52,7 @@ from .system import AppSetting, ProviderConfig
 __all__ = [
     "STORY_TAG_ORDER",
     "STORY_TAGS",
+    "AlgoAttempt",
     "AppSetting",
     "AnswerDraft",
     "Application",

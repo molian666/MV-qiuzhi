@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 
 from .base import LLMClient, LLMMessage, LLMResult
+from .mock_algo import build_mock_algo_review
 from .mock_answers import build_mock_questions, build_mock_self_intro, build_mock_sensitive
 from .mock_negotiation import build_mock_negotiation
 from .mock_pacing import build_mock_pacing_labels
@@ -66,6 +67,8 @@ class MockLLMClient(LLMClient):  # type: ignore[misc]
             text = build_mock_questions(messages)
         elif task == "negotiation":
             text = build_mock_negotiation(messages)
+        elif task == "algo_review":
+            text = build_mock_algo_review(messages)
         else:
             text = json.dumps(
                 {

@@ -546,6 +546,106 @@ export interface LoginResult {
   note: string
 }
 
+// -------------------------------------------------------------------------- //
+// 算法题白板（M13）
+// -------------------------------------------------------------------------- //
+
+export interface AlgoProblemBrief {
+  slug: string
+  title: string
+  difficulty: string
+  tags: string[]
+  statement: string
+  function_name: string
+  signature: string
+}
+
+export interface AlgoTestCase {
+  index: number
+  args: unknown[]
+  expected: unknown
+  note: string
+}
+
+export interface AlgoProblem extends AlgoProblemBrief {
+  starters: Record<string, string>
+  tests: AlgoTestCase[]
+  hints: string[]
+}
+
+/** 一处取舍。`kind` 区分「实测支撑」与「模型推断」——别把可能性当事实读。 */
+export interface AlgoTradeoff {
+  point: string
+  assessment: string
+  kind: 'measured' | 'inferred'
+}
+
+export interface AlgoEdgeCase {
+  case: string
+  status: 'covered' | 'missed' | 'untested'
+  detail: string
+}
+
+export interface AlgoReview {
+  approach_summary: string
+  approach_verdict: 'correct' | 'partial' | 'wrong' | 'unknown'
+  tradeoffs: AlgoTradeoff[]
+  edge_cases: AlgoEdgeCase[]
+  complexity: Record<string, string>
+  risks: string[]
+  followups: string[]
+  summary: string
+  /** 降级说明：模型没给出可用评估时，这里会说明原因 */
+  notes: string
+}
+
+export interface AlgoCaseReport {
+  index: number
+  passed: boolean
+  note: string
+  expected: unknown
+  actual: unknown
+  error: string
+}
+
+export interface AlgoTestReport {
+  passed: number
+  total: number
+  cases: AlgoCaseReport[]
+}
+
+export interface AlgoAttempt {
+  id: number
+  created_at: string
+  problem_slug: string
+  problem_title: string
+  language: string
+  code: string
+  passed: number
+  total: number
+  duration_ms: number | null
+  test_report: AlgoTestReport
+  review: AlgoReview
+  approach_verdict: string
+  summary: string
+}
+
+export interface AlgoCaseResultIn {
+  index: number
+  passed: boolean
+  actual?: unknown
+  error?: string
+}
+
+export interface AlgoAttemptIn {
+  problem_slug: string
+  language: 'javascript'
+  code: string
+  duration_ms?: number
+  cases: AlgoCaseResultIn[]
+  target_id?: number | null
+}
+
 export interface JobTarget {
   id: number
   company: string

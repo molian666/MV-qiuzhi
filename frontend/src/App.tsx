@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from './api/client'
 import type { AuthStatus } from './api/types'
+import AlgoBoard from './pages/AlgoBoard'
 import Applications from './pages/Applications'
 import ApplyDesk from './pages/ApplyDesk'
 import CareerDesk from './pages/CareerDesk'
@@ -24,6 +25,7 @@ const TABS = [
   { key: 'report', label: '报告' },
   { key: 'expression', label: '表达体检' },
   { key: 'training', label: '训练' },
+  { key: 'algo', label: '算法题' },
   { key: 'pacing', label: '节奏学习' },
   { key: 'resume', label: '简历体检' },
   { key: 'speech', label: '故事与话术' },
@@ -77,7 +79,7 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-baseline gap-3">
             <h1 className="text-lg font-semibold">mianshi · 求职操作系统</h1>
-            <span className="text-xs text-slate-500">M15：入职与长期 + 导出</span>
+            <span className="text-xs text-slate-500">M13：硬核技术面（算法题白板）</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
@@ -122,6 +124,7 @@ export default function App() {
         {tab === 'report' && <Report sessionId={reportSessionId} onSelectSession={setReportSessionId} />}
         {tab === 'expression' && <Expression />}
         {tab === 'training' && <Training />}
+        {tab === 'algo' && <AlgoBoard />}
         {tab === 'pacing' && <Recordings />}
         {tab === 'resume' && <ResumeHealth />}
         {tab === 'speech' && <SpeechKit />}
