@@ -38,9 +38,12 @@ a5340a6 M5: 薄弱点与训练
 ```
 
 - 工作区干净（`git status --short` 无输出）
-- **测试基线：`783 passed`**（48 个测试文件）
-- 已完成：**M0 / M1 / M3 / M4 / M5 / M6 / M8 / M9 / M10 / M11 / M12 / M14 / M15** + **部署适配** + **M13 的算法题白板**
+- **测试基线：`790 passed`**（48 个测试文件）
+- 已完成：**M0 / M1 / M3 / M4 / M5 / M6 / M8 / M9 / M10 / M11 / M12 / M14 / M15** + **部署适配** + **M13 的算法题白板（含机器视觉题源与 Python 判题）**
 - 未完成：**M2**（题库与会话管理）、**M13 剩余两块**（系统设计白板 Excalidraw、群面多 agent 混音）
+
+**项目的方向定位**：主要为**机器视觉（计算机视觉）方向的求职**服务。新做的东西优先
+服务这个方向——出题、评分维度、简历与技能字典都该往 CV 靠，不要平均用力做通用求职。
 
 **M13 已经定下的几个决定（接着往下做时别推翻）**：
 
@@ -60,6 +63,22 @@ a5340a6 M5: 薄弱点与训练
   本地/内网可用。注意 0.56 的 `exports` 是 `"./*": "./esm/vs/*.js"`，子路径要写
   `monaco-editor/editor/editor.worker`，写 `monaco-editor/esm/vs/...` 会解析成
   `esm/vs/esm/vs/...`。
+- **题库分两套**：`algo/bank_general.py`（通用算法，JS）与 `algo/bank_vision.py`
+  （**机器视觉方向，Python**）。项目主要为 CV 方向的求职服务，视觉题是主线。
+- **多语言靠三个 dict**：`starters` / `function_names` / `signatures` 都以语言为键，
+  `problem.languages` 从 `starters` 推导。一道题只声明它真支持的语言——CV 题给个
+  JS 起始代码只会让人以为自己选错了。
+- **Python 判题用 Pyodide**（`sandbox/python.worker.ts` + `pythonRunner.ts`）：运行时
+  由 `scripts/copy-pyodide.mjs` 从 node_modules 复制到 `frontend/public/pyodide/`
+  （该目录已 gitignore，**不进仓库**）。numpy 的 wheel 不在 npm 包里，脚本会试着下载；
+  下不动就用 `frontend/scripts/fetch-numpy-wheel.ps1`（走系统代理，比 node 直连稳）。
+  有了它 Python 判题可完全离线。
+- **Python 沙箱的比较逻辑用 `np.allclose`（rtol=1e-6, atol=1e-8）而不是 `==`**：
+  IoU、卷积、softmax 的手写实现必有 1e-16 量级差异，用等于号会让所有正确解判失败。
+- **出题后必须用参考实现验一遍期望值**。我手算 softmax 那两道题的期望值就错了
+  （写成 9.0798e-05，实际 9.0796e-05），conv2d 也错了一例——这类错误会让用户
+  永远做不过那道题。验证方式：纯 Python 参考实现跑一遍题库，或直接在 Node 里跑
+  Pyodide（`pytest` 只能验 API 契约，验不了「题目可解」）。
 
 **部署形态变了**（重要，会影响你写的每个新接口）：用户要把项目放到 **Windows 云服务器**
 上，选定「应用内单用户密码登录 + IP 自签证书 + 除投递执行与浏览器扩展外全部上云」。

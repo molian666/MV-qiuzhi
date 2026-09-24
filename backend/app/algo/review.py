@@ -98,8 +98,8 @@ def build_input_payload(
             "title": problem.title,
             "difficulty": problem.difficulty,
             "statement": problem.statement,
-            "signature": problem.signature,
-            "function_name": problem.function_name,
+            "signature": problem.signature_for(language),
+            "function_name": problem.function_name_for(language),
             # 评分参照：告诉模型「这道题希望被谈到什么」，而不是让它自由发挥
             "expected_discussion_points": list(problem.key_points),
         },

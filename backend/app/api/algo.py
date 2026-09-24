@@ -14,6 +14,7 @@ from sqlmodel import Session
 
 from ..algo_service import (
     AlgoError,
+    AlgoNotFoundError,
     attempt_out,
     get_attempt,
     list_attempts,
@@ -34,37 +35,36 @@ from ..schemas.algo import (
 router = APIRouter(prefix="/api/algo", tags=["algo"])
 
 
-@router.get("/problems", response_model=list[AlgoProblemBriefOut], summary="算法题清单（不含测试用例）")
-def read_problems() -> list[AlgoProblemBriefOut]:
-    return [
-        AlgoProblemBriefOut(
-            slug=problem.slug,
-            title=problem.title,
-            difficulty=problem.difficulty,
-            tags=list(problem.tags),
-            statement=problem.statement,
-            function_name=problem.function_name,
-            signature=problem.signature,
-        )
-        for problem in problem_list()
-    ]
-
-
-@router.get("/problems/{slug}", response_model=AlgoProblemOut, summary="题目详情：起始代码、测试用例、分级提示")
-def read_problem(slug: str) -> AlgoProblemOut:
-    try:
-        problem = require_problem(slug)
-    except AlgoError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    return AlgoProblemOut(
+def _brief(problem) -> AlgoProblemBriefOut:  # noqa: ANN001
+    return AlgoProblemBriefOut(
         slug=problem.slug,
         title=problem.title,
         difficulty=problem.difficulty,
         tags=list(problem.tags),
         statement=problem.statement,
-        function_name=problem.function_name,
-        signature=problem.signature,
+        track=problem.track,
+        languages=problem.languages,
+    )
+
+
+@router.get("/problems", response_model=list[AlgoProblemBriefOut], summary="算法题清单（按方向可筛）")
+def read_problems(
+    track: str | None = Query(default=None, description="general | vision"),
+) -> list[AlgoProblemBriefOut]:
+    return [_brief(problem) for problem in problem_list(track)]
+
+
+@router.get("/problems/{slug}", response_model=AlgoProblemOut, summary="题目详情：各语言起始代码、测试用例、分级提示")
+def read_problem(slug: str) -> AlgoProblemOut:
+    try:
+        problem = require_problem(slug)
+    except AlgoNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return AlgoProblemOut(
+        **_brief(problem).model_dump(),
+        function_names=dict(problem.function_names),
+        signatures=dict(problem.signatures),
         starters=dict(problem.starters),
         tests=[
             AlgoTestCaseOut(index=index, args=test.args, expected=test.expected, note=test.note)
@@ -95,8 +95,11 @@ async def create_attempt(
             duration_ms=payload.duration_ms,
             target_id=payload.target_id,
         )
-    except AlgoError as exc:
+    except AlgoNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AlgoError as exc:
+        # 语言不支持、用例下标越界：这是调用方的问题，不是「找不到」
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return AlgoAttemptOut(**attempt_out(attempt))  # type: ignore[arg-type]
 

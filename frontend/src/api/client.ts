@@ -158,7 +158,8 @@ export const api = {
 
   // 算法题白板（M13）。判题在浏览器端跑（见 src/sandbox/runner.ts），
   // 这里提交的是判题结果，服务端据此做「思路—取舍—边界」评估。
-  algoProblems: () => request<AlgoProblemBrief[]>('/algo/problems'),
+  algoProblems: (track?: string) =>
+    request<AlgoProblemBrief[]>(track ? `/algo/problems?track=${encodeURIComponent(track)}` : '/algo/problems'),
   algoProblem: (slug: string) => request<AlgoProblem>(`/algo/problems/${encodeURIComponent(slug)}`),
   submitAlgoAttempt: (payload: AlgoAttemptIn) =>
     request<AlgoAttempt>('/algo/attempts', { method: 'POST', body: JSON.stringify(payload) }),

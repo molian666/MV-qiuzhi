@@ -556,8 +556,10 @@ export interface AlgoProblemBrief {
   difficulty: string
   tags: string[]
   statement: string
-  function_name: string
-  signature: string
+  /** general（通用算法）或 vision（机器视觉方向） */
+  track: string
+  /** 这道题支持哪些语言。CV 题只有 python——面试现场就是这么考的。 */
+  languages: string[]
 }
 
 export interface AlgoTestCase {
@@ -568,6 +570,8 @@ export interface AlgoTestCase {
 }
 
 export interface AlgoProblem extends AlgoProblemBrief {
+  function_names: Record<string, string>
+  signatures: Record<string, string>
   starters: Record<string, string>
   tests: AlgoTestCase[]
   hints: string[]
@@ -639,7 +643,7 @@ export interface AlgoCaseResultIn {
 
 export interface AlgoAttemptIn {
   problem_slug: string
-  language: 'javascript'
+  language: string
   code: string
   duration_ms?: number
   cases: AlgoCaseResultIn[]

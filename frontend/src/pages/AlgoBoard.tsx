@@ -1,11 +1,14 @@
 /** 算法题白板（M13）。
  *
  * 两件事在这里汇合：
- * 1. **判题**：在浏览器端沙箱跑（`src/sandbox/runner.ts`），不在服务端跑代码；
+ * 1. **判题**：在浏览器端沙箱跑（`src/sandbox/`），不在服务端跑代码；
  * 2. **评估**：把判题结果和代码交给模型，评「思路—取舍—边界」。
  *
  * 界面上刻意把两者分开显示，并且在评估里区分**实测**与**推断**——
  * 「测试用例 3 没过」是事实，「这里可能超时」是猜测，混在一起看会误导。
+ *
+ * **默认筛到机器视觉**：这个项目主要为机器视觉方向的求职服务，通用 LeetCode
+ * 是补充，不是主线。
  */
 
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
@@ -22,6 +25,13 @@ import { runTests, toReportedCases, type SandboxCaseResult } from '../sandbox/ru
 // Monaco 约 2MB，只有打开这个页面才下载
 const CodeEditor = lazy(() => import('../components/CodeEditor'))
 
+const TRACKS = [
+  { key: 'vision', label: '机器视觉' },
+  { key: 'general', label: '通用算法' },
+  { key: '', label: '全部' },
+] as const
+
+const LANGUAGE_LABELS: Record<string, string> = { python: 'Python', javascript: 'JavaScript' }
 const DIFFICULTY_LABELS: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难' }
 const DIFFICULTY_STYLES: Record<string, string> = {
   easy: 'bg-emerald-50 text-emerald-700',
@@ -66,32 +76,45 @@ function show(value: unknown): string {
   }
 }
 
-/** 题干只有 `**加粗**`、`` `代码` `` 和换行三种标记，手写渲染即可，不为它加依赖。 */
+/** 题干只有 `**加粗**`、`` `代码` ``、``` 代码块 ``` 和换行几种标记，手写渲染即可。 */
 function Statement({ text }: { text: string }) {
   const blocks = useMemo(() => text.split('\n\n'), [text])
   return (
     <div className="space-y-2 text-sm leading-relaxed text-slate-700">
-      {blocks.map((block, blockIndex) => (
-        <p key={blockIndex} className="whitespace-pre-wrap">
-          {block.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((piece, pieceIndex) => {
-            if (piece.startsWith('**') && piece.endsWith('**')) {
-              return (
-                <strong key={pieceIndex} className="font-semibold text-slate-900">
-                  {piece.slice(2, -2)}
-                </strong>
-              )
-            }
-            if (piece.startsWith('`') && piece.endsWith('`')) {
-              return (
-                <code key={pieceIndex} className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">
-                  {piece.slice(1, -1)}
-                </code>
-              )
-            }
-            return <span key={pieceIndex}>{piece}</span>
-          })}
-        </p>
-      ))}
+      {blocks.map((block, blockIndex) => {
+        if (block.trim().startsWith('```')) {
+          const body = block.replace(/```[a-z]*\n?/g, '').replace(/```/g, '')
+          return (
+            <pre
+              key={blockIndex}
+              className="overflow-x-auto rounded-md bg-slate-900 px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-100"
+            >
+              {body.trimEnd()}
+            </pre>
+          )
+        }
+        return (
+          <p key={blockIndex} className="whitespace-pre-wrap">
+            {block.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((piece, pieceIndex) => {
+              if (piece.startsWith('**') && piece.endsWith('**')) {
+                return (
+                  <strong key={pieceIndex} className="font-semibold text-slate-900">
+                    {piece.slice(2, -2)}
+                  </strong>
+                )
+              }
+              if (piece.startsWith('`') && piece.endsWith('`')) {
+                return (
+                  <code key={pieceIndex} className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">
+                    {piece.slice(1, -1)}
+                  </code>
+                )
+              }
+              return <span key={pieceIndex}>{piece}</span>
+            })}
+          </p>
+        )
+      })}
     </div>
   )
 }
@@ -111,9 +134,7 @@ function ReviewPanel({ review }: { review: AlgoReview }) {
   return (
     <div className="space-y-4">
       <div className={`rounded-lg border px-3 py-2 ${VERDICT_STYLES[verdict] ?? VERDICT_STYLES.unknown}`}>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">{VERDICT_LABELS[verdict] ?? verdict}</span>
-        </div>
+        <span className="text-sm font-semibold">{VERDICT_LABELS[verdict] ?? verdict}</span>
         {review.approach_summary && (
           <p className="mt-1 text-xs leading-relaxed opacity-90">{review.approach_summary}</p>
         )}
@@ -157,11 +178,7 @@ function ReviewPanel({ review }: { review: AlgoReview }) {
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-100 text-slate-500'
                     }`}
-                    title={
-                      item.kind === 'measured'
-                        ? '有测试结果直接支撑'
-                        : '模型从代码推断，未实测'
-                    }
+                    title={item.kind === 'measured' ? '有测试结果直接支撑' : '模型从代码推断，未实测'}
                   >
                     {item.kind === 'measured' ? '实测' : '推断'}
                   </span>
@@ -240,6 +257,7 @@ function TestResultList({
         actual: item.actual,
         expected: item.expected,
         durationMs: null as number | null,
+        stdout: '',
       }))
     : results.map((item) => ({
         index: item.index,
@@ -249,14 +267,16 @@ function TestResultList({
         actual: item.actual,
         expected: undefined as unknown,
         durationMs: item.durationMs,
+        stdout: item.stdout ?? '',
       }))
 
   return (
     <div className="space-y-1">
       {interrupted && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
-          沙箱超时被终止：只跑完了前 {results.length} 例，**没跑完不等于通过**。
-          常见原因是死循环——检查循环的退出条件。
+          沙箱超时被终止：只跑完了前 {results.length} 例。
+          <strong className="font-semibold">没跑完不等于通过</strong>
+          ——常见原因是死循环，检查循环的退出条件。
         </div>
       )}
       {rows.map((row) => (
@@ -288,6 +308,11 @@ function TestResultList({
               )}
             </div>
           )}
+          {row.stdout && (
+            <pre className="mt-1 overflow-x-auto rounded bg-slate-900 px-2 py-1 pl-5 font-mono text-[10px] text-slate-300">
+              {row.stdout}
+            </pre>
+          )}
         </div>
       ))}
     </div>
@@ -295,6 +320,7 @@ function TestResultList({
 }
 
 export default function AlgoBoard() {
+  const [track, setTrack] = useState<string>('vision')
   const [problems, setProblems] = useState<AlgoProblemBrief[]>([])
   const [slug, setSlug] = useState<string>('')
   const [problem, setProblem] = useState<AlgoProblem | null>(null)
@@ -306,20 +332,27 @@ export default function AlgoBoard() {
   const [history, setHistory] = useState<AlgoAttempt[]>([])
   const [hintsShown, setHintsShown] = useState(0)
   const [lastRunMs, setLastRunMs] = useState<number | null>(null)
+  const [status, setStatus] = useState('')
   const [busy, setBusy] = useState<'idle' | 'running' | 'submitting'>('idle')
   const [error, setError] = useState('')
 
+  // 换方向就重拉清单；清单变了要把当前题切到新列表里的第一道，否则会显示空
   useEffect(() => {
+    let cancelled = false
     api
-      .algoProblems()
+      .algoProblems(track || undefined)
       .then((items) => {
-        setProblems(items)
-        if (items.length > 0) {
-          setSlug((current) => current || items[0].slug)
+        if (cancelled) {
+          return
         }
+        setProblems(items)
+        setSlug(items[0]?.slug ?? '')
       })
       .catch((err) => setError(errorMessage(err)))
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [track])
 
   const loadHistory = useCallback(async (target: string) => {
     try {
@@ -331,6 +364,7 @@ export default function AlgoBoard() {
 
   useEffect(() => {
     if (!slug) {
+      setProblem(null)
       return
     }
     setError('')
@@ -339,15 +373,20 @@ export default function AlgoBoard() {
     setInterrupted(false)
     setLoadError('')
     setHintsShown(0)
+    setStatus('')
     api
       .algoProblem(slug)
       .then((detail) => {
         setProblem(detail)
-        setCode(detail.starters.javascript ?? '')
+        const language = detail.languages[0] ?? 'javascript'
+        setCode(detail.starters[language] ?? '')
       })
       .catch((err) => setError(errorMessage(err)))
     void loadHistory(slug)
   }, [slug, loadHistory])
+
+  const language = problem?.languages[0] ?? 'javascript'
+  const functionName = problem ? (problem.function_names[language] ?? '') : ''
 
   const run = async () => {
     if (!problem) {
@@ -356,16 +395,21 @@ export default function AlgoBoard() {
     setBusy('running')
     setError('')
     setAttempt(null)
+    setStatus('')
     try {
-      const outcome = await runTests({
-        code,
-        functionName: problem.function_name,
-        tests: problem.tests.map((test) => ({
-          index: test.index,
-          args: test.args,
-          expected: test.expected,
-        })),
-      })
+      const tests = problem.tests.map((test) => ({
+        index: test.index,
+        args: test.args,
+        expected: test.expected,
+      }))
+      // pythonRunner 走动态 import：不跑 Python 的人不该下载它的代码
+      const outcome =
+        language === 'python'
+          ? await (
+              await import('../sandbox/pythonRunner')
+            ).runPythonTests({ code, functionName, tests, onStatus: setStatus })
+          : await runTests({ code, functionName, tests })
+
       setResults(outcome.results)
       setInterrupted(outcome.interrupted)
       setLoadError(outcome.loadError)
@@ -373,6 +417,7 @@ export default function AlgoBoard() {
     } catch (err) {
       setError(errorMessage(err))
     } finally {
+      setStatus('')
       setBusy('idle')
     }
   }
@@ -386,7 +431,7 @@ export default function AlgoBoard() {
     try {
       const created = await api.submitAlgoAttempt({
         problem_slug: problem.slug,
-        language: 'javascript',
+        language,
         code,
         duration_ms: lastRunMs ?? undefined,
         cases: toReportedCases(results),
@@ -404,31 +449,58 @@ export default function AlgoBoard() {
   const canSubmit = results.length > 0 && busy === 'idle'
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
+    <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
       {/* 题目清单 */}
-      <aside className="space-y-1.5">
-        {problems.map((item) => (
-          <button
-            key={item.slug}
-            type="button"
-            onClick={() => setSlug(item.slug)}
-            className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition ${
-              item.slug === slug
-                ? 'border-slate-900 bg-white shadow-sm'
-                : 'border-slate-200 bg-white/60 hover:bg-white'
-            }`}
-          >
-            <div className="font-medium text-slate-900">{item.title}</div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span
-                className={`rounded px-1.5 py-0.5 text-[10px] ${DIFFICULTY_STYLES[item.difficulty] ?? 'bg-slate-100 text-slate-600'}`}
-              >
-                {DIFFICULTY_LABELS[item.difficulty] ?? item.difficulty}
-              </span>
-              <span className="truncate text-[10px] text-slate-400">{item.tags.join(' · ')}</span>
-            </div>
-          </button>
-        ))}
+      <aside className="space-y-2">
+        <div className="flex gap-1">
+          {TRACKS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setTrack(item.key)}
+              className={`flex-1 rounded-md px-2 py-1 text-[11px] transition ${
+                item.key === track
+                  ? 'bg-slate-900 text-white'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-1.5">
+          {problems.map((item) => (
+            <button
+              key={item.slug}
+              type="button"
+              onClick={() => setSlug(item.slug)}
+              className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition ${
+                item.slug === slug
+                  ? 'border-slate-900 bg-white shadow-sm'
+                  : 'border-slate-200 bg-white/60 hover:bg-white'
+              }`}
+            >
+              <div className="font-medium text-slate-900">{item.title}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] ${DIFFICULTY_STYLES[item.difficulty] ?? 'bg-slate-100 text-slate-600'}`}
+                >
+                  {DIFFICULTY_LABELS[item.difficulty] ?? item.difficulty}
+                </span>
+                {item.languages.map((lang) => (
+                  <span key={lang} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                    {LANGUAGE_LABELS[lang] ?? lang}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-1 truncate text-[10px] text-slate-400">{item.tags.join(' · ')}</div>
+            </button>
+          ))}
+          {problems.length === 0 && (
+            <p className="px-1 text-xs text-slate-400">这个方向下暂时没有题目。</p>
+          )}
+        </div>
       </aside>
 
       {/* 主区 */}
@@ -449,14 +521,19 @@ export default function AlgoBoard() {
                 >
                   {DIFFICULTY_LABELS[problem.difficulty] ?? problem.difficulty}
                 </span>
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                  {LANGUAGE_LABELS[language] ?? language}
+                </span>
                 <span className="text-[10px] text-slate-400">{problem.tags.join(' · ')}</span>
               </div>
               <div className="mt-3">
                 <Statement text={problem.statement} />
               </div>
-              <p className="mt-3 rounded-md bg-slate-50 px-2.5 py-1.5 font-mono text-[11px] text-slate-600">
-                {problem.signature}
-              </p>
+              {problem.signatures[language] && (
+                <p className="mt-3 rounded-md bg-slate-50 px-2.5 py-1.5 font-mono text-[11px] text-slate-600">
+                  {problem.signatures[language]}
+                </p>
+              )}
             </div>
 
             <div>
@@ -467,7 +544,7 @@ export default function AlgoBoard() {
                   </div>
                 }
               >
-                <CodeEditor value={code} onChange={setCode} />
+                <CodeEditor value={code} onChange={setCode} language={language} />
               </Suspense>
             </div>
 
@@ -491,7 +568,7 @@ export default function AlgoBoard() {
               </button>
               <button
                 type="button"
-                onClick={() => setCode(problem.starters.javascript ?? '')}
+                onClick={() => setCode(problem.starters[language] ?? '')}
                 className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600"
               >
                 重置代码
@@ -512,6 +589,18 @@ export default function AlgoBoard() {
                 </span>
               )}
             </div>
+
+            {status && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                {status}
+              </div>
+            )}
+
+            {language === 'python' && results.length === 0 && !loadError && (
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                首次跑 Python 会加载运行时（约 13MB，之后走浏览器缓存），通常几秒到十几秒。
+              </p>
+            )}
 
             {hintsShown > 0 && (
               <div className="rounded-lg border border-slate-200 bg-white p-3">
@@ -566,15 +655,14 @@ export default function AlgoBoard() {
                       className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-left text-xs hover:bg-slate-50"
                     >
                       <div className="flex items-center gap-2">
-                        <span
-                          className={
-                            item.passed === item.total ? 'text-emerald-700' : 'text-amber-700'
-                          }
-                        >
+                        <span className={item.passed === item.total ? 'text-emerald-700' : 'text-amber-700'}>
                           {item.passed}/{item.total}
                         </span>
                         <span className="text-slate-600">
                           {VERDICT_LABELS[item.approach_verdict] ?? (item.approach_verdict || '—')}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {LANGUAGE_LABELS[item.language] ?? item.language}
                         </span>
                         <span className="ml-auto text-[10px] text-slate-400">
                           {new Date(item.created_at).toLocaleString('zh-CN', { hour12: false })}
@@ -586,6 +674,12 @@ export default function AlgoBoard() {
               </div>
             )}
           </>
+        )}
+
+        {!problem && !error && (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-xs text-slate-400">
+            从左边选一道题开始。
+          </div>
         )}
       </div>
     </div>

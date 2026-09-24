@@ -30,6 +30,8 @@ export interface SandboxCaseResult {
   actual: unknown
   error: string
   durationMs: number | null
+  /** 用户代码里的 print 输出（目前只有 Python 侧采集）。调试用。 */
+  stdout?: string
 }
 
 export interface SandboxOutcome {

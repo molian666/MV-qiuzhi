@@ -20,18 +20,34 @@ from .providers.llm.base import LLMClient
 
 
 class AlgoError(RuntimeError):
-    """业务错误：题目不存在、回传的用例下标越界。"""
+    """业务错误：语言不支持、回传的用例下标越界（→ 400）。"""
 
 
-def problem_list() -> tuple[AlgoProblem, ...]:
-    return problem_bank.list_problems()
+class AlgoNotFoundError(AlgoError):
+    """题目不存在（→ 404）。与上面分开，否则「语言错了」会被报成「题目不存在」。"""
+
+
+def problem_list(track: str | None = None) -> tuple[AlgoProblem, ...]:
+    return problem_bank.list_problems(track)
 
 
 def require_problem(slug: str) -> AlgoProblem:
     problem = problem_bank.get_problem(slug)
     if problem is None:
-        raise AlgoError(f"没有这道题：{slug}")
+        raise AlgoNotFoundError(f"没有这道题：{slug}")
     return problem
+
+
+def require_language(problem: AlgoProblem, language: str) -> str:
+    """校验语言在题目支持范围内。
+
+    不校验的话，用户拿 JS 题去跑 Python 起始代码只会得到一句
+    「找不到函数」——那个错比「这道题只支持 javascript」难懂得多。
+    """
+    if language not in problem.starters:
+        supported = "、".join(problem.languages)
+        raise AlgoError(f"「{problem.title}」只支持 {supported}，不支持 {language}")
+    return language
 
 
 def build_case_outcomes(
@@ -91,6 +107,7 @@ async def submit_attempt(
     target_id: int | None = None,
 ) -> AlgoAttempt:
     problem = require_problem(problem_slug)
+    require_language(problem, language)
     cases = build_case_outcomes(problem, reported)
 
     review = await review_attempt(

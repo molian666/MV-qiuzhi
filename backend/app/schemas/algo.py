@@ -19,8 +19,10 @@ class AlgoProblemBriefOut(BaseModel):
     difficulty: str
     tags: list[str]
     statement: str
-    function_name: str
-    signature: str
+    track: str
+    """general（通用算法）或 vision（机器视觉方向）"""
+    languages: list[str]
+    """这道题支持哪些语言。CV 题只有 python——面试现场就是这么考的。"""
 
 
 class AlgoTestCaseOut(BaseModel):
@@ -31,6 +33,8 @@ class AlgoTestCaseOut(BaseModel):
 
 
 class AlgoProblemOut(AlgoProblemBriefOut):
+    function_names: dict[str, str]
+    signatures: dict[str, str]
     starters: dict[str, str]
     tests: list[AlgoTestCaseOut]
     hints: list[str]
@@ -53,7 +57,8 @@ class AlgoCaseResultIn(BaseModel):
 
 class AlgoAttemptIn(BaseModel):
     problem_slug: str
-    language: Literal["javascript"] = "javascript"
+    language: str = "javascript"
+    """题目支持的语言之一；服务端会对着题库校验，不在支持列表里就报错。"""
     code: str = Field(min_length=1)
     duration_ms: int | None = None
     cases: list[AlgoCaseResultIn] = Field(default_factory=list)

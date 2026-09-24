@@ -35,8 +35,11 @@ def test_problem_slugs_are_unique() -> None:
 def test_every_problem_is_usable() -> None:
     for problem in problem_bank.list_problems():
         assert problem.tests, f"{problem.slug} 没有测试用例"
-        assert "javascript" in problem.starters, f"{problem.slug} 没有起始代码"
-        assert problem.starters["javascript"].strip(), f"{problem.slug} 的起始代码是空的"
+        assert problem.languages, f"{problem.slug} 没有声明支持的语言"
+        for language in problem.languages:
+            assert problem.starters[language].strip(), f"{problem.slug} 的 {language} 起始代码是空的"
+            assert problem.function_names.get(language), f"{problem.slug} 缺 {language} 的函数名"
+            assert problem.signatures.get(language), f"{problem.slug} 缺 {language} 的签名"
         assert problem.hints, f"{problem.slug} 没有提示"
         assert problem.key_points, f"{problem.slug} 没有评分参照"
         assert problem.statement.strip(), f"{problem.slug} 没有题干"
@@ -45,7 +48,11 @@ def test_every_problem_is_usable() -> None:
 def test_starter_code_declares_the_expected_function() -> None:
     """起始代码里得已经有那个函数名，否则用户不知道该实现什么。"""
     for problem in problem_bank.list_problems():
-        assert problem.function_name in problem.starters["javascript"], problem.slug
+        for language in problem.languages:
+            expected = problem.function_names[language]
+            assert expected in problem.starters[language], (
+                f"{problem.slug} 的 {language} 起始代码里没有 {expected}"
+            )
 
 
 def test_every_problem_has_enough_cases_to_judge_edges() -> None:
@@ -242,7 +249,9 @@ def test_list_problems(client: TestClient) -> None:
 def test_problem_detail_includes_tests_and_starters(client: TestClient) -> None:
     body = client.get("/api/algo/problems/two-sum").json()
 
-    assert body["function_name"] == "twoSum"
+    assert body["function_names"]["javascript"] == "twoSum"
+    assert body["languages"] == ["javascript"]
+    assert body["track"] == "general"
     assert len(body["tests"]) >= 4
     assert "javascript" in body["starters"]
     assert body["tests"][0]["index"] == 0
@@ -324,6 +333,7 @@ def test_submit_rejects_unknown_problem(client: TestClient) -> None:
 
 
 def test_submit_rejects_out_of_range_case(client: TestClient) -> None:
+    """越界是调用方的问题（400），不是「找不到题目」（404）。"""
     response = client.post(
         "/api/algo/attempts",
         json={
@@ -332,7 +342,100 @@ def test_submit_rejects_out_of_range_case(client: TestClient) -> None:
             "cases": [{"index": 500, "passed": True}],
         },
     )
-    assert response.status_code == 404
+    assert response.status_code == 400
+
+
+def test_submit_rejects_unsupported_language(client: TestClient) -> None:
+    """拿 JS 题去跑 Python 只会得到「找不到函数」——那个错比「不支持」难懂得多。"""
+    response = client.post(
+        "/api/algo/attempts",
+        json={"problem_slug": "two-sum", "language": "python", "code": "x", "cases": []},
+    )
+    assert response.status_code == 400
+    assert "只支持" in response.text
+
+
+# --------------------------------------------------------------------------- #
+# 机器视觉方向（M13 的重点）
+# --------------------------------------------------------------------------- #
+
+
+def test_vision_problems_exist_and_are_python_only() -> None:
+    vision = problem_bank.list_problems(track="vision")
+    assert len(vision) >= 4, "机器视觉题太少"
+
+    for problem in vision:
+        assert problem.track == "vision"
+        assert problem.languages == ["python"], f"{problem.slug} 不该有非 python 版本"
+        assert problem.function_names["python"].islower(), f"{problem.slug} 的函数名不是 snake_case"
+
+
+def test_vision_covers_the_expected_topics() -> None:
+    """覆盖检测后处理、底层算子、训练基础三条线——CV 面试最常被卡住的地方。"""
+    slugs = {problem.slug for problem in problem_bank.list_problems(track="vision")}
+    assert {
+        "vision-compute-iou",
+        "vision-nms",
+        "vision-conv2d",
+        "vision-softmax-cross-entropy",
+    } <= slugs
+
+
+def test_track_filter_works(client: TestClient) -> None:
+    everything = client.get("/api/algo/problems").json()
+    vision = client.get("/api/algo/problems", params={"track": "vision"}).json()
+    general = client.get("/api/algo/problems", params={"track": "general"}).json()
+
+    assert len(everything) == len(vision) + len(general)
+    assert all(item["track"] == "vision" for item in vision)
+    assert all(item["track"] == "general" for item in general)
+
+
+def test_vision_problem_detail_offers_python_starter(client: TestClient) -> None:
+    body = client.get("/api/algo/problems/vision-nms").json()
+
+    assert body["track"] == "vision"
+    assert body["languages"] == ["python"]
+    assert "def nms(" in body["starters"]["python"]
+    assert body["function_names"]["python"] == "nms"
+    assert "np.ndarray" in body["signatures"]["python"]
+
+
+def test_vision_problem_does_not_leak_scoring_reference(client: TestClient) -> None:
+    response = client.get("/api/algo/problems/vision-compute-iou")
+    assert "key_points" not in response.text
+    assert "expected_discussion_points" not in response.text
+
+
+def test_submit_python_attempt(client: TestClient) -> None:
+    """Python 作答的完整链路：落库 + 评估。"""
+    problem = require_problem("vision-compute-iou")
+    response = client.post(
+        "/api/algo/attempts",
+        json={
+            "problem_slug": "vision-compute-iou",
+            "language": "python",
+            "code": (
+                "import numpy as np\n\n\n"
+                "def compute_iou(box_a, box_b):\n"
+                "    x1, y1 = max(box_a[0], box_b[0]), max(box_a[1], box_b[1])\n"
+                "    x2, y2 = min(box_a[2], box_b[2]), min(box_a[3], box_b[3])\n"
+                "    inter = max(0.0, x2 - x1) * max(0.0, y2 - y1)\n"
+                "    union = ((box_a[2]-box_a[0])*(box_a[3]-box_a[1])\n"
+                "             + (box_b[2]-box_b[0])*(box_b[3]-box_b[1]) - inter)\n"
+                "    return inter / union if union > 0 else 0.0\n"
+            ),
+            "cases": [
+                {"index": index, "passed": True, "actual": test.expected}
+                for index, test in enumerate(problem.tests)
+            ],
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["language"] == "python"
+    assert body["passed"] == len(problem.tests)
+    assert body["review"]["tradeoffs"], "评估要评到取舍"
 
 
 def test_attempts_are_listed_and_filterable(client: TestClient) -> None:

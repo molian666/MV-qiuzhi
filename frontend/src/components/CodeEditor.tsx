@@ -26,11 +26,13 @@ loader.config({ monaco })
 export default function CodeEditor({
   value,
   onChange,
+  language = 'javascript',
   readOnly = false,
   height = '420px',
 }: {
   value: string
   onChange: (next: string) => void
+  language?: string
   readOnly?: boolean
   height?: string
 }) {
@@ -38,7 +40,7 @@ export default function CodeEditor({
     <div className="overflow-hidden rounded-lg border border-slate-300">
       <Editor
         height={height}
-        language="javascript"
+        language={language === 'python' ? 'python' : 'javascript'}
         theme="vs"
         value={value}
         onChange={(next) => onChange(next ?? '')}
