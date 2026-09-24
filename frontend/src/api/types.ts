@@ -529,6 +529,23 @@ export interface ExportPreview {
   integrations: { key: string; label: string; status: string; detail: string }[]
 }
 
+// -------------------------------------------------------------------------- //
+// 登录（部署适配）
+// -------------------------------------------------------------------------- //
+
+export interface AuthStatus {
+  /** 服务端配了 AUTH_PASSWORD 才为 true；false 时无需登录 */
+  auth_enabled: boolean
+  logged_in: boolean
+  ttl_days: number
+}
+
+export interface LoginResult {
+  token: string
+  expires_in: number
+  note: string
+}
+
 export interface JobTarget {
   id: number
   company: string

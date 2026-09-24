@@ -8,6 +8,7 @@ from ..config import get_settings
 from . import (
     applications,
     apply,
+    auth,
     career,
     decision,
     export,
@@ -42,6 +43,7 @@ def health() -> dict[str, str]:
 
 
 api_router.include_router(sessions.router)
+api_router.include_router(auth.router)
 api_router.include_router(targets.router)
 api_router.include_router(resumes.router)
 api_router.include_router(questions.router)

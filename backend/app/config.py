@@ -59,6 +59,24 @@ class Settings(BaseSettings):
     # 本地也不能裸奔：同网段的任何进程都能读你的全量求职数据。
     export_token: str = ""
 
+    # ---------- 部署（M13 前置）：单用户登录与 TLS ----------
+    # 登录密码。为空时**只允许** HOST 绑本机：绑非本机地址却没设密码，应用会拒绝启动
+    # （见 app/auth.py 的 assert_safe_bind）。密码直接放这里，不 hash 不落库——
+    # 它是配置项，与 API Key 同级，库里没有第二份副本。
+    auth_password: str = ""
+    # 会话签名密钥。留空则在 data/.auth_secret 下持久化一个（重启不会把所有设备踢下线）。
+    auth_secret: str = ""
+    # 走 HTTPS 时设 true：会话 cookie 只经 TLS 发送。
+    # 用 IP + 自签证书部署时也要设 true（浏览器会把"用户手动信任过的自签站点"当安全上下文）。
+    cookie_secure: bool = False
+    # TLS 证书（PEM）。两个都配才用 HTTPS 启动；用法见 docs/DEPLOY.md。
+    ssl_certfile: str = ""
+    ssl_keyfile: str = ""
+    # 前端构建产物目录。留空则自动探测 frontend/dist（存在就由后端托管，单端口部署）。
+    static_dir: str = ""
+    # 是否信任反向代理传来的 X-Forwarded-*（自己上 Nginx/Caddy 时设 true）。
+    trust_proxy_headers: bool = False
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -74,6 +92,19 @@ class Settings(BaseSettings):
     @property
     def upload_dir(self) -> Path:
         return self.data_dir / "uploads"
+
+    @property
+    def resolved_static_dir(self) -> Path | None:
+        """前端构建产物目录：配了就按配的，没配就找 frontend/dist。"""
+        if self.static_dir.strip():
+            path = Path(self.static_dir).expanduser()
+            return path if path.is_dir() else None
+        default = BACKEND_DIR.parent / "frontend" / "dist"
+        return default if default.is_dir() else None
+
+    @property
+    def use_tls(self) -> bool:
+        return bool(self.ssl_certfile.strip() and self.ssl_keyfile.strip())
 
 
 @lru_cache

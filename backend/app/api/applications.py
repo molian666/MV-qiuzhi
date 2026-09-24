@@ -16,6 +16,7 @@ from ..apply_service import (
     statistics,
 )
 from ..clock import utcnow
+from ..deploy import require_local_run
 from ..deps import get_session
 from ..models.apply import APPLICATION_STATUSES, Application, ApplicationEvent, ImportBatch
 from ..schemas.apply import (
@@ -61,7 +62,12 @@ def import_applications(payload: ImportIn, db: Session = Depends(get_session)) -
     return _outcome(outcome)
 
 
-@router.post("/ingest", response_model=ImportOutcomeOut, summary="浏览器扩展推送投递记录")
+@router.post(
+    "/ingest",
+    response_model=ImportOutcomeOut,
+    dependencies=[Depends(require_local_run)],
+    summary="浏览器扩展推送投递记录（仅本机）",
+)
 def ingest_applications(payload: IngestIn, db: Session = Depends(get_session)) -> ImportOutcomeOut:
     try:
         outcome = import_raw_rows(db, rows=payload.rows, source="extension", platform=payload.platform)

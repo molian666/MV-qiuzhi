@@ -14,6 +14,7 @@ import type {
   ApplySettings,
   ApplyStatus,
   AtsIssue,
+  AuthStatus,
   BenchmarkItem,
   BenchmarkSummary,
   CareerOptions,
@@ -25,6 +26,7 @@ import type {
   KrView,
   LearningItemData,
   LearningSummaryData,
+  LoginResult,
   MasteryLink,
   NetworkOptions,
   ObjectiveView,
@@ -69,29 +71,47 @@ import type {
   Usage,
 } from './types'
 
+const TOKEN_KEY = 'mianshi.token'
+
+/** 会话失效时抛这个，让 UI 能区分「要重新登录」与普通业务报错。 */
+export class UnauthorizedError extends Error {}
+
+export function getToken(): string {
+  return window.localStorage.getItem(TOKEN_KEY) ?? ''
+}
+
+export function setToken(token: string): void {
+  if (token) {
+    window.localStorage.setItem(TOKEN_KEY, token)
+  } else {
+    window.localStorage.removeItem(TOKEN_KEY)
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // 只有 JSON 字符串才设 Content-Type：multipart 上传必须让浏览器自己带 boundary
   const hasStringBody = typeof init?.body === 'string'
+  const token = getToken()
   const response = await fetch(`/api${path}`, {
     ...init,
     headers: {
       ...(hasStringBody ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...((init?.headers as Record<string, string> | undefined) ?? {}),
     },
   })
 
+  if (response.status === 401) {
+    // 会话过期（或服务端换了签名密钥）：本地 token 已无效，清掉让 App 回到登录页。
+    // 登录接口本身失败也走这里——那时本来就没有 token，清掉无害，而且能拿到
+    // 服务端给的具体原因（「密码不正确」比「未登录」有用得多）。
+    const detail = await readDetail(response, '未登录或登录已过期，请重新登录')
+    setToken('')
+    throw new UnauthorizedError(detail)
+  }
+
   if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`
-    try {
-      const body: unknown = await response.json()
-      if (body && typeof body === 'object' && 'detail' in body) {
-        const raw = (body as { detail: unknown }).detail
-        detail = typeof raw === 'string' ? raw : JSON.stringify(raw)
-      }
-    } catch {
-      // 非 JSON 错误体，保留状态码描述
-    }
-    throw new Error(detail)
+    throw new Error(await readDetail(response, `${response.status} ${response.statusText}`))
   }
 
   if (response.status === 204) {
@@ -100,8 +120,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
+async function readDetail(response: Response, fallback: string): Promise<string> {
+  try {
+    const body: unknown = await response.json()
+    if (body && typeof body === 'object' && 'detail' in body) {
+      const raw = (body as { detail: unknown }).detail
+      return typeof raw === 'string' ? raw : JSON.stringify(raw)
+    }
+  } catch {
+    // 非 JSON 错误体，用调用方给的兜底描述
+  }
+  return fallback
+}
+
 export const api = {
   health: () => request<Health>('/health'),
+
+  // 登录（部署到云服务器时启用；服务端没配 AUTH_PASSWORD 时 auth_enabled=false）
+  authStatus: () => request<AuthStatus>('/auth/status'),
+  login: async (password: string) => {
+    const result = await request<LoginResult>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    })
+    setToken(result.token)
+    return result
+  },
+  logout: async () => {
+    const result = await request<{ ok: boolean }>('/auth/logout', { method: 'POST' })
+    setToken('')
+    return result
+  },
 
   listTargets: () => request<JobTarget[]>('/targets'),
   createTarget: (payload: CreateTargetPayload) =>

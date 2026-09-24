@@ -37,6 +37,7 @@ from ..apply.throttler import (
 )
 from ..clock import utcnow
 from ..config import get_settings
+from ..deploy import require_local_run
 from ..deps import get_llm, get_session
 from ..models.apply import ApplyRule, ApplyTask, JobPosting, PlatformAccount
 from ..models.core import Resume
@@ -263,7 +264,12 @@ def delete_rule(rule_id: int, db: Session = Depends(get_session)) -> None:
 # --------------------------------------------------------------------------- #
 # 候选与队列
 # --------------------------------------------------------------------------- #
-@router.post("/search", response_model=ApplySearchOut, summary="抓岗位 → 过滤 → 打分 → 进待投队列（还没投）")
+@router.post(
+    "/search",
+    response_model=ApplySearchOut,
+    dependencies=[Depends(require_local_run)],
+    summary="抓岗位 → 过滤 → 打分 → 进待投队列（还没投）",
+)
 async def search_jobs(
     payload: ApplySearchIn,
     db: Session = Depends(get_session),
@@ -375,7 +381,12 @@ def skip(payload: SkipIn, db: Session = Depends(get_session)) -> dict[str, int]:
     return {"skipped": skip_tasks(db, task_ids=payload.task_ids)}
 
 
-@router.post("/execute", response_model=ExecutionOutcomeOut, summary="执行已确认的投递（受限速与熔断约束）")
+@router.post(
+    "/execute",
+    response_model=ExecutionOutcomeOut,
+    dependencies=[Depends(require_local_run)],
+    summary="执行已确认的投递（受限速与熔断约束）",
+)
 async def execute(
     payload: ExecuteIn,
     db: Session = Depends(get_session),

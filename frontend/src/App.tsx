@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { api } from './api/client'
+import type { AuthStatus } from './api/types'
 import Applications from './pages/Applications'
 import ApplyDesk from './pages/ApplyDesk'
 import CareerDesk from './pages/CareerDesk'
 import Expression from './pages/Expression'
+import Login from './pages/Login'
 import InterviewLive from './pages/InterviewLive'
 import InterviewVoice from './pages/InterviewVoice'
 import NetworkDesk from './pages/NetworkDesk'
@@ -40,18 +42,33 @@ export default function App() {
   const [tab, setTab] = useState<TabKey>('interview')
   const [provider, setProvider] = useState('')
   const [reportSessionId, setReportSessionId] = useState<number | null>(null)
+  const [auth, setAuth] = useState<AuthStatus | null>(null)
 
   useEffect(() => {
     api
       .health()
       .then((health) => setProvider(health.llm_provider))
       .catch(() => setProvider('未连接'))
+    // 要不要登录由服务端说了算：本地 loopback + 没配密码时 auth_enabled=false，直接进。
+    // 查不到时按「需要登录」处理——宁可多要一次密码，也不要默认把数据敞开。
+    api
+      .authStatus()
+      .then(setAuth)
+      .catch(() => setAuth({ auth_enabled: true, logged_in: false, ttl_days: 0 }))
   }, [])
 
   /** 从任意页面跳到某场面试的报告 */
   const openReport = (sessionId: number) => {
     setReportSessionId(sessionId)
     setTab('report')
+  }
+
+  // 未登录时只渲染登录页：其他页面若先发请求，会把 401 显示成业务错误，误导人
+  if (auth === null) {
+    return <div className="p-6 text-sm text-slate-500">正在连接服务…</div>
+  }
+  if (auth.auth_enabled && !auth.logged_in) {
+    return <Login onSuccess={() => setAuth({ ...auth, logged_in: true })} />
   }
 
   return (
@@ -66,6 +83,18 @@ export default function App() {
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
               模型：{provider || '…'}
             </span>
+            {auth.auth_enabled && (
+              <button
+                type="button"
+                onClick={() => {
+                  void api.logout().then(() => setAuth({ ...auth, logged_in: false }))
+                }}
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                title={`登录有效期 ${auth.ttl_days} 天`}
+              >
+                退出登录
+              </button>
+            )}
             <nav className="flex gap-1">
               {TABS.map((item) => (
                 <button

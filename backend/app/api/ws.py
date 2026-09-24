@@ -18,6 +18,7 @@ from ..models.session import InterviewSession
 from ..pacing_service import load_policy_for_session
 from ..realtime.audio_store import AudioStore
 from ..analysis.pressure import normalize_pressure
+from ..auth import websocket_authenticated
 from ..realtime.session_runtime import VoiceRuntimeConfig, VoiceSessionRuntime
 from ..story_service import starred_block
 router = APIRouter(tags=["realtime"])
@@ -27,6 +28,12 @@ logger = logging.getLogger(__name__)
 @router.websocket("/ws/sessions/{session_id}")
 async def session_ws(websocket: WebSocket, session_id: int) -> None:
     await websocket.accept()
+    if not websocket_authenticated(websocket):
+        # 先 accept 再发可读原因再关：未 accept 直接关只能得到裸 403，
+        # 前端分不清「没登录」和「服务挂了」。4401 与 HTTP 401 语义对齐。
+        await websocket.send_json({"type": "error", "message": "未登录或登录已过期，请重新登录后再连语音"})
+        await websocket.close(code=4401)
+        return
     settings = get_settings()
 
     with session_scope() as db:

@@ -20,6 +20,13 @@ data/
 .env.local
 *.local
 
+# ---- 证书与私钥：部署用的自签证书私钥绝不能入库 ----
+backend/certs/
+certs/
+*.pem
+*.key
+*.pfx
+
 # ---- Node / 前端 ----
 node_modules/
 frontend/dist/
