@@ -50,7 +50,7 @@ export default function Whiteboard({
   const initialElements = useMemo(() => parseScene(initialScene), [initialScene])
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-300" style={{ height }}>
+    <div className="overflow-hidden rounded-card border border-ink-2" style={{ height }}>
       <Excalidraw
         initialData={{
           elements: initialElements as never,

@@ -124,20 +124,20 @@ export default function Expression() {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+        <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
       )}
 
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-card border border-ink-1 bg-surface p-4">
         <h2 className="text-sm font-semibold">选一场面试做体检</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
+        <p className="mt-0.5 text-xs text-ink-6">
           语音面试才有停顿与音量分析（需要录音）；文字面试只能看填充词与整体语速。
         </p>
 
         <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="text-xs text-slate-600">
+          <label className="text-xs text-ink-6">
             面试场次
             <select
-              className="mt-1 w-80 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 w-80 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
               value={sessionId ?? ''}
               onChange={(event) => setSessionId(Number(event.target.value))}
             >
@@ -153,7 +153,7 @@ export default function Expression() {
             type="button"
             disabled={busy || sessionId === null}
             onClick={() => void generate(true)}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
           >
             生成表达体检（含录音）
           </button>
@@ -161,7 +161,7 @@ export default function Expression() {
             type="button"
             disabled={busy || sessionId === null}
             onClick={() => void generate(false)}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
+            className="rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:cursor-not-allowed"
           >
             只看文字
           </button>
@@ -169,7 +169,7 @@ export default function Expression() {
       </section>
 
       {!report && (
-        <section className="rounded-lg border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+        <section className="rounded-card border border-ink-1 bg-surface p-6 text-center text-sm text-ink-6">
           还没有体检结果。选一场面试，点「生成表达体检」。
         </section>
       )}
@@ -177,28 +177,28 @@ export default function Expression() {
       {report && (
         <>
           {/* 结论 */}
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <section className="rounded-card border border-ink-1 bg-surface p-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-semibold">{report.overall}</span>
-                <span className="text-xs text-slate-500">/ 10</span>
+                <span className="text-xs text-ink-6">/ 10</span>
               </div>
               <span
                 className={
                   report.has_audio
-                    ? 'rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700'
-                    : 'rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600'
+                    ? 'rounded-full bg-ok-soft px-2.5 py-1 text-xs text-ok'
+                    : 'rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-6'
                 }
               >
                 {report.has_audio ? '含录音分析' : '仅文字分析'}
               </span>
               {!report.reliable && (
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-800">
+                <span className="rounded-full bg-warn-soft px-2.5 py-1 text-xs text-warn">
                   样本偏少，密度类指标只作参考
                 </span>
               )}
             </div>
-            <p className="mt-2 text-sm text-slate-700">{report.summary}</p>
+            <p className="mt-2 text-sm text-ink-7">{report.summary}</p>
 
             <div className="mt-3 grid gap-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
               {[
@@ -209,22 +209,22 @@ export default function Expression() {
                 { label: '语速起伏', value: report.pace_cv.toFixed(2) },
                 { label: '紧张信号', value: `${report.tension}/100` },
               ].map((item) => (
-                <div key={item.label} className="rounded-md border border-slate-200 px-3 py-2">
-                  <div className="text-slate-500">{item.label}</div>
-                  <div className="mt-0.5 text-sm font-medium text-slate-800">{item.value}</div>
+                <div key={item.label} className="rounded-control border border-ink-1 px-3 py-2">
+                  <div className="text-ink-6">{item.label}</div>
+                  <div className="mt-0.5 text-sm font-medium text-ink-9">{item.value}</div>
                 </div>
               ))}
             </div>
 
             {report.tension >= 55 && (
-              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div className="mt-3 rounded-control border border-warn bg-warn-soft px-3 py-2 text-xs text-warn">
                 语速与音量波动较大，可能是紧张信号。（这是从节奏推出来的启发式提示，不是心理判断。）
               </div>
             )}
 
             {report.audio_url && (
               <div className="mt-3">
-                <div className="mb-1 text-xs text-slate-500">整场录音（点下面的「跳到这句」会从这里播放）</div>
+                <div className="mb-1 text-xs text-ink-6">整场录音（点下面的「跳到这句」会从这里播放）</div>
                 <audio ref={audioRef} src={report.audio_url} controls className="w-full" />
               </div>
             )}
@@ -232,9 +232,9 @@ export default function Expression() {
 
           {/* 语速-音量曲线 */}
           {chartData.length > 0 && (
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-card border border-ink-1 bg-surface p-4">
               <h2 className="text-sm font-semibold">语速与音量曲线（每 10 秒）</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-ink-6">
                 折线是语速（字/分钟），柱子是相对音量。两条线一起看，紧张的位置通常很明显。
               </p>
               <div className="mt-3 h-64">
@@ -254,14 +254,14 @@ export default function Expression() {
           )}
 
           {/* 问题清单（可跳播） */}
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <section className="rounded-card border border-ink-1 bg-surface p-4">
             <h2 className="text-sm font-semibold">具体问题（{report.issues.length}）</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs text-ink-6">
               点「跳到这句」会把上面的录音移到那个位置——评价要能被核对，不然就只是评价。
             </p>
 
             {report.issues.length === 0 ? (
-              <p className="mt-3 text-xs text-emerald-700">节奏上没有发现明显问题。</p>
+              <p className="mt-3 text-xs text-ok">节奏上没有发现明显问题。</p>
             ) : (
               <ul className="mt-3 space-y-2">
                 {report.issues.map((issue) => (
@@ -269,24 +269,24 @@ export default function Expression() {
                     key={`${issue.kind}-${issue.at_ms}`}
                     className={
                       issue.severity === 'warning'
-                        ? 'rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs'
-                        : 'rounded-md border border-slate-200 px-3 py-2 text-xs'
+                        ? 'rounded-control border border-warn bg-warn-soft px-3 py-2 text-xs'
+                        : 'rounded-control border border-ink-1 px-3 py-2 text-xs'
                     }
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium text-slate-800">
+                      <span className="font-medium text-ink-9">
                         {formatClock(issue.at_ms)} · {ISSUE_LABEL[issue.kind] ?? issue.kind}
                       </span>
                       <button
                         type="button"
                         onClick={() => jumpTo(issue.at_ms)}
-                        className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-white"
+                        className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ink-6 hover:bg-surface"
                       >
                         跳到这句
                       </button>
                     </div>
-                    <div className="mt-1 text-slate-600">{issue.detail}</div>
-                    {issue.excerpt && <div className="mt-1 text-slate-500">「{issue.excerpt}」</div>}
+                    <div className="mt-1 text-ink-6">{issue.detail}</div>
+                    {issue.excerpt && <div className="mt-1 text-ink-6">「{issue.excerpt}」</div>}
                   </li>
                 ))}
               </ul>
@@ -295,18 +295,18 @@ export default function Expression() {
 
           {/* 填充词与停顿 */}
           <section className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="rounded-card border border-ink-1 bg-surface p-4">
               <h2 className="text-sm font-semibold">填充词（{report.filler_total} 次）</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-ink-6">
                 {report.reliable
                   ? `每千字 ${report.filler_per_kchar} 个（加权）`
                   : `说得太少，密度不参与评分（本次 ${report.filler_total} 次）`}
               </p>
               {report.fillers.length === 0 ? (
-                <p className="mt-2 text-xs text-emerald-700">没有明显填充词。</p>
+                <p className="mt-2 text-xs text-ok">没有明显填充词。</p>
               ) : (
                 <table className="mt-2 w-full text-left text-xs">
-                  <thead className="text-slate-500">
+                  <thead className="text-ink-6">
                     <tr>
                       <th className="py-1 pr-2">词</th>
                       <th className="py-1 pr-2">次数</th>
@@ -315,10 +315,10 @@ export default function Expression() {
                   </thead>
                   <tbody>
                     {report.fillers.map((item) => (
-                      <tr key={item.word} className="border-t border-slate-100">
+                      <tr key={item.word} className="border-t border-ink-1">
                         <td className="py-1 pr-2">{item.word}</td>
                         <td className="py-1 pr-2">{item.count}</td>
-                        <td className={`py-1 pr-2 ${item.strong ? 'text-rose-700' : 'text-slate-500'}`}>
+                        <td className={`py-1 pr-2 ${item.strong ? 'text-ng' : 'text-ink-6'}`}>
                           {item.strong ? '明显卡壳' : '口头习惯'}
                         </td>
                       </tr>
@@ -328,27 +328,27 @@ export default function Expression() {
               )}
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="rounded-card border border-ink-1 bg-surface p-4">
               <h2 className="text-sm font-semibold">停顿（{report.pauses.length} 处）</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-ink-6">
                 {report.has_audio ? '只统计你自己发言里的停顿' : '没有录音，无法定位停顿'}
               </p>
               {report.pauses.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500">没有检测到超过 0.6 秒的停顿。</p>
+                <p className="mt-2 text-xs text-ink-6">没有检测到超过 0.6 秒的停顿。</p>
               ) : (
                 <ul className="mt-2 space-y-1 text-xs">
                   {report.pauses.map((pause) => (
-                    <li key={pause.start_ms} className="flex items-center justify-between gap-2 border-t border-slate-100 py-1">
+                    <li key={pause.start_ms} className="flex items-center justify-between gap-2 border-t border-ink-1 py-1">
                       <span>
                         {formatClock(pause.start_ms)} · {pause.seconds} 秒 ·{' '}
-                        <span className={pause.kind === 'very_long' ? 'text-rose-700' : 'text-slate-500'}>
+                        <span className={pause.kind === 'very_long' ? 'text-ng' : 'text-ink-6'}>
                           {PAUSE_LABEL[pause.kind] ?? pause.kind}
                         </span>
                       </span>
                       <button
                         type="button"
                         onClick={() => jumpTo(pause.start_ms)}
-                        className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
+                        className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ink-6 hover:bg-paper"
                       >
                         跳到这句
                       </button>
@@ -360,11 +360,11 @@ export default function Expression() {
           </section>
 
           {/* 练习建议 */}
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <section className="rounded-card border border-ink-1 bg-surface p-4">
             <h2 className="text-sm font-semibold">怎么练</h2>
-            <ul className="mt-2 space-y-2 text-sm text-slate-700">
+            <ul className="mt-2 space-y-2 text-sm text-ink-7">
               {report.suggestions.map((tip) => (
-                <li key={tip} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+                <li key={tip} className="rounded-control border border-ink-1 bg-paper px-3 py-2">
                   {tip}
                 </li>
               ))}

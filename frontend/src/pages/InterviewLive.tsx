@@ -206,15 +206,15 @@ export default function InterviewLive({ onOpenReport }: Props) {
   }
 
   const inputClass =
-    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500 disabled:bg-slate-50'
+    'w-full rounded-card border border-ink-2 px-3 py-2 text-sm outline-none focus:border-info disabled:bg-paper'
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="flex min-h-[70vh] flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+      <section className="flex min-h-[70vh] flex-col rounded-panel border border-ink-1 bg-surface">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-1 px-4 py-3">
           <div>
-            <h2 className="text-base font-semibold text-slate-800">面试间（文字模式）</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-base font-semibold text-ink-9">面试间（文字模式）</h2>
+            <p className="text-xs text-ink-6">
               {session
                 ? `${session.target_label || '未指定岗位'} · 已问 ${session.question_count}/${maxQ} 题`
                 : '在右侧选好岗位与简历，然后开始'}
@@ -222,7 +222,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
           </div>
           <div className="flex items-center gap-2">
             {session && (
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+              <span className="rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-6">
                 {STATUS_LABEL[session.status] ?? session.status}
               </span>
             )}
@@ -231,7 +231,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
                 type="button"
                 onClick={() => void finishSession()}
                 disabled={busy}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:opacity-50"
               >
                 结束本场
               </button>
@@ -242,7 +242,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
                   <button
                     type="button"
                     onClick={() => onOpenReport(session.id)}
-                    className="rounded-md bg-sky-600 px-3 py-1.5 text-xs text-white hover:bg-sky-700"
+                    className="rounded-control bg-info px-3 py-1.5 text-xs text-surface hover:bg-info"
                   >
                     查看报告
                   </button>
@@ -250,7 +250,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
                 <button
                   type="button"
                   onClick={() => setSession(null)}
-                  className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white hover:bg-slate-800"
+                  className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface hover:bg-ink-9"
                 >
                   新开一场
                 </button>
@@ -260,7 +260,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
         </header>
 
         {currentInterviewer && (
-          <div className="border-b border-violet-100 bg-violet-50 px-4 py-1.5 text-xs text-violet-900">
+          <div className="border-b border-info bg-info-soft px-4 py-1.5 text-xs text-info">
             当前面试官：第 {currentInterviewer.index + 1}/{currentInterviewer.total} 位 · {currentInterviewer.label} ·{' '}
             {currentInterviewer.voice_label}
             {currentInterviewer.is_handover && <span className="ml-2 font-medium">（刚换人）</span>}
@@ -269,7 +269,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
 
         <div ref={streamRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {!session && (
-            <div className="rounded-lg border border-dashed border-slate-300 p-6 text-sm leading-relaxed text-slate-500">
+            <div className="rounded-card border border-dashed border-ink-2 p-6 text-sm leading-relaxed text-ink-6">
               还没有进行中的面试。右侧选好目标岗位与简历后点「开始面试」。
               <br />
               没有岗位或简历也可以先在下方的「快速新建」里录入一份 JD 与简历要点。
@@ -283,14 +283,22 @@ export default function InterviewLive({ onOpenReport }: Props) {
                 <div
                   className={
                     isCandidate
-                      ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-sky-600 px-4 py-2 text-sm text-white'
-                      : 'max-w-[80%] rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-2 text-sm text-slate-800'
+                      ? 'max-w-[80%] rounded-panel rounded-br-control bg-info px-4 py-2 text-sm text-surface'
+                      : 'max-w-[80%] rounded-panel rounded-bl-control bg-sunken px-4 py-2 text-sm text-ink-9'
                   }
                 >
-                  <div className={isCandidate ? 'mb-1 text-[11px] opacity-75' : 'mb-1 text-[11px] text-slate-500'}>
-                    {SPEAKER_LABEL[turn.speaker] ?? turn.speaker}
-                    {turn.kind === 'followup' ? ' · 追问' : ''}
-                    {turn.topic ? ` · ${turn.topic}` : ''}
+                  <div
+                    className={
+                      isCandidate
+                        ? 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] opacity-80'
+                        : 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] text-ink-6'
+                    }
+                  >
+                    <span>{SPEAKER_LABEL[turn.speaker] ?? turn.speaker}</span>
+                    {turn.kind === 'followup' && (
+                      <span className="rounded-control bg-ink-9/10 px-1">追问</span>
+                    )}
+                    {turn.topic && <span className="text-ink-4">{turn.topic}</span>}
                   </div>
                   <div className="whitespace-pre-wrap leading-relaxed">{turn.text}</div>
                 </div>
@@ -298,12 +306,12 @@ export default function InterviewLive({ onOpenReport }: Props) {
             )
           })}
 
-          {busy && <p className="text-xs text-slate-400">面试官正在思考…</p>}
+          {busy && <p className="text-xs text-ink-4">面试官正在思考…</p>}
         </div>
 
-        <footer className="border-t border-slate-200 px-4 py-3">
+        <footer className="border-t border-ink-1 px-4 py-3">
           {error && (
-            <p className="mb-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>
+            <p className="mb-2 rounded-control bg-ng-soft px-3 py-2 text-xs text-ng">{error}</p>
           )}
           <div className="flex items-end gap-2">
             <textarea
@@ -324,7 +332,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
               type="button"
               onClick={() => void submitAnswer()}
               disabled={!isLive || busy || !draft.trim()}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-40"
+              className="rounded-card bg-ink-9 px-4 py-2 text-sm font-medium text-surface hover:bg-ink-9 disabled:opacity-40"
             >
               发送
             </button>
@@ -333,10 +341,10 @@ export default function InterviewLive({ onOpenReport }: Props) {
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">本场配置</h3>
+        <div className="rounded-panel border border-ink-1 bg-surface p-4">
+          <h3 className="mb-3 text-sm font-semibold text-ink-9">本场配置</h3>
 
-          <label className="mb-1 block text-xs text-slate-500">目标岗位</label>
+          <label className="mb-1 block text-xs text-ink-6">目标岗位</label>
           <select
             value={targetId}
             onChange={(event) => setTargetId(event.target.value)}
@@ -350,7 +358,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
             ))}
           </select>
 
-          <label className="mb-1 block text-xs text-slate-500">简历</label>
+          <label className="mb-1 block text-xs text-ink-6">简历</label>
           <select
             value={resumeId}
             onChange={(event) => setResumeId(event.target.value)}
@@ -364,7 +372,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
             ))}
           </select>
 
-          <label className="mb-1 block text-xs text-slate-500">题量上限</label>
+          <label className="mb-1 block text-xs text-ink-6">题量上限</label>
           <input
             type="number"
             min={1}
@@ -374,14 +382,14 @@ export default function InterviewLive({ onOpenReport }: Props) {
             className={`${inputClass} mb-3`}
           />
 
-          <label className="mb-1 block text-xs text-slate-500">面试风格</label>
+          <label className="mb-1 block text-xs text-ink-6">面试风格</label>
           <input
             value={style}
             onChange={(event) => setStyle(event.target.value)}
             className={`${inputClass} mb-3`}
           />
 
-          <label className="mb-1 block text-xs text-slate-500">面试官画像（可选）</label>
+          <label className="mb-1 block text-xs text-ink-6">面试官画像（可选）</label>
           <select
             value={profileId}
             onChange={(event) => setProfileId(event.target.value)}
@@ -401,32 +409,32 @@ export default function InterviewLive({ onOpenReport }: Props) {
             type="button"
             onClick={() => void startSession()}
             disabled={busy}
-            className="w-full rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+            className="w-full rounded-card bg-info px-4 py-2 text-sm font-medium text-surface hover:bg-info disabled:opacity-50"
           >
             开始面试
           </button>
           {session && (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-ink-6">
               会话 #{session.id} · 提供方 {session.provider}
               {session.plan.pacing ? ` · 画像：${session.plan.pacing.profile_name}` : ''}
             </p>
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">快速新建</h3>
+        <div className="rounded-panel border border-ink-1 bg-surface p-4">
+          <h3 className="mb-3 text-sm font-semibold text-ink-9">快速新建</h3>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setCreating(creating === 'target' ? null : 'target')}
-              className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+              className="flex-1 rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper"
             >
               岗位 / JD
             </button>
             <button
               type="button"
               onClick={() => setCreating(creating === 'resume' ? null : 'resume')}
-              className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+              className="flex-1 rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper"
             >
               简历
             </button>
@@ -457,7 +465,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
                 type="button"
                 onClick={() => void submitTarget()}
                 disabled={busy}
-                className="w-full rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white hover:bg-slate-800 disabled:opacity-50"
+                className="w-full rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface hover:bg-ink-9 disabled:opacity-50"
               >
                 保存岗位
               </button>
@@ -483,7 +491,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
                 type="button"
                 onClick={() => void submitResume()}
                 disabled={busy}
-                className="w-full rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white hover:bg-slate-800 disabled:opacity-50"
+                className="w-full rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface hover:bg-ink-9 disabled:opacity-50"
               >
                 保存简历
               </button>

@@ -26,11 +26,11 @@ import Markdown from '../components/Markdown'
 const Whiteboard = lazy(() => import('../components/Whiteboard'))
 
 const DIFFICULTY_STYLES: Record<number, string> = {
-  1: 'bg-emerald-50 text-emerald-700',
-  2: 'bg-emerald-50 text-emerald-700',
-  3: 'bg-amber-50 text-amber-700',
-  4: 'bg-orange-50 text-orange-700',
-  5: 'bg-rose-50 text-rose-700',
+  1: 'bg-ok-soft text-ok',
+  2: 'bg-ok-soft text-ok',
+  3: 'bg-warn-soft text-warn',
+  4: 'bg-warn-soft text-warn',
+  5: 'bg-ng-soft text-ng',
 }
 
 const VERDICT_LABELS: Record<string, string> = {
@@ -41,11 +41,11 @@ const VERDICT_LABELS: Record<string, string> = {
   unknown: '未能判断',
 }
 const VERDICT_STYLES: Record<string, string> = {
-  strong: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  ok: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  partial: 'border-amber-200 bg-amber-50 text-amber-700',
-  weak: 'border-rose-200 bg-rose-50 text-rose-700',
-  unknown: 'border-slate-200 bg-slate-50 text-slate-600',
+  strong: 'border-ok bg-ok-soft text-ok',
+  ok: 'border-ok bg-ok-soft text-ok',
+  partial: 'border-warn bg-warn-soft text-warn',
+  weak: 'border-ng bg-ng-soft text-ng',
+  unknown: 'border-ink-1 bg-paper text-ink-6',
 }
 
 const SCORE_LABELS: Record<string, string> = {
@@ -55,10 +55,10 @@ const SCORE_LABELS: Record<string, string> = {
   missing: '未覆盖',
 }
 const SCORE_STYLES: Record<string, string> = {
-  strong: 'bg-emerald-100 text-emerald-800',
-  ok: 'bg-emerald-50 text-emerald-700',
-  weak: 'bg-amber-100 text-amber-800',
-  missing: 'bg-rose-100 text-rose-800',
+  strong: 'bg-ok-soft text-ok',
+  ok: 'bg-ok-soft text-ok',
+  weak: 'bg-warn-soft text-warn',
+  missing: 'bg-ng-soft text-ng',
 }
 
 function errorMessage(error: unknown): string {
@@ -68,7 +68,7 @@ function errorMessage(error: unknown): string {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-xs font-semibold text-slate-500">{title}</h4>
+      <h4 className="text-xs font-semibold text-ink-6">{title}</h4>
       <div className="mt-1.5">{children}</div>
     </div>
   )
@@ -78,7 +78,7 @@ function ReviewPanel({ review }: { review: DesignReview }) {
   const verdict = review.verdict || 'unknown'
   return (
     <div className="space-y-4">
-      <div className={`rounded-lg border px-3 py-2 ${VERDICT_STYLES[verdict] ?? VERDICT_STYLES.unknown}`}>
+      <div className={`rounded-card border px-3 py-2 ${VERDICT_STYLES[verdict] ?? VERDICT_STYLES.unknown}`}>
         <span className="text-sm font-semibold">{VERDICT_LABELS[verdict] ?? verdict}</span>
         {review.summary && (
           <p className="mt-1 text-xs leading-relaxed opacity-90">{review.summary}</p>
@@ -86,16 +86,16 @@ function ReviewPanel({ review }: { review: DesignReview }) {
       </div>
 
       {review.notes && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="rounded-card border border-warn bg-warn-soft px-3 py-2 text-xs text-warn">
           {review.notes}
         </div>
       )}
 
       {/* 漏了什么 —— 这份评估最该被看到的部分，所以放在最前面加粗显示 */}
       {review.gaps.length > 0 && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5">
-          <h4 className="text-xs font-semibold text-rose-900">最关键的遗漏</h4>
-          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs leading-relaxed text-rose-900">
+        <div className="rounded-card border border-ng bg-ng-soft px-3 py-2.5">
+          <h4 className="text-xs font-semibold text-ng">最关键的遗漏</h4>
+          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs leading-relaxed text-ng">
             {review.gaps.map((item, index) => (
               <li key={index}>{item}</li>
             ))}
@@ -106,38 +106,38 @@ function ReviewPanel({ review }: { review: DesignReview }) {
       <Section title="各维度表现">
         <div className="space-y-2">
           {review.dimensions.map((item) => (
-            <div key={item.dimension} className="rounded-lg border border-slate-200 bg-white p-2.5">
+            <div key={item.dimension} className="rounded-card border border-ink-1 bg-surface p-2.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium text-slate-900">{item.dimension}</span>
+                <span className="text-xs font-medium text-ink-9">{item.dimension}</span>
                 <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] ${SCORE_STYLES[item.score] ?? 'bg-slate-100 text-slate-600'}`}
+                  className={`rounded-control px-1.5 py-0.5 text-[10px] ${SCORE_STYLES[item.score] ?? 'bg-sunken text-ink-6'}`}
                 >
                   {SCORE_LABELS[item.score] ?? item.score}
                 </span>
                 {item.weight === 'core' && (
-                  <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[10px] text-white">
+                  <span className="rounded-control bg-ink-9 px-1.5 py-0.5 text-[10px] text-surface">
                     及格线
                   </span>
                 )}
                 {item.weight === 'bonus' && (
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                  <span className="rounded-control bg-sunken px-1.5 py-0.5 text-[10px] text-ink-6">
                     加分项
                   </span>
                 )}
               </div>
               {item.assessment && (
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">{item.assessment}</p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-6">{item.assessment}</p>
               )}
               {item.mentioned.length > 0 && (
                 <ul className="mt-1.5 space-y-0.5">
                   {item.mentioned.map((mention, index) => (
-                    <li key={index} className="flex items-start gap-1.5 text-[11px] text-slate-700">
+                    <li key={index} className="flex items-start gap-1.5 text-[11px] text-ink-7">
                       {/* 说到的也要区分「他明确说了」和「模型推断的」 */}
                       <span
-                        className={`mt-0.5 shrink-0 rounded px-1 text-[10px] ${
+                        className={`mt-0.5 shrink-0 rounded-control px-1 text-[10px] ${
                           mention.kind === 'stated'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-slate-100 text-slate-500'
+                            ? 'bg-ok-soft text-ok'
+                            : 'bg-sunken text-ink-6'
                         }`}
                         title={mention.kind === 'stated' ? '候选人明确说了' : '模型从他的表述推断'}
                       >
@@ -151,8 +151,8 @@ function ReviewPanel({ review }: { review: DesignReview }) {
               {item.missing.length > 0 && (
                 <ul className="mt-1.5 space-y-0.5">
                   {item.missing.map((text, index) => (
-                    <li key={index} className="flex items-start gap-1.5 text-[11px] text-rose-700">
-                      <span className="mt-0.5 shrink-0 rounded bg-rose-100 px-1 text-[10px] text-rose-800">
+                    <li key={index} className="flex items-start gap-1.5 text-[11px] text-ng">
+                      <span className="mt-0.5 shrink-0 rounded-control bg-ng-soft px-1 text-[10px] text-ng">
                         没提
                       </span>
                       <span>{text}</span>
@@ -167,7 +167,7 @@ function ReviewPanel({ review }: { review: DesignReview }) {
 
       {review.strengths.length > 0 && (
         <Section title="做得好的地方">
-          <ul className="list-disc space-y-1 pl-4 text-xs text-slate-700">
+          <ul className="list-disc space-y-1 pl-4 text-xs text-ink-7">
             {review.strengths.map((item, index) => (
               <li key={index}>{item}</li>
             ))}
@@ -177,7 +177,7 @@ function ReviewPanel({ review }: { review: DesignReview }) {
 
       {review.followups.length > 0 && (
         <Section title="面试官会追问">
-          <ul className="list-disc space-y-1 pl-4 text-xs text-slate-700">
+          <ul className="list-disc space-y-1 pl-4 text-xs text-ink-7">
             {review.followups.map((item, index) => (
               <li key={index}>{item}</li>
             ))}
@@ -185,7 +185,7 @@ function ReviewPanel({ review }: { review: DesignReview }) {
         </Section>
       )}
 
-      <p className="text-[11px] leading-relaxed text-slate-400">
+      <p className="text-[11px] leading-relaxed text-ink-4">
         系统设计没有唯一答案，这是按题目给的维度做的对照，不是判分。
         标「推断」的条目是模型从你的表述推出来的，未必你真这么想。
       </p>
@@ -296,24 +296,24 @@ export default function DesignBoard() {
             key={item.slug}
             type="button"
             onClick={() => setSlug(item.slug)}
-            className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition ${
+            className={`w-full rounded-card border px-3 py-2 text-left text-xs transition ${
               item.slug === slug
-                ? 'border-slate-900 bg-white shadow-sm'
-                : 'border-slate-200 bg-white/60 hover:bg-white'
+                ? 'border-ink-9 bg-surface'
+                : 'border-ink-1 bg-paper hover:bg-surface'
             }`}
           >
-            <div className="font-medium leading-snug text-slate-900">{item.title}</div>
+            <div className="font-medium leading-snug text-ink-9">{item.title}</div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <span
-                className={`rounded px-1.5 py-0.5 text-[10px] ${DIFFICULTY_STYLES[item.difficulty] ?? 'bg-slate-100 text-slate-600'}`}
+                className={`rounded-control px-1.5 py-0.5 text-[10px] ${DIFFICULTY_STYLES[item.difficulty] ?? 'bg-sunken text-ink-6'}`}
               >
                 难度 {item.difficulty}
               </span>
               {item.attempts > 0 && (
-                <span className="text-[10px] text-slate-400">做过 {item.attempts} 次</span>
+                <span className="text-[10px] text-ink-4">做过 {item.attempts} 次</span>
               )}
             </div>
-            <div className="mt-1 text-[10px] text-slate-400">
+            <div className="mt-1 text-[10px] text-ink-4">
               {item.dimensions.length} 个评分维度
             </div>
           </button>
@@ -322,24 +322,24 @@ export default function DesignBoard() {
 
       <div className="space-y-4">
         {error && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <div className="rounded-card border border-ng bg-ng-soft px-3 py-2 text-xs text-ng">
             {error}
           </div>
         )}
 
         {detail && (
           <>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-panel border border-ink-1 bg-surface p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-semibold text-slate-900">{detail.title}</h3>
+                <h3 className="text-sm font-semibold text-ink-9">{detail.title}</h3>
                 <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] ${DIFFICULTY_STYLES[detail.difficulty] ?? 'bg-slate-100 text-slate-600'}`}
+                  className={`rounded-control px-1.5 py-0.5 text-[10px] ${DIFFICULTY_STYLES[detail.difficulty] ?? 'bg-sunken text-ink-6'}`}
                 >
                   难度 {detail.difficulty}
                 </span>
-                <span className="text-[10px] text-slate-400">{detail.tags.join(' · ')}</span>
+                <span className="text-[10px] text-ink-4">{detail.tags.join(' · ')}</span>
                 {currentBrief && currentBrief.attempts > 0 && (
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[10px] text-ink-4">
                     做过 {currentBrief.attempts} 次
                     {currentBrief.last_verdict &&
                       `，最近：${VERDICT_LABELS[currentBrief.last_verdict] ?? ''}`}
@@ -351,29 +351,29 @@ export default function DesignBoard() {
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <h4 className="text-xs font-semibold text-slate-600">已知约束</h4>
-                  <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[11px] leading-relaxed text-slate-600">
+                <div className="rounded-card bg-paper p-3">
+                  <h4 className="text-xs font-semibold text-ink-6">已知约束</h4>
+                  <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[11px] leading-relaxed text-ink-6">
                     {detail.constraints.map((item, index) => (
                       <li key={index}>{item}</li>
                     ))}
                   </ul>
                 </div>
-                <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                <div className="rounded-card border border-dashed border-ink-2 p-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-slate-600">评分维度</h4>
-                    <span className="text-[10px] text-slate-400">会从这几个方向看</span>
+                    <h4 className="text-xs font-semibold text-ink-6">评分维度</h4>
+                    <span className="text-[10px] text-ink-4">会从这几个方向看</span>
                   </div>
                   <ul className="mt-1.5 flex flex-wrap gap-1.5">
                     {detail.dimensions.map((item) => (
                       <li
                         key={item.dimension}
-                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                        className={`rounded-control px-1.5 py-0.5 text-[10px] ${
                           item.weight === 'core'
-                            ? 'bg-slate-900 text-white'
+                            ? 'bg-ink-9 text-surface'
                             : item.weight === 'bonus'
-                              ? 'bg-slate-100 text-slate-500'
-                              : 'bg-slate-100 text-slate-600'
+                              ? 'bg-sunken text-ink-6'
+                              : 'bg-sunken text-ink-6'
                         }`}
                       >
                         {item.dimension}
@@ -382,7 +382,7 @@ export default function DesignBoard() {
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
+                  <p className="mt-1.5 text-[10px] leading-relaxed text-ink-4">
                     具体希望谈到什么不给出来——那是评分参照，看到就变成照抄了。
                   </p>
                 </div>
@@ -392,29 +392,29 @@ export default function DesignBoard() {
                 <button
                   type="button"
                   onClick={() => setShowOpenQuestions((value) => !value)}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600"
+                  className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-6"
                 >
                   {showOpenQuestions ? '收起' : '看「可以先问什么」'}（{detail.open_questions.length}）
                 </button>
                 <button
                   type="button"
                   onClick={() => setHintsShown((value) => !value)}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600"
+                  className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-6"
                 >
                   {hintsShown ? '收起' : '卡住了，看提示'}
                 </button>
               </div>
 
               {showOpenQuestions && (
-                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-                  <h4 className="text-xs font-semibold text-slate-500">
+                <div className="mt-3 rounded-card border border-ink-1 bg-surface p-3">
+                  <h4 className="text-xs font-semibold text-ink-6">
                     题面没给、需要你自己问清的
                   </h4>
-                  <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                  <p className="mt-1 text-[11px] leading-relaxed text-ink-6">
                     系统设计题最容易失分的地方就是跳过这一步直接给方案。真想练，就先不看这个列表，
                     自己列一遍再对照。
                   </p>
-                  <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-slate-700">
+                  <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-ink-7">
                     {detail.open_questions.map((item, index) => (
                       <li key={index}>{item}</li>
                     ))}
@@ -423,9 +423,9 @@ export default function DesignBoard() {
               )}
 
               {hintsShown && (
-                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-                  <h4 className="text-xs font-semibold text-slate-500">切入点</h4>
-                  <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-slate-700">
+                <div className="mt-3 rounded-card border border-ink-1 bg-surface p-3">
+                  <h4 className="text-xs font-semibold text-ink-6">切入点</h4>
+                  <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-ink-7">
                     {detail.hints.map((item, index) => (
                       <li key={index}>{item}</li>
                     ))}
@@ -437,14 +437,14 @@ export default function DesignBoard() {
             {/* 白板 */}
             <div>
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                <h4 className="text-xs font-semibold text-slate-500">白板</h4>
-                <span className="text-[10px] text-slate-400">
+                <h4 className="text-xs font-semibold text-ink-6">白板</h4>
+                <span className="text-[10px] text-ink-4">
                   画出来是帮自己想清楚；画布上的文字会被抽出来一起交给评估
                 </span>
               </div>
               <Suspense
                 fallback={
-                  <div className="rounded-lg border border-slate-300 bg-white p-4 text-xs text-slate-400">
+                  <div className="rounded-card border border-ink-2 bg-surface p-4 text-xs text-ink-4">
                     正在加载白板…
                   </div>
                 }
@@ -460,8 +460,8 @@ export default function DesignBoard() {
             {/* 文字说明 */}
             <div>
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                <h4 className="text-xs font-semibold text-slate-500">方案说明</h4>
-                <span className="text-[10px] text-slate-400">
+                <h4 className="text-xs font-semibold text-ink-6">方案说明</h4>
+                <span className="text-[10px] text-ink-4">
                   评估以这段文字为主。建议按「需求澄清 → 架构 → 取舍 → 边界」写
                 </span>
               </div>
@@ -476,7 +476,7 @@ export default function DesignBoard() {
                   '3. 关键取舍是……（为什么这么选，代价是什么）\n' +
                   '4. 异常与长期维护……'
                 }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs leading-relaxed"
+                className="w-full rounded-card border border-ink-2 px-3 py-2 text-xs leading-relaxed"
               />
             </div>
 
@@ -485,7 +485,7 @@ export default function DesignBoard() {
                 type="button"
                 onClick={() => void submit()}
                 disabled={!canSubmit}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:bg-slate-300"
+                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
               >
                 {busy === 'submitting' ? '评估中…' : '提交并评估'}
               </button>
@@ -497,26 +497,26 @@ export default function DesignBoard() {
                   setSceneKey((value) => value + 1)
                   setAttempt(null)
                 }}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600"
+                className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-6"
               >
                 清空重做
               </button>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-ink-4">
                 {writeup.trim().length} 字
                 {scene.trim() ? '，画布已记录' : '，画布为空'}
               </span>
             </div>
 
             {attempt && (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h4 className="mb-3 text-xs font-semibold text-slate-500">评估</h4>
+              <div className="rounded-panel border border-ink-1 bg-surface p-4">
+                <h4 className="mb-3 text-xs font-semibold text-ink-6">评估</h4>
                 <ReviewPanel review={attempt.review} />
               </div>
             )}
 
             {history.length > 0 && (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h4 className="mb-2 text-xs font-semibold text-slate-500">
+              <div className="rounded-panel border border-ink-1 bg-surface p-4">
+                <h4 className="mb-2 text-xs font-semibold text-ink-6">
                   这道题的历史（点一下载入，画布和说明都能接着改）
                 </h4>
                 <div className="space-y-1">
@@ -525,20 +525,20 @@ export default function DesignBoard() {
                       key={item.id}
                       type="button"
                       onClick={() => void loadAttempt(item.id)}
-                      className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-left text-xs hover:bg-slate-50"
+                      className="w-full rounded-control border border-ink-1 px-2.5 py-1.5 text-left text-xs hover:bg-paper"
                     >
                       <div className="flex items-center gap-2">
                         <span
-                          className={`rounded px-1.5 py-0.5 text-[10px] ${
-                            VERDICT_STYLES[item.verdict] ?? 'border-slate-200 text-slate-500'
+                          className={`rounded-control px-1.5 py-0.5 text-[10px] ${
+                            VERDICT_STYLES[item.verdict] ?? 'border-ink-1 text-ink-6'
                           }`}
                         >
                           {VERDICT_LABELS[item.verdict] ?? (item.verdict || '—')}
                         </span>
-                        <span className="flex-1 truncate text-slate-600">
+                        <span className="flex-1 truncate text-ink-6">
                           {item.writeup.slice(0, 40) || '（只画了图）'}
                         </span>
-                        <span className="shrink-0 text-[10px] text-slate-400">
+                        <span className="shrink-0 text-[10px] text-ink-4">
                           {new Date(item.created_at).toLocaleString('zh-CN', { hour12: false })}
                         </span>
                       </div>

@@ -347,16 +347,16 @@ export default function InterviewVoice({ onOpenReport }: Props) {
 
   const isLive = session?.status === 'live' && connected
 
-  const buttonBase = 'rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-40'
-  const inputClass = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500'
+  const buttonBase = 'rounded-control px-3 py-1.5 text-xs font-medium disabled:opacity-40'
+  const inputClass = 'w-full rounded-card border border-ink-2 px-3 py-2 text-sm outline-none focus:border-info'
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="flex min-h-[70vh] flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+      <section className="flex min-h-[70vh] flex-col rounded-panel border border-ink-1 bg-surface">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-1 px-4 py-3">
           <div>
-            <h2 className="text-base font-semibold text-slate-800">语音面试间</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-base font-semibold text-ink-9">语音面试间</h2>
+            <p className="text-xs text-ink-6">
               {session ? `会话 #${session.id} · ${session.target_label || '通用面试'}` : '右侧选好岗位与简历，然后开始'}
             </p>
           </div>
@@ -364,14 +364,14 @@ export default function InterviewVoice({ onOpenReport }: Props) {
             <span
               className={
                 connected
-                  ? 'rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700'
-                  : 'rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500'
+                  ? 'rounded-full bg-ok-soft px-2.5 py-1 text-xs text-ok'
+                  : 'rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-6'
               }
             >
               {connected ? '已连接' : '未连接'}
             </span>
             {isLive && (
-              <button type="button" onClick={() => void finishSession()} className={`${buttonBase} border border-slate-300 text-slate-700 hover:bg-slate-50`}>
+              <button type="button" onClick={() => void finishSession()} className={`${buttonBase} border border-ink-2 text-ink-7 hover:bg-paper`}>
                 结束并保存
               </button>
             )}
@@ -379,7 +379,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
         </header>
 
         {(currentInterviewer || pressureNote) && (
-          <div className="space-y-1 border-b border-violet-100 bg-violet-50 px-4 py-1.5 text-xs text-violet-900">
+          <div className="space-y-1 border-b border-info bg-info-soft px-4 py-1.5 text-xs text-info">
             {currentInterviewer && (
               <div>
                 当前面试官：第 {currentInterviewer.index + 1}/{currentInterviewer.total} 位 ·{' '}
@@ -388,7 +388,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
               </div>
             )}
             {pressureNote && (
-              <div className="text-rose-800">
+              <div className="text-ng">
                 {pressureNote}
                 <button type="button" className="ml-2 underline" onClick={() => setPressureNote('')}>
                   知道了
@@ -400,7 +400,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
 
         <div ref={streamRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {turns.length === 0 && (
-            <div className="rounded-lg border border-dashed border-slate-300 p-6 text-sm leading-relaxed text-slate-500">
+            <div className="rounded-card border border-dashed border-ink-2 p-6 text-sm leading-relaxed text-ink-6">
               语音面试：面试官会用浏览器朗读提问，你对着麦克风回答。
               <br />
               首次点击「开始说话」时浏览器会请求麦克风权限。
@@ -414,11 +414,11 @@ export default function InterviewVoice({ onOpenReport }: Props) {
                 <div
                   className={
                     isCandidate
-                      ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-sky-600 px-4 py-2 text-sm text-white'
-                      : 'max-w-[80%] rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-2 text-sm text-slate-800'
+                      ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-info px-4 py-2 text-sm text-surface'
+                      : 'max-w-[80%] rounded-2xl rounded-bl-sm bg-sunken px-4 py-2 text-sm text-ink-9'
                   }
                 >
-                  <div className={isCandidate ? 'mb-1 text-[11px] opacity-75' : 'mb-1 text-[11px] text-slate-500'}>
+                  <div className={isCandidate ? 'mb-1 text-[11px] opacity-75' : 'mb-1 text-[11px] text-ink-6'}>
                     {SPEAKER_LABEL[turn.speaker] ?? turn.speaker}
                     {turn.kind === 'followup' ? ' · 追问' : ''}
                     {turn.topic ? ` · ${turn.topic}` : ''}
@@ -431,23 +431,23 @@ export default function InterviewVoice({ onOpenReport }: Props) {
 
           {partial && (
             <div className="flex justify-end">
-              <div className="max-w-[80%] rounded-2xl rounded-br-sm border border-dashed border-sky-300 px-4 py-2 text-sm text-sky-700">
+              <div className="max-w-[80%] rounded-2xl rounded-br-sm border border-dashed border-info px-4 py-2 text-sm text-info">
                 {partial}
               </div>
             </div>
           )}
         </div>
 
-        <footer className="space-y-3 border-t border-slate-200 px-4 py-3">
-          {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
-          {awaitingText && <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{awaitingText}</p>}
+        <footer className="space-y-3 border-t border-ink-1 px-4 py-3">
+          {error && <p className="rounded-control bg-ng-soft px-3 py-2 text-xs text-ng">{error}</p>}
+          {awaitingText && <p className="rounded-control bg-warn-soft px-3 py-2 text-xs text-warn">{awaitingText}</p>}
 
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => (recording ? void stopRecording() : void startRecording())}
               disabled={!isLive}
-              className={`${buttonBase} ${recording ? 'bg-rose-600 text-white hover:bg-rose-700' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+              className={`${buttonBase} ${recording ? 'bg-ng text-surface hover:bg-ng' : 'bg-ink-9 text-surface hover:bg-ink-9'}`}
             >
               {recording ? '暂停收音' : '开始说话'}
             </button>
@@ -455,7 +455,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
               type="button"
               onClick={endTurn}
               disabled={!isLive}
-              className={`${buttonBase} border border-slate-300 text-slate-700 hover:bg-slate-50`}
+              className={`${buttonBase} border border-ink-2 text-ink-7 hover:bg-paper`}
             >
               我答完了
             </button>
@@ -463,23 +463,23 @@ export default function InterviewVoice({ onOpenReport }: Props) {
               type="button"
               onClick={interrupt}
               disabled={!isLive}
-              className={`${buttonBase} border border-slate-300 text-slate-700 hover:bg-slate-50`}
+              className={`${buttonBase} border border-ink-2 text-ink-7 hover:bg-paper`}
             >
               打断面试官
             </button>
 
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-[11px] text-slate-500">麦克风</span>
-              <div className="h-2 w-28 overflow-hidden rounded-full bg-slate-200">
+              <span className="text-[11px] text-ink-6">麦克风</span>
+              <div className="h-2 w-28 overflow-hidden rounded-full bg-ink-1">
                 <div
-                  className={recording ? 'h-full bg-emerald-500 transition-all' : 'h-full bg-slate-300'}
+                  className={recording ? 'h-full bg-ok transition-all' : 'h-full bg-ink-2'}
                   style={{ width: `${Math.min(100, Math.round(level * 400))}%` }}
                 />
               </div>
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-ink-6">
             状态：{status}
             {audioMode === 'client' ? ' · 面试官语音：浏览器播报' : ' · 面试官语音：服务端流'}
             {textFallback ? ' · 转写：文字替身' : ' · 转写：实时语音识别'}
@@ -504,27 +504,27 @@ export default function InterviewVoice({ onOpenReport }: Props) {
               type="button"
               onClick={submitText}
               disabled={!isLive || !draft.trim()}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-40"
+              className="rounded-card bg-ink-9 px-4 py-2 text-sm font-medium text-surface hover:bg-ink-9 disabled:opacity-40"
             >
               提交
             </button>
           </div>
 
           {session !== null && session.status === 'finished' && (
-            <div className="space-y-2 rounded-lg bg-slate-50 px-3 py-2">
+            <div className="space-y-2 rounded-card bg-paper px-3 py-2">
               {audioAvailable ? (
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-600">本场录音</span>
+                  <span className="text-xs text-ink-6">本场录音</span>
                   <audio controls src={`/api/sessions/${session.id}/audio`} className="h-8 w-full max-w-md" />
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">本场没有音频（可能一直在文字模式作答）。</p>
+                <p className="text-xs text-ink-6">本场没有音频（可能一直在文字模式作答）。</p>
               )}
               {onOpenReport && (
                 <button
                   type="button"
                   onClick={() => onOpenReport(session.id)}
-                  className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700"
+                  className="rounded-control bg-info px-3 py-1.5 text-xs font-medium text-surface hover:bg-info"
                 >
                   去看评分报告
                 </button>
@@ -535,10 +535,10 @@ export default function InterviewVoice({ onOpenReport }: Props) {
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">本场配置</h3>
+        <div className="rounded-panel border border-ink-1 bg-surface p-4">
+          <h3 className="mb-3 text-sm font-semibold text-ink-9">本场配置</h3>
 
-          <label className="mb-1 block text-xs text-slate-500">目标岗位</label>
+          <label className="mb-1 block text-xs text-ink-6">目标岗位</label>
           <select value={targetId} onChange={(event) => setTargetId(event.target.value)} className={`${inputClass} mb-3`}>
             <option value="">不指定（通用面试）</option>
             {targets.map((target) => (
@@ -548,7 +548,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
             ))}
           </select>
 
-          <label className="mb-1 block text-xs text-slate-500">简历</label>
+          <label className="mb-1 block text-xs text-ink-6">简历</label>
           <select value={resumeId} onChange={(event) => setResumeId(event.target.value)} className={`${inputClass} mb-3`}>
             <option value="">不指定</option>
             {resumes.map((resume) => (
@@ -558,7 +558,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
             ))}
           </select>
 
-          <label className="mb-1 block text-xs text-slate-500">题量上限</label>
+          <label className="mb-1 block text-xs text-ink-6">题量上限</label>
           <input
             type="number"
             min={1}
@@ -568,7 +568,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
             className={`${inputClass} mb-3`}
           />
 
-          <label className="mb-1 block text-xs text-slate-500">面试官画像（可选）</label>
+          <label className="mb-1 block text-xs text-ink-6">面试官画像（可选）</label>
           <select
             value={profileId}
             onChange={(event) => setProfileId(event.target.value)}
@@ -588,7 +588,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
             type="button"
             onClick={() => void startSession()}
             disabled={busy || connected}
-            className="w-full rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+            className="w-full rounded-card bg-info px-4 py-2 text-sm font-medium text-surface hover:bg-info disabled:opacity-50"
           >
             {connected ? '进行中…' : '开始语音面试'}
           </button>
@@ -604,15 +604,15 @@ export default function InterviewVoice({ onOpenReport }: Props) {
                 setConnected(false)
                 setStatus('未开始')
               }}
-              className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50"
+              className="mt-2 w-full rounded-card border border-ink-2 px-4 py-2 text-xs text-ink-7 hover:bg-paper"
             >
               断开并新开一场
             </button>
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs leading-relaxed text-slate-500 shadow-sm">
-          <h3 className="mb-2 text-sm font-semibold text-slate-800">怎么工作</h3>
+        <div className="rounded-panel border border-ink-1 bg-surface p-4 text-xs leading-relaxed text-ink-6">
+          <h3 className="mb-2 text-sm font-semibold text-ink-9">怎么工作</h3>
           <p>音频在本地采集为 pcm16@16k，经 WebSocket 送到后端；后端做 VAD（判断你什么时候说完）并把每回合切片存成 WAV。</p>
           <p className="mt-2">你开口时面试官的声音会立刻停掉（打断），服务端也会收到打断事件。</p>
           <p className="mt-2">想接真实语音识别：在后端 .env 里设 SPEECH_PROVIDER=qwen 并填 DASHSCOPE_API_KEY。</p>

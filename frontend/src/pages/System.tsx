@@ -108,7 +108,7 @@ export default function System() {
     const isLlmProvider = key === 'LLM_PROVIDER'
     return (
       <label key={key} className="block">
-        <span className="text-xs font-medium text-slate-700">{key}</span>
+        <span className="text-xs font-medium text-ink-7">{key}</span>
         {item.is_secret ? (
           <input
             type="password"
@@ -116,13 +116,13 @@ export default function System() {
             placeholder={item.configured ? `已配置（${item.masked}），留空表示不改` : '未配置'}
             value={draft[key] ?? ''}
             onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+            className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs"
           />
         ) : isLlmProvider ? (
           <select
             value={draft[key] ?? item.value}
             onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+            className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs"
           >
             <option value="mock">mock —— 不需要 Key，但题目与评分都是固定示例</option>
             <option value="openai">openai —— 真的调用模型（任意 OpenAI 兼容平台）</option>
@@ -134,10 +134,10 @@ export default function System() {
             autoComplete="off"
             value={draft[key] ?? item.value}
             onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+            className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs"
           />
         )}
-        {item.note && <span className="mt-0.5 block text-[10px] text-slate-400">{item.note}</span>}
+        {item.note && <span className="mt-0.5 block text-[10px] text-ink-4">{item.note}</span>}
       </label>
     )
   }
@@ -146,19 +146,19 @@ export default function System() {
 
   return (
     <div className="space-y-4">
-      {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {error && <p className="rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-panel border border-ink-1 bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-slate-800">模型与密钥</h2>
+          <h2 className="text-base font-semibold text-ink-9">模型与密钥</h2>
           {providers?.llm && (
             <span
               className={
                 providers.llm.provider === 'mock'
-                  ? 'rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700'
+                  ? 'rounded-full bg-warn-soft px-2 py-0.5 text-xs text-warn'
                   : providers.llm.ready
-                    ? 'rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700'
-                    : 'rounded-full bg-rose-50 px-2 py-0.5 text-xs text-rose-700'
+                    ? 'rounded-full bg-ok-soft px-2 py-0.5 text-xs text-ok'
+                    : 'rounded-full bg-ng-soft px-2 py-0.5 text-xs text-ng'
               }
             >
               当前：{providers.llm.label || providers.llm.provider}
@@ -168,7 +168,7 @@ export default function System() {
         </div>
 
         {providers?.llm?.provider === 'mock' && (
-          <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+          <div className="mt-2 rounded-control border border-warn bg-warn-soft px-3 py-2 text-xs leading-relaxed text-warn">
             <strong className="font-medium">现在跑的是 Mock，所以题目和评分都是固定的示例。</strong>
             <br />
             模拟面试问的还是那份通用脚本（自我介绍、项目深挖……），不看你填的岗位 JD，
@@ -178,7 +178,7 @@ export default function System() {
         )}
 
         {!settings ? (
-          <p className="mt-3 text-sm text-slate-500">加载中…</p>
+          <p className="mt-3 text-sm text-ink-6">加载中…</p>
         ) : (
           <>
             <div className="mt-3 grid gap-3 md:grid-cols-2">{PRIMARY_KEYS.map(renderField)}</div>
@@ -186,12 +186,12 @@ export default function System() {
             <button
               type="button"
               onClick={() => setShowAdvanced((value) => !value)}
-              className="mt-3 text-xs text-slate-500 hover:underline"
+              className="mt-3 text-xs text-ink-6 hover:underline"
             >
               {showAdvanced ? '收起高级项' : '高级项（模型名、语音、代理）'}
             </button>
             {showAdvanced && (
-              <div className="mt-2 grid gap-3 border-t border-slate-100 pt-3 md:grid-cols-2">
+              <div className="mt-2 grid gap-3 border-t border-ink-1 pt-3 md:grid-cols-2">
                 {ADVANCED_KEYS.map(renderField)}
               </div>
             )}
@@ -201,7 +201,7 @@ export default function System() {
                 type="button"
                 onClick={() => void save()}
                 disabled={saving || !hasChanges}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:bg-slate-300"
+                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
               >
                 {saving ? '保存中…' : '保存'}
               </button>
@@ -209,17 +209,17 @@ export default function System() {
                 type="button"
                 onClick={() => setDraft({})}
                 disabled={!hasChanges}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 disabled:text-slate-300"
+                className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-6 disabled:text-ink-2"
               >
                 撤销改动
               </button>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-ink-6">
                 {settings.note} 密钥框留空表示保持不变。
               </span>
             </div>
 
             {savedNote && (
-              <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800">
+              <p className="mt-2 rounded-control border border-ok bg-ok-soft px-3 py-1.5 text-xs text-ok">
                 {savedNote}
               </p>
             )}
@@ -227,82 +227,95 @@ export default function System() {
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-slate-800">提供方</h2>
+      <section className="rounded-panel border border-ink-1 bg-surface p-4">
+        <h2 className="mb-3 text-base font-semibold text-ink-9">提供方</h2>
         {!providers ? (
-          <p className="text-sm text-slate-500">加载中…</p>
+          <p className="text-sm text-ink-6">加载中…</p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {[
               { title: 'LLM（思考/出题/批改）', info: providers.llm },
               { title: '实时语音（听说）', info: providers.speech },
             ].map(({ title, info }) => (
-              <div key={title} className="rounded-lg border border-slate-200 p-3">
+              <div key={title} className="rounded-card border border-ink-1 p-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-slate-700">{title}</h3>
+                  <h3 className="text-sm font-medium text-ink-7">{title}</h3>
                   <span
                     className={
                       info.ready
-                        ? 'rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700'
-                        : 'rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700'
+                        ? 'rounded-full bg-ok-soft px-2 py-0.5 text-xs text-ok'
+                        : 'rounded-full bg-warn-soft px-2 py-0.5 text-xs text-warn'
                     }
                   >
                     {info.ready ? '就绪' : '未就绪'}
                   </span>
                 </div>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm text-ink-6">
                   提供方：{info.label ? `${info.provider} · ${info.label}` : info.provider}
                 </p>
-                {info.base_url && <p className="text-xs text-slate-500">接口地址：{info.base_url}</p>}
-                {info.chat_model && <p className="text-xs text-slate-500">对话模型：{info.chat_model}</p>}
-                {info.reasoner_model && <p className="text-xs text-slate-500">推理模型：{info.reasoner_model}</p>}
-                {info.hint && <p className="mt-2 text-xs text-amber-700">{info.hint}</p>}
+                {info.base_url && <p className="text-xs text-ink-6">接口地址：{info.base_url}</p>}
+                {info.chat_model && <p className="text-xs text-ink-6">对话模型：{info.chat_model}</p>}
+                {info.reasoner_model && <p className="text-xs text-ink-6">推理模型：{info.reasoner_model}</p>}
+                {info.hint && <p className="mt-2 text-xs text-warn">{info.hint}</p>}
               </div>
             ))}
           </div>
         )}
-        <p className="mt-3 text-xs text-slate-500">
-          模型密钥写进后端 <code className="rounded bg-slate-100 px-1">backend/.env</code>，
+        <p className="mt-3 text-xs text-ink-6">
+          模型密钥写进后端 <code className="rounded-control bg-sunken px-1">backend/.env</code>，
           <strong className="font-medium">不入库、不出现在导出里</strong>，前端也读不到完整值。
         </p>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-slate-800">
+      <section className="rounded-panel border border-ink-1 bg-surface p-4">
+        <h2 className="mb-3 text-base font-semibold text-ink-9">
           LLM 用量（近 {usage?.window_days ?? 7} 天）
         </h2>
         {!usage ? (
-          <p className="text-sm text-slate-500">加载中…</p>
+          <p className="text-sm text-ink-6">加载中…</p>
         ) : usage.items.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-ink-6">
             这段时间还没有调用记录。切到真实模型跑一场面试，这里就会出现用量。
           </p>
         ) : (
           <>
-            <p className="mb-3 text-xs text-slate-500">
-              总调用 {usage.total_calls} 次 · 失败 {usage.failed_calls} 次 · {usage.note}
+            <p className="mb-3 flex flex-wrap items-baseline gap-x-1.5 text-xs text-ink-6">
+              <span>
+                总调用 <span className="font-mono text-ink-7">{usage.total_calls}</span> 次
+              </span>
+              <span className="text-ink-3">|</span>
+              <span>
+                失败 <span className="font-mono text-ink-7">{usage.failed_calls}</span> 次
+              </span>
+              <span className="text-ink-3">|</span>
+              <span>{usage.note}</span>
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-paper text-left text-xs text-ink-6">
                   <tr>
                     <th className="px-3 py-2 font-medium">任务</th>
                     <th className="px-3 py-2 font-medium">模型</th>
-                    <th className="px-3 py-2 font-medium">调用</th>
-                    <th className="px-3 py-2 font-medium">输入 token</th>
-                    <th className="px-3 py-2 font-medium">输出 token</th>
-                    <th className="px-3 py-2 font-medium">平均延迟</th>
+                    <th className="px-3 py-2 text-right font-medium">调用</th>
+                    <th className="px-3 py-2 text-right font-medium">输入 token</th>
+                    <th className="px-3 py-2 text-right font-medium">输出 token</th>
+                    <th className="px-3 py-2 text-right font-medium">平均延迟</th>
                   </tr>
                 </thead>
                 <tbody>
                   {usage.items.map((item) => (
-                    <tr key={`${item.task}-${item.model}`} className="border-t border-slate-100">
-                      <td className="px-3 py-2 text-slate-800">{item.task}</td>
-                      <td className="px-3 py-2 text-slate-600">{item.model}</td>
-                      <td className="px-3 py-2 text-slate-600">{item.calls}</td>
-                      <td className="px-3 py-2 text-slate-600">{item.prompt_tokens}</td>
-                      <td className="px-3 py-2 text-slate-600">{item.completion_tokens}</td>
-                      <td className="px-3 py-2 text-slate-600">{item.avg_latency_ms} ms</td>
+                    <tr key={`${item.task}-${item.model}`} className="border-t border-ink-1">
+                      <td className="px-3 py-2 text-ink-9">{item.task}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-ink-6">{item.model}</td>
+                      <td className="px-3 py-2 text-right font-mono text-ink-6">{item.calls}</td>
+                      <td className="px-3 py-2 text-right font-mono text-ink-6">
+                        {item.prompt_tokens}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-ink-6">
+                        {item.completion_tokens}
+                      </td>
+                      <td className="px-3 py-2 text-ink-6">{item.completion_tokens}</td>
+                      <td className="px-3 py-2 text-ink-6">{item.avg_latency_ms} ms</td>
                     </tr>
                   ))}
                 </tbody>

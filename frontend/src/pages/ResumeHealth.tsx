@@ -10,9 +10,9 @@ import { api } from '../api/client'
 import type { AtsIssue, MatchBandReport, MatchResult, ResumeItem } from '../api/types'
 
 const SEVERITY_STYLE: Record<string, string> = {
-  error: 'border-rose-200 bg-rose-50 text-rose-800',
-  warning: 'border-amber-200 bg-amber-50 text-amber-800',
-  info: 'border-slate-200 bg-slate-50 text-slate-600',
+  error: 'border-ng bg-ng-soft text-ng',
+  warning: 'border-warn bg-warn-soft text-warn',
+  info: 'border-ink-1 bg-paper text-ink-6',
 }
 
 const SEVERITY_LABEL: Record<string, string> = {
@@ -22,10 +22,10 @@ const SEVERITY_LABEL: Record<string, string> = {
 }
 
 const GRADE_STYLE: Record<string, string> = {
-  A: 'bg-emerald-50 text-emerald-700',
-  B: 'bg-sky-50 text-sky-700',
-  C: 'bg-amber-50 text-amber-800',
-  D: 'bg-rose-50 text-rose-700',
+  A: 'bg-ok-soft text-ok',
+  B: 'bg-info-soft text-info',
+  C: 'bg-warn-soft text-warn',
+  D: 'bg-ng-soft text-ng',
 }
 
 const SAMPLE_JD = `岗位职责：
@@ -184,21 +184,21 @@ export default function ResumeHealth() {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+        <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
       )}
 
       {/* 简历选择与版本 */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-card border border-ink-1 bg-surface p-4">
         <h2 className="text-sm font-semibold">简历与版本</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
+        <p className="mt-0.5 text-xs text-ink-6">
           多版本是为了投递 A/B：同一个岗位可以投不同侧重点的简历，之后在投递分析里比较回复率。
         </p>
 
         <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="text-xs text-slate-600">
+          <label className="text-xs text-ink-6">
             当前简历
             <select
-              className="mt-1 w-64 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 w-64 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
               value={resumeId ?? ''}
               onChange={(event) => setResumeId(Number(event.target.value))}
             >
@@ -211,10 +211,10 @@ export default function ResumeHealth() {
               ))}
             </select>
           </label>
-          <label className="text-xs text-slate-600">
+          <label className="text-xs text-ink-6">
             新版本标注
             <input
-              className="mt-1 w-40 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 w-40 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
               placeholder="如：量化版"
               value={cloneLabel}
               onChange={(event) => setCloneLabel(event.target.value)}
@@ -224,17 +224,17 @@ export default function ResumeHealth() {
             type="button"
             disabled={busy || resumeId === null}
             onClick={() => void cloneVersion()}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
+            className="rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:cursor-not-allowed"
           >
             另存为新版本
           </button>
         </div>
 
         {versions.length > 1 && (
-          <div className="mt-2 text-xs text-slate-500">
+          <div className="mt-2 text-xs text-ink-6">
             该简历共有 {versions.length} 个版本：
             {versions.map((item) => (
-              <span key={item.id} className="ml-2 rounded bg-slate-100 px-1.5 py-0.5">
+              <span key={item.id} className="ml-2 rounded-control bg-sunken px-1.5 py-0.5">
                 v{item.version} {item.variant_label || '未标注'}
               </span>
             ))}
@@ -242,16 +242,16 @@ export default function ResumeHealth() {
         )}
 
         {resumes.length === 0 && (
-          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="text-xs font-medium text-slate-700">还没有简历，先建一份：</div>
+          <div className="mt-3 rounded-control border border-ink-1 bg-paper p-3">
+            <div className="text-xs font-medium text-ink-7">还没有简历，先建一份：</div>
             <input
-              className="mt-2 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-2 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
               placeholder="简历名称（如：主简历）"
               value={newResumeName}
               onChange={(event) => setNewResumeName(event.target.value)}
             />
             <textarea
-              className="mt-2 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-2 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
               rows={6}
               placeholder="把简历正文粘进来（纯文本，多版本与诊断都基于它）"
               value={newResumeText}
@@ -261,7 +261,7 @@ export default function ResumeHealth() {
               type="button"
               disabled={busy}
               onClick={() => void createResume()}
-              className="mt-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
             >
               创建简历
             </button>
@@ -270,28 +270,28 @@ export default function ResumeHealth() {
       </section>
 
       {/* 匹配诊断 */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-card border border-ink-1 bg-surface p-4">
         <h2 className="text-sm font-semibold">简历 × JD 匹配诊断</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
+        <p className="mt-0.5 text-xs text-ink-6">
           只做文本层面的判断：JD 里「必须精通」算硬性要求，「优先」算加分项，权重不一样。
         </p>
 
         <div className="mt-3 grid gap-3 lg:grid-cols-3">
-          <label className="text-xs text-slate-600 lg:col-span-2">
+          <label className="text-xs text-ink-6 lg:col-span-2">
             JD 正文
             <textarea
-              className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
               rows={8}
               placeholder="把招聘页的岗位描述整段粘进来"
               value={jd}
               onChange={(event) => setJd(event.target.value)}
             />
           </label>
-          <div className="space-y-3 text-xs text-slate-600">
+          <div className="space-y-3 text-xs text-ink-6">
             <label className="block">
               岗位名称（可选）
               <input
-                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                 placeholder="如：后端工程师"
                 value={jobTitle}
                 onChange={(event) => setJobTitle(event.target.value)}
@@ -301,7 +301,7 @@ export default function ResumeHealth() {
               type="button"
               disabled={busy || resumeId === null}
               onClick={() => void diagnose()}
-              className="w-full rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="w-full rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
             >
               开始诊断
             </button>
@@ -309,14 +309,14 @@ export default function ResumeHealth() {
               type="button"
               disabled={busy || resumeId === null}
               onClick={() => void runAts()}
-              className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
+              className="w-full rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:cursor-not-allowed"
             >
               只做格式体检
             </button>
             <button
               type="button"
               onClick={() => setJd(SAMPLE_JD)}
-              className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
+              className="w-full rounded-control border border-ink-1 px-3 py-1.5 text-xs text-ink-6 hover:bg-paper"
             >
               填入示例 JD
             </button>
@@ -328,27 +328,27 @@ export default function ResumeHealth() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-semibold">{result.score}</span>
-                <span className="text-xs text-slate-500">/ 100</span>
+                <span className="text-xs text-ink-6">/ 100</span>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-xs ${GRADE_STYLE[result.grade] ?? 'bg-slate-100'}`}>
+              <span className={`rounded-full px-2.5 py-1 text-xs ${GRADE_STYLE[result.grade] ?? 'bg-sunken'}`}>
                 等级 {result.grade}
               </span>
-              <span className="text-xs text-slate-600">{result.summary}</span>
+              <span className="text-xs text-ink-6">{result.summary}</span>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
               <div>
-                <div className="text-xs font-medium text-emerald-700">已覆盖（{result.covered.length}）</div>
+                <div className="text-xs font-medium text-ok">已覆盖（{result.covered.length}）</div>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {result.covered.map((item) => (
-                    <span key={item.word} className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700">
+                    <span key={item.word} className="rounded-control bg-ok-soft px-1.5 py-0.5 text-xs text-ok">
                       {item.word}
                     </span>
                   ))}
                 </div>
               </div>
               <div>
-                <div className="text-xs font-medium text-rose-700">缺失（{result.missing.length}）</div>
+                <div className="text-xs font-medium text-ng">缺失（{result.missing.length}）</div>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {result.missing.map((item) => (
                     <span
@@ -356,8 +356,8 @@ export default function ResumeHealth() {
                       title={`${weightLabel(item.weight)}：${item.sentence}`}
                       className={
                         item.weight >= 1
-                          ? 'rounded bg-rose-100 px-1.5 py-0.5 text-xs text-rose-800'
-                          : 'rounded bg-rose-50 px-1.5 py-0.5 text-xs text-rose-600'
+                          ? 'rounded-control bg-ng-soft px-1.5 py-0.5 text-xs text-ng'
+                          : 'rounded-control bg-ng-soft px-1.5 py-0.5 text-xs text-ng'
                       }
                     >
                       {item.word}
@@ -367,46 +367,46 @@ export default function ResumeHealth() {
                 </div>
               </div>
               <div>
-                <div className="text-xs font-medium text-slate-600">简历里有、JD 没提（{result.extra.length}）</div>
+                <div className="text-xs font-medium text-ink-6">简历里有、JD 没提（{result.extra.length}）</div>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {result.extra.map((word) => (
-                    <span key={word} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                    <span key={word} className="rounded-control bg-sunken px-1.5 py-0.5 text-xs text-ink-6">
                       {word}
                     </span>
                   ))}
                 </div>
-                <div className="mt-1 text-[11px] text-slate-400">这些不是缺点，只是这一版可以精简的部分</div>
+                <div className="mt-1 text-[11px] text-ink-4">这些不是缺点，只是这一版可以精简的部分</div>
               </div>
             </div>
 
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+            <div className="rounded-control border border-ink-1 bg-paper px-3 py-2 text-xs text-ink-7">
               年限：JD 要求{' '}
               {result.years_required !== null ? `${result.years_required} 年` : '未写明'}，简历推算{' '}
               {result.years_actual !== null ? `${result.years_actual} 年` : '未能推算'}
-              {result.years_ok === false && <span className="ml-2 text-rose-700">不满足——这条通常先被筛掉</span>}
-              {result.years_ok === true && <span className="ml-2 text-emerald-700">满足</span>}
+              {result.years_ok === false && <span className="ml-2 text-ng">不满足——这条通常先被筛掉</span>}
+              {result.years_ok === true && <span className="ml-2 text-ok">满足</span>}
             </div>
 
             {result.missing_groups.length > 0 && (
-              <div className="text-xs text-slate-600">
+              <div className="text-xs text-ink-6">
                 缺失集中在：{result.missing_groups.join('、')}
               </div>
             )}
 
             {result.suggestions.length > 0 && (
               <div>
-                <div className="text-xs font-medium text-slate-700">按优先级要改的地方</div>
+                <div className="text-xs font-medium text-ink-7">按优先级要改的地方</div>
                 <div className="mt-2 space-y-2">
                   {result.suggestions.map((item) => (
-                    <div key={`${item.kind}-${item.target}`} className="rounded-md border border-slate-200 p-3 text-xs">
-                      <div className="font-medium text-slate-800">
+                    <div key={`${item.kind}-${item.target}`} className="rounded-control border border-ink-1 p-3 text-xs">
+                      <div className="font-medium text-ink-9">
                         {item.kind === 'add_keyword' ? '补关键词' : item.kind === 'fix_ats' ? '改格式' : '改年限表述'}：
                         {item.target}
                       </div>
-                      <div className="mt-1 text-slate-600">{item.why}</div>
-                      {item.where && <div className="mt-1 text-slate-500">位置：{item.where}</div>}
+                      <div className="mt-1 text-ink-6">{item.why}</div>
+                      {item.where && <div className="mt-1 text-ink-6">位置：{item.where}</div>}
                       {item.draft && (
-                        <pre className="mt-2 whitespace-pre-wrap rounded bg-slate-50 px-2 py-1.5 text-[11px] text-slate-700">
+                        <pre className="mt-2 whitespace-pre-wrap rounded-control bg-paper px-2 py-1.5 text-[11px] text-ink-7">
                           {item.draft}
                         </pre>
                       )}
@@ -421,20 +421,20 @@ export default function ResumeHealth() {
 
       {/* ATS 体检 */}
       {(issues.length > 0 || atsOnly !== null) && (
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="rounded-card border border-ink-1 bg-surface p-4">
           <h2 className="text-sm font-semibold">格式与可读性体检（ATS）</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-ink-6">
             「必须改」里的问题会直接影响筛选结果，不只是风格问题——比如全角字符会让关键词匹配直接失效。
           </p>
 
           {issues.length === 0 ? (
-            <p className="mt-3 text-xs text-emerald-700">没发现格式问题，简历可以被正常解析。</p>
+            <p className="mt-3 text-xs text-ok">没发现格式问题，简历可以被正常解析。</p>
           ) : (
             <ul className="mt-3 space-y-2">
               {issues.map((item) => (
                 <li
                   key={`${item.kind}-${item.message}`}
-                  className={`rounded-md border px-3 py-2 text-xs ${SEVERITY_STYLE[item.severity] ?? ''}`}
+                  className={`rounded-control border px-3 py-2 text-xs ${SEVERITY_STYLE[item.severity] ?? ''}`}
                 >
                   <div className="font-medium">
                     [{SEVERITY_LABEL[item.severity] ?? item.severity}] {item.message}
@@ -448,20 +448,20 @@ export default function ResumeHealth() {
       )}
 
       {/* 匹配分段统计 */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-card border border-ink-1 bg-surface p-4">
         <h2 className="text-sm font-semibold">匹配度 vs 回音</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
+        <p className="mt-0.5 text-xs text-ink-6">
           用投递记录里的 JD 反推每条投递的匹配分，再看各分数段的回复率——这是"为什么没回复"最直接的证据。
         </p>
 
         {bands && (
           <div className="mt-3 space-y-3">
-            <div className="text-xs text-slate-600">
+            <div className="text-xs text-ink-6">
               共 {bands.total_records} 条投递，其中 {bands.matched_records} 条有 JD 可比较
             </div>
 
             <table className="w-full text-left text-xs">
-              <thead className="text-slate-500">
+              <thead className="text-ink-6">
                 <tr>
                   <th className="py-1.5 pr-2">匹配分</th>
                   <th className="py-1.5 pr-2">投递</th>
@@ -473,7 +473,7 @@ export default function ResumeHealth() {
               </thead>
               <tbody>
                 {bands.bands.map((band) => (
-                  <tr key={band.label} className="border-t border-slate-100">
+                  <tr key={band.label} className="border-t border-ink-1">
                     <td className="py-1.5 pr-2">{band.label}</td>
                     <td className="py-1.5 pr-2">{band.count}</td>
                     <td className="py-1.5 pr-2">{band.responded}</td>
@@ -485,10 +485,10 @@ export default function ResumeHealth() {
               </tbody>
             </table>
 
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+            <div className="rounded-control border border-ink-1 bg-paper px-3 py-2 text-xs text-ink-7">
               {bands.recommendation}
             </div>
-            {bands.confidence_note && <div className="text-[11px] text-slate-500">{bands.confidence_note}</div>}
+            {bands.confidence_note && <div className="text-[11px] text-ink-6">{bands.confidence_note}</div>}
           </div>
         )}
       </section>

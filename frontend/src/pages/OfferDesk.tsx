@@ -209,7 +209,7 @@ export default function OfferDesk() {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+        <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
       )}
 
       <div className="flex flex-wrap gap-1">
@@ -220,8 +220,8 @@ export default function OfferDesk() {
             onClick={() => setPanel(item.key)}
             className={
               item.key === panel
-                ? 'rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white'
-                : 'rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100'
+                ? 'rounded-control bg-ink-9 px-3 py-1.5 text-sm text-surface'
+                : 'rounded-control px-3 py-1.5 text-sm text-ink-6 hover:bg-sunken'
             }
           >
             {item.label}
@@ -232,58 +232,58 @@ export default function OfferDesk() {
       {/* ---------------------------- 对比矩阵 ---------------------------- */}
       {panel === 'matrix' && (
         <>
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <section className="rounded-card border border-ink-1 bg-surface p-4">
             <h2 className="text-sm font-semibold">登记 offer</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs text-ink-6">
               薪资拆开填：月薪 × 月数 + 年终 + 签字费。签字费只算首年——
               把它当成每年都有是 offer 对比里最常见的自欺。
             </p>
 
             <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
               <input
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                 placeholder="公司"
                 value={draft.company}
                 onChange={(event) => setDraft({ ...draft, company: event.target.value })}
               />
               <input
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                 placeholder="岗位"
                 value={draft.title}
                 onChange={(event) => setDraft({ ...draft, title: event.target.value })}
               />
-              <label className="text-[11px] text-slate-500">
+              <label className="text-[11px] text-ink-6">
                 月薪
                 <input
                   type="number"
-                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-0.5 w-full rounded-control border border-ink-2 px-2 py-1 text-sm"
                   value={draft.monthly_salary}
                   onChange={(event) => setDraft({ ...draft, monthly_salary: Number(event.target.value) })}
                 />
               </label>
-              <label className="text-[11px] text-slate-500">
+              <label className="text-[11px] text-ink-6">
                 发薪月数
                 <input
                   type="number"
-                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-0.5 w-full rounded-control border border-ink-2 px-2 py-1 text-sm"
                   value={draft.months_per_year}
                   onChange={(event) => setDraft({ ...draft, months_per_year: Number(event.target.value) })}
                 />
               </label>
-              <label className="text-[11px] text-slate-500">
+              <label className="text-[11px] text-ink-6">
                 年终奖
                 <input
                   type="number"
-                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-0.5 w-full rounded-control border border-ink-2 px-2 py-1 text-sm"
                   value={draft.annual_bonus}
                   onChange={(event) => setDraft({ ...draft, annual_bonus: Number(event.target.value) })}
                 />
               </label>
-              <label className="text-[11px] text-slate-500">
+              <label className="text-[11px] text-ink-6">
                 签字费
                 <input
                   type="number"
-                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-0.5 w-full rounded-control border border-ink-2 px-2 py-1 text-sm"
                   value={draft.signing_bonus}
                   onChange={(event) => setDraft({ ...draft, signing_bonus: Number(event.target.value) })}
                 />
@@ -293,14 +293,14 @@ export default function OfferDesk() {
               type="button"
               disabled={busy}
               onClick={() => void addOffer()}
-              className="mt-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:bg-slate-300"
+              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
             >
               添加
             </button>
 
             {offers.length > 0 && (
               <table className="mt-3 w-full text-left text-xs">
-                <thead className="text-slate-500">
+                <thead className="text-ink-6">
                   <tr>
                     <th className="py-1 pr-2">公司</th>
                     <th className="py-1 pr-2">年包（首年）</th>
@@ -309,7 +309,7 @@ export default function OfferDesk() {
                 </thead>
                 <tbody>
                   {offers.map((offer) => (
-                    <tr key={offer.id} className="border-t border-slate-100">
+                    <tr key={offer.id} className="border-t border-ink-1">
                       <td className="py-1 pr-2">
                         {offer.company}
                         {offer.title ? ` · ${offer.title}` : ''}
@@ -319,7 +319,7 @@ export default function OfferDesk() {
                         <button
                           type="button"
                           onClick={() => void removeOffer(offer.id)}
-                          className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
+                          className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ink-6 hover:bg-paper"
                         >
                           删除
                         </button>
@@ -332,15 +332,15 @@ export default function OfferDesk() {
           </section>
 
           {offers.length > 0 && options && (
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-card border border-ink-1 bg-surface p-4">
               <h2 className="text-sm font-semibold">维度权重（拖动看排名怎么变）</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-ink-6">
                 薪酬这一项是按同批 offer 里的最高年包归一算出来的，不用自己打分；其余维度给你自己评（0–10）。
               </p>
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {options.dimensions.map((dimension) => (
-                  <label key={dimension.key} className="text-[11px] text-slate-600">
+                  <label key={dimension.key} className="text-[11px] text-ink-6">
                     {dimension.label} · {Math.round((weights[dimension.key] ?? 0) * 100)}%
                     <input
                       type="range"
@@ -358,24 +358,24 @@ export default function OfferDesk() {
           )}
 
           {offers.length > 0 && (
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-card border border-ink-1 bg-surface p-4">
               <h2 className="text-sm font-semibold">给自己打分（0–10）</h2>
               <div className="mt-3 space-y-2">
                 {offers.map((offer) => (
-                  <div key={offer.id} className="rounded-md border border-slate-100 p-2">
-                    <div className="text-xs font-medium text-slate-700">{offer.company}</div>
+                  <div key={offer.id} className="rounded-control border border-ink-1 p-2">
+                    <div className="text-xs font-medium text-ink-7">{offer.company}</div>
                     <div className="mt-1 grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
                       {(options?.dimensions ?? [])
                         .filter((item) => item.key !== 'compensation')
                         .map((dimension) => (
-                          <label key={dimension.key} className="text-[11px] text-slate-500">
+                          <label key={dimension.key} className="text-[11px] text-ink-6">
                             {dimension.label}
                             <input
                               type="number"
                               min={0}
                               max={10}
                               step={0.5}
-                              className="mt-0.5 w-full rounded border border-slate-300 px-1.5 py-0.5 text-sm"
+                              className="mt-0.5 w-full rounded-control border border-ink-2 px-1.5 py-0.5 text-sm"
                               value={offer.factors[dimension.key] ?? 0}
                               onChange={(event) =>
                                 void patchFactor(offer.id, dimension.key, Number(event.target.value))
@@ -391,10 +391,10 @@ export default function OfferDesk() {
           )}
 
           {matrix && (
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-card border border-ink-1 bg-surface p-4">
               <h2 className="text-sm font-semibold">排名与翻转点</h2>
               <table className="mt-3 w-full text-left text-xs">
-                <thead className="text-slate-500">
+                <thead className="text-ink-6">
                   <tr>
                     <th className="py-1 pr-2">#</th>
                     <th className="py-1 pr-2">公司</th>
@@ -404,7 +404,7 @@ export default function OfferDesk() {
                 </thead>
                 <tbody>
                   {matrix.rows.map((row) => (
-                    <tr key={row.offer_id} className="border-t border-slate-100">
+                    <tr key={row.offer_id} className="border-t border-ink-1">
                       <td className="py-1 pr-2">{row.rank}</td>
                       <td className="py-1 pr-2">{row.company}</td>
                       <td className="py-1 pr-2 font-medium">{row.total}</td>
@@ -418,11 +418,11 @@ export default function OfferDesk() {
 
               {matrix.flips.length > 0 && (
                 <div className="mt-3 space-y-2">
-                  <div className="text-xs font-medium text-amber-800">权重一变，排名就会翻转：</div>
+                  <div className="text-xs font-medium text-warn">权重一变，排名就会翻转：</div>
                   {matrix.flips.map((flip) => (
                     <div
                       key={`${flip.factor}-${flip.winner}-${flip.loser}`}
-                      className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                      className="rounded-control border border-warn bg-warn-soft px-3 py-2 text-xs text-warn"
                     >
                       {flip.message}
                       <button
@@ -438,11 +438,11 @@ export default function OfferDesk() {
               )}
 
               {matrix.notes.map((note) => (
-                <div key={note} className="mt-2 text-[11px] text-slate-500">
+                <div key={note} className="mt-2 text-[11px] text-ink-6">
                   {note}
                 </div>
               ))}
-              <div className="mt-2 text-[11px] text-slate-400">{matrix.disclaimer}</div>
+              <div className="mt-2 text-[11px] text-ink-4">{matrix.disclaimer}</div>
             </section>
           )}
         </>
@@ -451,41 +451,41 @@ export default function OfferDesk() {
       {/* ---------------------------- 薪资谈判 ---------------------------- */}
       {panel === 'negotiation' && (
         <>
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <section className="rounded-card border border-ink-1 bg-surface p-4">
             <h2 className="text-sm font-semibold">开始一场谈判演练</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs text-ink-6">
               填你的底线与目标（年薪）。对方（HR 角色）有预算上限并且不会一次让到位，
               结束后会给一份简报：底线守住没有、让步是不是太快、哪几招没用上。
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-4">
               <input
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                 placeholder="公司"
                 value={negForm.company}
                 onChange={(event) => setNegForm({ ...negForm, company: event.target.value })}
               />
               <input
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                 placeholder="岗位"
                 value={negForm.title}
                 onChange={(event) => setNegForm({ ...negForm, title: event.target.value })}
               />
-              <label className="text-[11px] text-slate-500">
+              <label className="text-[11px] text-ink-6">
                 底线（年薪）
                 <input
                   type="number"
                   step={10000}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-0.5 w-full rounded-control border border-ink-2 px-2 py-1 text-sm"
                   value={negForm.bottom_line}
                   onChange={(event) => setNegForm({ ...negForm, bottom_line: Number(event.target.value) })}
                 />
               </label>
-              <label className="text-[11px] text-slate-500">
+              <label className="text-[11px] text-ink-6">
                 目标（年薪）
                 <input
                   type="number"
                   step={10000}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="mt-0.5 w-full rounded-control border border-ink-2 px-2 py-1 text-sm"
                   value={negForm.target}
                   onChange={(event) => setNegForm({ ...negForm, target: Number(event.target.value) })}
                 />
@@ -495,22 +495,22 @@ export default function OfferDesk() {
               type="button"
               disabled={busy}
               onClick={() => void startNegotiation()}
-              className="mt-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:bg-slate-300"
+              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
             >
               开始谈判
             </button>
           </section>
 
           {negotiations.length > 0 && (
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
-              <div className="text-xs font-medium text-slate-700">历史谈判</div>
+            <section className="rounded-card border border-ink-1 bg-surface p-4">
+              <div className="text-xs font-medium text-ink-7">历史谈判</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {negotiations.map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => void openNegotiation(item)}
-                    className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
+                    className="rounded-control border border-ink-2 px-2 py-1 text-[11px] text-ink-6 hover:bg-paper"
                   >
                     #{item.id} {item.company || '未填公司'}
                   </button>
@@ -520,7 +520,7 @@ export default function OfferDesk() {
           )}
 
           {current && (
-            <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <section className="rounded-card border border-ink-1 bg-surface p-4">
               <h2 className="text-sm font-semibold">
                 {current.company || '谈判'} · 你的底线 {wan(Number(current.plan.bottom_line ?? 0))}
               </h2>
@@ -530,11 +530,11 @@ export default function OfferDesk() {
                     key={`${turn.speaker}-${index}`}
                     className={
                       turn.speaker === 'candidate'
-                        ? 'ml-8 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900'
-                        : 'mr-8 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-800'
+                        ? 'ml-8 rounded-card bg-info-soft px-3 py-2 text-sm text-info'
+                        : 'mr-8 rounded-card bg-sunken px-3 py-2 text-sm text-ink-9'
                     }
                   >
-                    <div className="text-[11px] text-slate-500">{turn.speaker === 'candidate' ? '你' : 'HR'}</div>
+                    <div className="text-[11px] text-ink-6">{turn.speaker === 'candidate' ? '你' : 'HR'}</div>
                     {turn.text}
                   </div>
                 ))}
@@ -542,7 +542,7 @@ export default function OfferDesk() {
 
               <div className="mt-3 flex gap-2">
                 <input
-                  className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  className="flex-1 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                   placeholder="你想说什么（可以带数字）"
                   value={negDraft}
                   onChange={(event) => setNegDraft(event.target.value)}
@@ -556,24 +556,24 @@ export default function OfferDesk() {
                   type="button"
                   disabled={busy || !negDraft.trim()}
                   onClick={() => void sendReply()}
-                  className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:bg-slate-300"
+                  className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
                 >
                   说
                 </button>
               </div>
 
               {brief && (
-                <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="mt-4 rounded-control border border-ink-1 bg-paper p-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="text-2xl font-semibold">{brief.score}</span>
-                    <span className="text-xs text-slate-500">/ 100</span>
+                    <span className="text-xs text-ink-6">/ 100</span>
                     <span
                       className={
                         brief.bottom_line_held === true
-                          ? 'rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700'
+                          ? 'rounded-full bg-ok-soft px-2.5 py-1 text-xs text-ok'
                           : brief.bottom_line_held === false
-                            ? 'rounded-full bg-rose-50 px-2.5 py-1 text-xs text-rose-700'
-                            : 'rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600'
+                            ? 'rounded-full bg-ng-soft px-2.5 py-1 text-xs text-ng'
+                            : 'rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-6'
                       }
                     >
                       {brief.bottom_line_held === true
@@ -583,31 +583,31 @@ export default function OfferDesk() {
                           : '还看不出底线'}
                     </span>
                   </div>
-                  <div className="mt-2 text-xs text-slate-700">{brief.summary}</div>
+                  <div className="mt-2 text-xs text-ink-7">{brief.summary}</div>
 
-                  <div className="mt-2 grid gap-2 text-[11px] text-slate-600 sm:grid-cols-3">
+                  <div className="mt-2 grid gap-2 text-[11px] text-ink-6 sm:grid-cols-3">
                     <div>你的首次报价：{wan(brief.first_ask)}</div>
                     <div>你的最后报价：{wan(brief.last_ask)}</div>
                     <div>对方最终给到：{wan(brief.final_offer)}</div>
                   </div>
 
                   {brief.issues.length > 0 && (
-                    <ul className="mt-2 space-y-1 text-xs text-rose-800">
+                    <ul className="mt-2 space-y-1 text-xs text-ng">
                       {brief.issues.map((issue) => (
-                        <li key={issue}>· {issue}</li>
+                        <li key={issue}>— {issue}</li>
                       ))}
                     </ul>
                   )}
 
                   {brief.tactics_missed.length > 0 && (
-                    <div className="mt-2 text-[11px] text-slate-500">
+                    <div className="mt-2 text-[11px] text-ink-6">
                       没用上的招：
                       {brief.tactics_missed
                         .map((key) => options?.tactics.find((item) => item.key === key)?.label ?? key)
                         .join('、')}
                     </div>
                   )}
-                  <div className="mt-2 text-[11px] text-slate-400">{brief.caveat}</div>
+                  <div className="mt-2 text-[11px] text-ink-4">{brief.caveat}</div>
                 </div>
               )}
             </section>
@@ -617,14 +617,14 @@ export default function OfferDesk() {
 
       {/* ---------------------------- 避坑检查 ---------------------------- */}
       {panel === 'risk' && (
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="rounded-card border border-ink-1 bg-surface p-4">
           <h2 className="text-sm font-semibold">避坑检查</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-ink-6">
             把 JD、聊天记录或 offer 文本粘进来。这里**只给信号和核实渠道，不下结论**——
             同一句话在不同上下文里含义可以完全相反。
           </p>
           <textarea
-            className="mt-3 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-3 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
             rows={6}
             placeholder="例如：急招后端，入职需交培训费 2000 元，试用期不上社保"
             value={riskText}
@@ -634,7 +634,7 @@ export default function OfferDesk() {
             type="button"
             disabled={busy || !riskText.trim()}
             onClick={() => void scanRisk()}
-            className="mt-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:bg-slate-300"
+            className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
           >
             扫描
           </button>
@@ -642,24 +642,24 @@ export default function OfferDesk() {
           {riskReport && (
             <div className="mt-4 space-y-2">
               {riskReport.signals.length === 0 && (
-                <p className="text-xs text-emerald-700">没有扫到值得停下来问的信号。</p>
+                <p className="text-xs text-ok">没有扫到值得停下来问的信号。</p>
               )}
               {riskReport.signals.map((signal) => (
                 <div
                   key={signal.key}
                   className={
                     signal.severity === 'warn'
-                      ? 'rounded-md border border-amber-200 bg-amber-50 p-3 text-xs'
-                      : 'rounded-md border border-slate-200 p-3 text-xs'
+                      ? 'rounded-control border border-warn bg-warn-soft p-3 text-xs'
+                      : 'rounded-control border border-ink-1 p-3 text-xs'
                   }
                 >
-                  <div className="font-medium text-slate-800">
+                  <div className="font-medium text-ink-9">
                     [{signal.severity === 'warn' ? '注意' : '了解一下'}] {signal.label}
                   </div>
-                  <div className="mt-1 text-slate-600">命中原文：{signal.matched.join('、')}</div>
-                  <div className="mt-1 text-slate-600">{signal.why}</div>
-                  <div className="mt-1 text-slate-800">下一步：{signal.action}</div>
-                  <div className="mt-1 text-[11px] text-slate-500">
+                  <div className="mt-1 text-ink-6">命中原文：{signal.matched.join('、')}</div>
+                  <div className="mt-1 text-ink-6">{signal.why}</div>
+                  <div className="mt-1 text-ink-9">下一步：{signal.action}</div>
+                  <div className="mt-1 text-[11px] text-ink-6">
                     去核实：
                     {signal.sources.map((label) => {
                       const source = riskReport.sources.find((item) => item.label === label)
@@ -669,7 +669,7 @@ export default function OfferDesk() {
                           href={source?.url ?? '#'}
                           target="_blank"
                           rel="noreferrer"
-                          className="ml-1.5 text-sky-700 underline"
+                          className="ml-1.5 text-info underline"
                         >
                           {label}
                         </a>
@@ -679,20 +679,20 @@ export default function OfferDesk() {
                 </div>
               ))}
 
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-600">
+              <div className="rounded-control border border-ink-1 bg-paper p-3 text-[11px] text-ink-6">
                 <div className="font-medium">核实渠道</div>
                 <ul className="mt-1 space-y-0.5">
                   {riskReport.sources.map((source) => (
                     <li key={source.label}>
-                      <a href={source.url} target="_blank" rel="noreferrer" className="text-sky-700 underline">
+                      <a href={source.url} target="_blank" rel="noreferrer" className="text-info underline">
                         {source.label}
                       </a>
                       —— {source.what}
-                      <span className="ml-1 text-slate-400">（本工具未访问该来源）</span>
+                      <span className="ml-1 text-ink-4">（本工具未访问该来源）</span>
                     </li>
                   ))}
                 </ul>
-                <div className="mt-2 text-slate-400">{riskReport.disclaimer}</div>
+                <div className="mt-2 text-ink-4">{riskReport.disclaimer}</div>
               </div>
             </div>
           )}
@@ -701,14 +701,14 @@ export default function OfferDesk() {
 
       {/* ---------------------------- 合同提醒 ---------------------------- */}
       {panel === 'contract' && (
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="rounded-card border border-ink-1 bg-surface p-4">
           <h2 className="text-sm font-semibold">合同与竞业提醒</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-ink-6">
             还没拿到合同也可以先看清单——那是你最该先看的时候。粘入合同或 offer 文本后，
             提到过的条款会排到前面。
           </p>
           <textarea
-            className="mt-3 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-3 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
             rows={6}
             placeholder="粘入合同 / offer 文本（可选）"
             value={contractText}
@@ -718,7 +718,7 @@ export default function OfferDesk() {
             type="button"
             disabled={busy}
             onClick={() => void scanContract()}
-            className="mt-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:bg-slate-300"
+            className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
           >
             生成清单
           </button>
@@ -726,7 +726,7 @@ export default function OfferDesk() {
           {contractReport && (
             <div className="mt-4 space-y-2">
               {contractReport.mentioned.length > 0 && (
-                <div className="text-xs font-medium text-amber-800">文本里提到过的（优先问）</div>
+                <div className="text-xs font-medium text-warn">文本里提到过的（优先问）</div>
               )}
               {(contractReport.mentioned.length > 0 ? contractReport.mentioned : contractReport.checklist).map(
                 (hit) => (
@@ -734,20 +734,20 @@ export default function OfferDesk() {
                     key={hit.clause.key}
                     className={
                       hit.clause.severity === 'must_ask'
-                        ? 'rounded-md border border-rose-200 bg-rose-50 p-3 text-xs'
-                        : 'rounded-md border border-slate-200 p-3 text-xs'
+                        ? 'rounded-control border border-ng bg-ng-soft p-3 text-xs'
+                        : 'rounded-control border border-ink-1 p-3 text-xs'
                     }
                   >
-                    <div className="font-medium text-slate-800">
+                    <div className="font-medium text-ink-9">
                       [{hit.clause.severity === 'must_ask' ? '必须问' : '建议问'}] {hit.clause.label}
                     </div>
-                    <div className="mt-1 text-slate-800">问 HR：{hit.clause.question}</div>
-                    <div className="mt-1 text-slate-600">{hit.clause.why}</div>
-                    <div className="mt-1 text-amber-800">常见坑：{hit.clause.trap}</div>
+                    <div className="mt-1 text-ink-9">问 HR：{hit.clause.question}</div>
+                    <div className="mt-1 text-ink-6">{hit.clause.why}</div>
+                    <div className="mt-1 text-warn">常见坑：{hit.clause.trap}</div>
                   </div>
                 ),
               )}
-              <div className="text-[11px] text-slate-400">{contractReport.disclaimer}</div>
+              <div className="text-[11px] text-ink-4">{contractReport.disclaimer}</div>
             </div>
           )}
         </section>

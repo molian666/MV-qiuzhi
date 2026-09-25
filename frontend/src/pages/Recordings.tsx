@@ -147,17 +147,17 @@ export default function Recordings() {
     }
   }
 
-  const inputClass = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500'
+  const inputClass = 'w-full rounded-card border border-ink-2 px-3 py-2 text-sm outline-none focus:border-info'
 
   return (
     <div className="space-y-4">
-      {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {error && <p className="rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>}
 
       <section className="grid gap-4 lg:grid-cols-2">
         {/* 左：录音 */}
         <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-800">① 添加一段真实面试对话</h3>
+          <div className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-3 text-sm font-semibold text-ink-9">① 添加一段真实面试对话</h3>
 
             <input
               value={title}
@@ -178,12 +178,12 @@ export default function Recordings() {
                 type="file"
                 accept="audio/*"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                className="text-xs text-slate-600"
+                className="text-xs text-ink-6"
               />
               <button
                 type="button"
                 onClick={() => setRawText(SAMPLE_DIALOG)}
-                className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-control border border-ink-2 px-2.5 py-1.5 text-xs text-ink-6 hover:bg-paper"
               >
                 填入示例
               </button>
@@ -191,30 +191,30 @@ export default function Recordings() {
                 type="button"
                 onClick={() => void submitRecording()}
                 disabled={busy}
-                className="ml-auto rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-40"
+                className="ml-auto rounded-control bg-ink-9 px-3 py-1.5 text-xs font-medium text-surface hover:bg-ink-9 disabled:opacity-40"
               >
                 保存
               </button>
             </div>
 
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-6">
               当前是 Mock 转写：文本来自你的文稿，**不会识别音频内容**（音频只做保存）。
               要接真实语音识别需配置 <code>ASR_PROVIDER=qwen-file</code> 与 Key（尚未接入）。
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-panel border border-ink-1 bg-surface p-4">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-800">录音（{recordings.length}）</h3>
-              <span className="text-xs text-slate-500">勾选后可在右侧生成画像</span>
+              <h3 className="text-sm font-semibold text-ink-9">录音（{recordings.length}）</h3>
+              <span className="text-xs text-ink-6">勾选后可在右侧生成画像</span>
             </div>
 
             {recordings.length === 0 ? (
-              <p className="text-xs text-slate-500">还没有录音。粘一段对话文稿试试。</p>
+              <p className="text-xs text-ink-6">还没有录音。粘一段对话文稿试试。</p>
             ) : (
               <ul className="space-y-2">
                 {recordings.map((item) => (
-                  <li key={item.id} className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                  <li key={item.id} className="flex items-start gap-2 rounded-card bg-paper px-3 py-2">
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(item.id)}
@@ -226,28 +226,28 @@ export default function Recordings() {
                       className="mt-1"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-slate-800">
+                      <p className="truncate text-sm text-ink-9">
                         #{item.id} {item.title}
                       </p>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[11px] text-ink-6">
                         {STATUS_LABEL[item.status] ?? item.status}
                         {item.has_text ? ' · 有文稿' : ''}
                         {item.has_audio ? ' · 有音频' : ''} · {formatTime(item.created_at)}
                       </p>
-                      {item.error && <p className="text-[11px] text-rose-600">{item.error}</p>}
+                      {item.error && <p className="text-[11px] text-ng">{item.error}</p>}
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <button
                         type="button"
                         onClick={() => void openRecording(item.id)}
-                        className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-white"
+                        className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ink-6 hover:bg-surface"
                       >
                         看段落
                       </button>
                       <button
                         type="button"
                         onClick={() => void removeRecording(item.id)}
-                        className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-rose-600 hover:bg-white"
+                        className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ng hover:bg-surface"
                       >
                         删除
                       </button>
@@ -258,14 +258,14 @@ export default function Recordings() {
             )}
 
             {detail && (
-              <div className="mt-3 rounded-lg border border-slate-200 p-3">
-                <p className="mb-2 text-xs font-medium text-slate-700">
+              <div className="mt-3 rounded-card border border-ink-1 p-3">
+                <p className="mb-2 text-xs font-medium text-ink-7">
                   #{detail.id} 的转写段落（{detail.segments.length}）
                 </p>
                 <div className="max-h-56 space-y-1 overflow-y-auto">
                   {detail.segments.map((segment) => (
-                    <p key={segment.idx} className="text-[11px] leading-relaxed text-slate-600">
-                      <span className={segment.speaker === 'interviewer' ? 'text-sky-700' : 'text-emerald-700'}>
+                    <p key={segment.idx} className="text-[11px] leading-relaxed text-ink-6">
+                      <span className={segment.speaker === 'interviewer' ? 'text-info' : 'text-ok'}>
                         {segment.speaker === 'interviewer' ? '面试官' : segment.speaker === 'candidate' ? '我' : '未知'}
                       </span>
                       {segment.start_ms !== null ? ` (${(segment.start_ms / 1000).toFixed(1)}s)` : ''} {segment.text}
@@ -279,8 +279,8 @@ export default function Recordings() {
 
         {/* 右：画像 */}
         <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-800">② 学出面试官画像</h3>
+          <div className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-3 text-sm font-semibold text-ink-9">② 学出面试官画像</h3>
             <div className="flex items-center gap-2">
               <input
                 value={profileName}
@@ -292,35 +292,35 @@ export default function Recordings() {
                 type="button"
                 onClick={() => void buildProfile()}
                 disabled={busy || selectedIds.length === 0}
-                className="shrink-0 rounded-md bg-sky-600 px-3 py-2 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-40"
+                className="shrink-0 rounded-control bg-info px-3 py-2 text-xs font-medium text-surface hover:bg-info disabled:opacity-40"
               >
                 生成画像（{selectedIds.length}）
               </button>
             </div>
-            <p className="mt-2 text-[11px] text-slate-500">
+            <p className="mt-2 text-[11px] text-ink-6">
               多选几段同一个面试官的录音会合并统计，节奏特征更稳。
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-2 text-sm font-semibold text-slate-800">画像（{profiles.length}）</h3>
+          <div className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-2 text-sm font-semibold text-ink-9">画像（{profiles.length}）</h3>
             {profiles.length === 0 ? (
-              <p className="text-xs text-slate-500">还没有画像。</p>
+              <p className="text-xs text-ink-6">还没有画像。</p>
             ) : (
               <ul className="space-y-2">
                 {profiles.map((item) => (
-                  <li key={item.id} className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                  <li key={item.id} className="flex items-start gap-2 rounded-card bg-paper px-3 py-2">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-slate-800">
+                      <p className="truncate text-sm text-ink-9">
                         #{item.id} {item.name}
                       </p>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[11px] text-ink-6">
                         {item.question_count} 题 · 压力 {item.stress_level || '—'} · 样本 {item.sample_count}
                       </p>
                       {item.style_tags.length > 0 && (
                         <p className="mt-1 flex flex-wrap gap-1">
                           {item.style_tags.map((tag) => (
-                            <span key={tag} className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] text-sky-700">
+                            <span key={tag} className="rounded-full bg-info-soft px-2 py-0.5 text-[11px] text-info">
                               {tag}
                             </span>
                           ))}
@@ -331,14 +331,14 @@ export default function Recordings() {
                       <button
                         type="button"
                         onClick={() => void openProfile(item.id)}
-                        className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-white"
+                        className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ink-6 hover:bg-surface"
                       >
                         详情
                       </button>
                       <button
                         type="button"
                         onClick={() => void removeProfile(item.id)}
-                        className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-rose-600 hover:bg-white"
+                        className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ng hover:bg-surface"
                       >
                         删除
                       </button>
@@ -350,27 +350,27 @@ export default function Recordings() {
           </div>
 
           {profile && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="mb-2 text-sm font-semibold text-slate-800">{profile.name} · 会怎么面你</h3>
-              <dl className="grid gap-1 text-xs text-slate-700">
+            <div className="rounded-panel border border-ink-1 bg-surface p-4">
+              <h3 className="mb-2 text-sm font-semibold text-ink-9">{profile.name} · 会怎么面你</h3>
+              <dl className="grid gap-1 text-xs text-ink-7">
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">判断你说完的等待时长</dt>
+                  <dt className="text-ink-6">判断你说完的等待时长</dt>
                   <dd>{profile.policy.silence_ms} ms</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">最多追问</dt>
+                  <dt className="text-ink-6">最多追问</dt>
                   <dd>{profile.policy.max_followup_depth} 层</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">压力水平</dt>
+                  <dt className="text-ink-6">压力水平</dt>
                   <dd>{profile.policy.stress_level}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">面试官语速</dt>
+                  <dt className="text-ink-6">面试官语速</dt>
                   <dd>{profile.policy.interviewer_wpm} 字/分</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">开场 / 收尾</dt>
+                  <dt className="text-ink-6">开场 / 收尾</dt>
                   <dd>
                     {profile.policy.opening_pattern || '—'} / {profile.policy.closing_pattern || '—'}
                   </dd>
@@ -379,10 +379,10 @@ export default function Recordings() {
 
               {Object.keys(profile.policy.topic_mix).length > 0 && (
                 <div className="mt-2">
-                  <p className="mb-1 text-xs text-slate-500">题型配比（模拟时会按它出题）</p>
+                  <p className="mb-1 text-xs text-ink-6">题型配比（模拟时会按它出题）</p>
                   <div className="flex flex-wrap gap-1">
                     {Object.entries(profile.policy.topic_mix).map(([label, ratio]) => (
-                      <span key={label} className="rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                      <span key={label} className="rounded-control bg-sunken px-2 py-0.5 text-[11px] text-ink-7">
                         {label} {Math.round(ratio * 100)}%
                       </span>
                     ))}
@@ -391,7 +391,7 @@ export default function Recordings() {
               )}
 
               {profile.policy.followup_triggers.length > 0 && (
-                <p className="mt-2 text-[11px] text-slate-500">
+                <p className="mt-2 text-[11px] text-ink-6">
                   追问触发：{profile.policy.followup_triggers.join('、')}
                 </p>
               )}
@@ -399,7 +399,7 @@ export default function Recordings() {
               {profile.samples.length > 0 && (
                 <div className="mt-3 max-h-56 overflow-y-auto">
                   <table className="w-full text-[11px]">
-                    <thead className="bg-slate-50 text-left text-slate-500">
+                    <thead className="bg-paper text-left text-ink-6">
                       <tr>
                         <th className="px-2 py-1 font-medium">题目</th>
                         <th className="px-2 py-1 font-medium">题型</th>
@@ -409,11 +409,11 @@ export default function Recordings() {
                     </thead>
                     <tbody>
                       {profile.samples.map((sample, index) => (
-                        <tr key={`${sample.question}-${index}`} className="border-t border-slate-100">
-                          <td className="px-2 py-1 text-slate-700">{sample.question.slice(0, 26)}</td>
-                          <td className="px-2 py-1 text-slate-500">{sample.topic || sample.question_type}</td>
-                          <td className="px-2 py-1 text-slate-500">{sample.followup_count}</td>
-                          <td className="px-2 py-1 text-slate-500">
+                        <tr key={`${sample.question}-${index}`} className="border-t border-ink-1">
+                          <td className="px-2 py-1 text-ink-7">{sample.question.slice(0, 26)}</td>
+                          <td className="px-2 py-1 text-ink-6">{sample.topic || sample.question_type}</td>
+                          <td className="px-2 py-1 text-ink-6">{sample.followup_count}</td>
+                          <td className="px-2 py-1 text-ink-6">
                             {sample.wait_ms !== null ? `${(sample.wait_ms / 1000).toFixed(1)}s` : '—'}
                           </td>
                         </tr>

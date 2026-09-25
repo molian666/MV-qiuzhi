@@ -134,12 +134,12 @@ export default function InterviewSetup({
   const styleFor = (key: string) => styles.find((item) => item.key === key)
 
   return (
-    <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+    <div className="space-y-3 rounded-control border border-ink-1 bg-paper p-3">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs text-slate-600">
+        <label className="text-xs text-ink-6">
           面试语言
           <select
-            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-1 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
             value={value.locale}
             disabled={disabled}
             onChange={(event) => onChange({ ...value, locale: event.target.value })}
@@ -152,10 +152,10 @@ export default function InterviewSetup({
           </select>
         </label>
 
-        <label className="text-xs text-slate-600">
+        <label className="text-xs text-ink-6">
           面试官
           <select
-            className="mt-1 w-56 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-1 w-56 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
             value={value.panelEnabled ? '__panel__' : value.styleKey}
             disabled={disabled}
             onChange={(event) => {
@@ -181,18 +181,18 @@ export default function InterviewSetup({
         </label>
 
         {!value.panelEnabled && styleFor(value.styleKey) && (
-          <span className="max-w-md text-[11px] text-slate-500">
+          <span className="max-w-md text-[11px] text-ink-6">
             {styleFor(value.styleKey)?.summary}（{styleFor(value.styleKey)?.tone}）
           </span>
         )}
       </div>
 
       {/* M13：题源。默认让面试官自由出题；也可以只从题库抽，或按比例混合 */}
-      <div className="rounded-md border border-slate-200 bg-white p-2">
+      <div className="rounded-control border border-ink-1 bg-surface p-2">
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="font-medium text-slate-700">题目来源</span>
+          <span className="font-medium text-ink-7">题目来源</span>
           <select
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="rounded-control border border-ink-2 px-2 py-1 text-xs"
             value={value.questionMode}
             disabled={disabled}
             onChange={(event) =>
@@ -206,10 +206,10 @@ export default function InterviewSetup({
 
           {value.questionMode !== 'free' && (
             <>
-              <label className="flex items-center gap-1 text-slate-500">
+              <label className="flex items-center gap-1 text-ink-6">
                 岗位
                 <select
-                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  className="rounded-control border border-ink-2 px-2 py-1 text-xs"
                   value={value.questionRole ?? ''}
                   disabled={disabled}
                   onChange={(event) =>
@@ -227,10 +227,10 @@ export default function InterviewSetup({
                 </select>
               </label>
 
-              <label className="flex items-center gap-1 text-slate-500">
+              <label className="flex items-center gap-1 text-ink-6">
                 难度上限
                 <select
-                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  className="rounded-control border border-ink-2 px-2 py-1 text-xs"
                   value={value.questionMaxDifficulty ?? 0}
                   disabled={disabled}
                   onChange={(event) => {
@@ -251,7 +251,7 @@ export default function InterviewSetup({
         </div>
 
         {value.questionMode === 'mixed' && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-6">
             <span>占比</span>
             {(
               [
@@ -261,7 +261,7 @@ export default function InterviewSetup({
               ]
             ).map((item, index) => (
               <span key={item.key} className="flex items-center gap-1">
-                {index > 0 && <span className="text-slate-300">:</span>}
+                {index > 0 && <span className="text-ink-2">:</span>}
                 <label className="flex items-center gap-1" title={`现有 ${item.total} 题`}>
                   {item.label}
                   <input
@@ -269,7 +269,7 @@ export default function InterviewSetup({
                     min={0}
                     max={20}
                     disabled={disabled}
-                    className="w-14 rounded border border-slate-300 px-1.5 py-0.5 text-xs"
+                    className="w-14 rounded-control border border-ink-2 px-1.5 py-0.5 text-xs"
                     value={value.questionRatio[item.key]}
                     onChange={(event) =>
                       onChange({
@@ -284,19 +284,19 @@ export default function InterviewSetup({
                 </label>
               </span>
             ))}
-            <span className="text-slate-400">
+            <span className="text-ink-4">
               ≈ 内置 {percentOf(value.questionRatio.builtin)}%、上传{' '}
               {percentOf(value.questionRatio.uploaded)}%、生成{' '}
               {percentOf(value.questionRatio.generated)}%
             </span>
-            <span className="text-slate-400">
+            <span className="text-ink-4">
               （现有 内置 {builtinCount}、上传 {uploadedCount}、生成 {generatedCount}）
             </span>
           </div>
         )}
 
         {value.questionMode === 'mixed' && uploadedCount + generatedCount === 0 && (
-          <p className="mt-1.5 text-[11px] leading-relaxed text-amber-700">
+          <p className="mt-1.5 text-[11px] leading-relaxed text-warn">
             除了内置题库还没有别的题源：到「CV 面试题」页可以上传自己的面经，
             或者让模型出一批题并采纳。
             某个来源题不够时，会从另一个来源补足——比例是尽量满足，不是保证。
@@ -304,21 +304,21 @@ export default function InterviewSetup({
         )}
 
         {value.questionMode !== 'free' && (
-          <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+          <p className="mt-1.5 text-[11px] leading-relaxed text-ink-4">
             抽中的题会在开场时固定下来，中途不再更换；面试官会按顺序问，并在你的回答上追问。
           </p>
         )}
       </div>
 
       {value.panelEnabled && (
-        <div className="rounded-md border border-slate-200 bg-white p-2">
-          <div className="text-xs font-medium text-slate-700">连环面编排（音色自动错开，避免听不出换人）</div>
+        <div className="rounded-control border border-ink-1 bg-surface p-2">
+          <div className="text-xs font-medium text-ink-7">连环面编排（音色自动错开，避免听不出换人）</div>
           <div className="mt-2 space-y-2">
             {value.panel.map((stage, index) => (
               <div key={`${stage.style_key}-${index}`} className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-slate-400">第 {index + 1} 位</span>
+                <span className="text-ink-4">第 {index + 1} 位</span>
                 <select
-                  className="rounded-md border border-slate-300 px-2 py-1"
+                  className="rounded-control border border-ink-2 px-2 py-1"
                   value={stage.style_key}
                   disabled={disabled}
                   onChange={(event) => updateStage(index, { style_key: event.target.value })}
@@ -335,7 +335,7 @@ export default function InterviewSetup({
                     type="number"
                     min={1}
                     max={8}
-                    className="w-14 rounded-md border border-slate-300 px-2 py-1"
+                    className="w-14 rounded-control border border-ink-2 px-2 py-1"
                     value={stage.rounds}
                     disabled={disabled}
                     onChange={(event) => updateStage(index, { rounds: Number(event.target.value) })}
@@ -344,7 +344,7 @@ export default function InterviewSetup({
                 </label>
                 <button
                   type="button"
-                  className="rounded border border-slate-300 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                  className="rounded-control border border-ink-2 px-2 py-0.5 text-ink-6 hover:bg-paper"
                   disabled={disabled}
                   onClick={() => onChange({ ...value, panel: value.panel.filter((_, position) => position !== index) })}
                 >
@@ -355,7 +355,7 @@ export default function InterviewSetup({
           </div>
           <button
             type="button"
-            className="mt-2 rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            className="mt-2 rounded-control border border-ink-2 px-2 py-1 text-xs text-ink-6 hover:bg-paper"
             disabled={disabled}
             onClick={() => onChange({ ...value, panel: [...value.panel, { style_key: 'hr', rounds: 2 }] })}
           >
@@ -365,7 +365,7 @@ export default function InterviewSetup({
       )}
 
       <div>
-        <div className="text-xs font-medium text-slate-700">压力模式（可同时打开）</div>
+        <div className="text-xs font-medium text-ink-7">压力模式（可同时打开）</div>
         <div className="mt-2 grid gap-2 md:grid-cols-3">
           {pressureModes.map((mode) => {
             const on =
@@ -387,22 +387,22 @@ export default function InterviewSetup({
             return (
               <div
                 key={mode.key}
-                className={on ? 'rounded-md border border-rose-200 bg-rose-50 p-2' : 'rounded-md border border-slate-200 bg-white p-2'}
+                className={on ? 'rounded-control border border-ng bg-ng-soft p-2' : 'rounded-control border border-ink-1 bg-surface p-2'}
               >
-                <label className="flex items-center gap-2 text-xs font-medium text-slate-800">
+                <label className="flex items-center gap-2 text-xs font-medium text-ink-9">
                   <input type="checkbox" checked={on} disabled={disabled} onChange={toggle} />
                   {mode.label}
                 </label>
-                <div className="mt-1 text-[11px] leading-relaxed text-slate-500">{mode.summary}</div>
+                <div className="mt-1 text-[11px] leading-relaxed text-ink-6">{mode.summary}</div>
 
                 {on && mode.key === 'deep_drill' && (
-                  <label className="mt-1 flex items-center gap-1 text-[11px] text-slate-600">
+                  <label className="mt-1 flex items-center gap-1 text-[11px] text-ink-6">
                     最多追问
                     <input
                       type="number"
                       min={1}
                       max={8}
-                      className="w-14 rounded border border-slate-300 px-1.5 py-0.5"
+                      className="w-14 rounded-control border border-ink-2 px-1.5 py-0.5"
                       value={value.pressure.max_depth}
                       disabled={disabled}
                       onChange={(event) => patchPressure({ max_depth: Number(event.target.value) })}
@@ -412,13 +412,13 @@ export default function InterviewSetup({
                 )}
 
                 {on && mode.key === 'interrupt' && (
-                  <label className="mt-1 flex items-center gap-1 text-[11px] text-slate-600">
+                  <label className="mt-1 flex items-center gap-1 text-[11px] text-ink-6">
                     说满
                     <input
                       type="number"
                       min={3}
                       max={60}
-                      className="w-16 rounded border border-slate-300 px-1.5 py-0.5"
+                      className="w-16 rounded-control border border-ink-2 px-1.5 py-0.5"
                       value={Math.round(value.pressure.interrupt_after_ms / 1000)}
                       disabled={disabled}
                       onChange={(event) => patchPressure({ interrupt_after_ms: Number(event.target.value) * 1000 })}
@@ -428,13 +428,13 @@ export default function InterviewSetup({
                 )}
 
                 {on && mode.key === 'time_limit' && (
-                  <label className="mt-1 flex items-center gap-1 text-[11px] text-slate-600">
+                  <label className="mt-1 flex items-center gap-1 text-[11px] text-ink-6">
                     每题限时
                     <input
                       type="number"
                       min={20}
                       max={600}
-                      className="w-16 rounded border border-slate-300 px-1.5 py-0.5"
+                      className="w-16 rounded-control border border-ink-2 px-1.5 py-0.5"
                       value={value.pressure.answer_seconds}
                       disabled={disabled}
                       onChange={(event) => patchPressure({ answer_seconds: Number(event.target.value) })}

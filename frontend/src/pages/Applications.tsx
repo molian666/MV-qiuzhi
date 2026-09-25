@@ -130,38 +130,38 @@ export default function Applications() {
           { label: '面试转化', value: percent(stats?.interview_rate ?? 0), hint: `进入面试 ${stats?.interviewed ?? 0}` },
           { label: 'Offer', value: `${stats?.offers ?? 0}`, hint: `转化 ${percent(stats?.offer_rate ?? 0)}` },
         ].map((card) => (
-          <div key={card.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <p className="text-xs text-slate-500">{card.label}</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{card.value}</p>
-            <p className="text-[11px] text-slate-400">{card.hint}</p>
+          <div key={card.label} className="rounded-panel border border-ink-1 bg-surface px-4 py-3">
+            <p className="text-xs text-ink-6">{card.label}</p>
+            <p className="mt-1 text-2xl font-semibold text-ink-9">{card.value}</p>
+            <p className="text-[11px] text-ink-4">{card.hint}</p>
           </div>
         ))}
       </section>
 
-      {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {error && <p className="rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
           {/* 漏斗 */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-800">投递漏斗</h3>
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-3 text-sm font-semibold text-ink-9">投递漏斗</h3>
             {!stats || stats.total === 0 ? (
-              <p className="text-xs text-slate-500">还没有投递记录。用右下角的导入框粘一份 CSV 试试。</p>
+              <p className="text-xs text-ink-6">还没有投递记录。用右下角的导入框粘一份 CSV 试试。</p>
             ) : (
               <div className="space-y-3">
                 {stats.funnel.map((step) => (
                   <div key={step.stage}>
                     <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="text-slate-700">
-                        {step.label} <span className="text-slate-400">{step.count}</span>
+                      <span className="text-ink-7">
+                        {step.label} <span className="text-ink-4">{step.count}</span>
                       </span>
-                      <span className="text-slate-500">
+                      <span className="text-ink-6">
                         对上一阶段 {percent(step.rate_from_previous)} · 对总投递 {percent(step.rate_from_first)}
                       </span>
                     </div>
-                    <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-3 overflow-hidden rounded-full bg-sunken">
                       <div
-                        className="h-full rounded-full bg-sky-500"
+                        className="h-full rounded-full bg-info"
                         style={{ width: `${Math.max(2, (step.count / maxFunnel) * 100)}%` }}
                       />
                     </div>
@@ -172,14 +172,14 @@ export default function Applications() {
           </section>
 
           {/* 渠道对比 */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-800">渠道对比</h3>
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-3 text-sm font-semibold text-ink-9">渠道对比</h3>
             {!stats || stats.by_channel.length === 0 ? (
-              <p className="text-xs text-slate-500">还没有数据。</p>
+              <p className="text-xs text-ink-6">还没有数据。</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                  <thead className="bg-paper text-left text-xs text-ink-6">
                     <tr>
                       <th className="px-3 py-2 font-medium">渠道</th>
                       <th className="px-3 py-2 font-medium">投递</th>
@@ -191,15 +191,15 @@ export default function Applications() {
                   </thead>
                   <tbody>
                     {stats.by_channel.map((row) => (
-                      <tr key={row.channel} className="border-t border-slate-100">
-                        <td className="px-3 py-2 text-slate-800">{channelLabel(row.channel)}</td>
-                        <td className="px-3 py-2 text-slate-600">{row.total}</td>
-                        <td className="px-3 py-2 text-slate-600">{row.responded}</td>
-                        <td className="px-3 py-2 text-slate-600">{percent(row.response_rate)}</td>
-                        <td className="px-3 py-2 text-slate-600">
+                      <tr key={row.channel} className="border-t border-ink-1">
+                        <td className="px-3 py-2 text-ink-9">{channelLabel(row.channel)}</td>
+                        <td className="px-3 py-2 text-ink-6">{row.total}</td>
+                        <td className="px-3 py-2 text-ink-6">{row.responded}</td>
+                        <td className="px-3 py-2 text-ink-6">{percent(row.response_rate)}</td>
+                        <td className="px-3 py-2 text-ink-6">
                           {row.interviewed}（{percent(row.interview_rate)}）
                         </td>
-                        <td className="px-3 py-2 text-slate-600">{row.offers}</td>
+                        <td className="px-3 py-2 text-ink-6">{row.offers}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -209,10 +209,10 @@ export default function Applications() {
           </section>
 
           {/* 周趋势 */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-800">最近 8 周趋势</h3>
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-3 text-sm font-semibold text-ink-9">最近 8 周趋势</h3>
             {!stats || stats.weekly.every((point) => point.applied === 0) ? (
-              <p className="text-xs text-slate-500">这段时间还没有投递。</p>
+              <p className="text-xs text-ink-6">这段时间还没有投递。</p>
             ) : (
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
@@ -232,14 +232,14 @@ export default function Applications() {
           </section>
 
           {/* 清单 */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-800">投递清单（{items.length}）</h3>
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-3 text-sm font-semibold text-ink-9">投递清单（{items.length}）</h3>
             {items.length === 0 ? (
-              <p className="text-xs text-slate-500">还没有记录。</p>
+              <p className="text-xs text-ink-6">还没有记录。</p>
             ) : (
               <div className="max-h-[420px] overflow-y-auto">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-slate-50 text-left text-xs text-slate-500">
+                  <thead className="sticky top-0 bg-paper text-left text-xs text-ink-6">
                     <tr>
                       <th className="px-3 py-2 font-medium">公司 / 岗位</th>
                       <th className="px-3 py-2 font-medium">渠道</th>
@@ -250,18 +250,18 @@ export default function Applications() {
                   </thead>
                   <tbody>
                     {items.map((item) => (
-                      <tr key={item.id} className="border-t border-slate-100">
+                      <tr key={item.id} className="border-t border-ink-1">
                         <td className="px-3 py-2">
-                          <p className="text-slate-800">{item.company}</p>
-                          <p className="text-[11px] text-slate-500">{item.title}</p>
+                          <p className="text-ink-9">{item.company}</p>
+                          <p className="text-[11px] text-ink-6">{item.title}</p>
                         </td>
-                        <td className="px-3 py-2 text-slate-600">{channelLabel(item.channel)}</td>
-                        <td className="px-3 py-2 text-slate-500">{formatDate(item.applied_at)}</td>
+                        <td className="px-3 py-2 text-ink-6">{channelLabel(item.channel)}</td>
+                        <td className="px-3 py-2 text-ink-6">{formatDate(item.applied_at)}</td>
                         <td className="px-3 py-2">
                           <select
                             value={item.status}
                             onChange={(event) => void changeStatus(item.id, event.target.value)}
-                            className="rounded border border-slate-300 px-2 py-1 text-xs"
+                            className="rounded-control border border-ink-2 px-2 py-1 text-xs"
                           >
                             {STATUS_ORDER.map((status) => (
                               <option key={status} value={status}>
@@ -274,7 +274,7 @@ export default function Applications() {
                           <button
                             type="button"
                             onClick={() => void removeApplication(item.id)}
-                            className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-rose-600 hover:bg-slate-50"
+                            className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ng hover:bg-paper"
                           >
                             删除
                           </button>
@@ -290,40 +290,40 @@ export default function Applications() {
 
         <aside className="space-y-4">
           {/* 导入 */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-2 text-sm font-semibold text-slate-800">导入投递记录</h3>
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-2 text-sm font-semibold text-ink-9">导入投递记录</h3>
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               rows={8}
               placeholder="粘贴 CSV / TSV（第一行是表头，例如：公司,岗位,渠道,状态,投递时间）"
-              className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 font-mono text-[11px] outline-none focus:border-sky-500"
+              className="w-full resize-y rounded-card border border-ink-2 px-3 py-2 font-mono text-[11px] outline-none focus:border-info"
             />
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
                 onClick={() => void runImport()}
                 disabled={busy}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-40"
+                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs font-medium text-surface hover:bg-ink-9 disabled:opacity-40"
               >
                 {busy ? '导入中…' : '导入'}
               </button>
               <button
                 type="button"
                 onClick={() => setDraft(SAMPLE_CSV)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-6 hover:bg-paper"
               >
                 填入示例
               </button>
             </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-6">
               表头支持中英文常见写法；日期支持 <code>2026-03-12</code>、<code>2026/3/12 14:30</code>、
               <code>2026年3月12日</code> 与 Excel 日期序列号。重复投递（同公司+岗位+同一天）会自动跳过。
             </p>
 
             {outcome && (
-              <div className="mt-3 space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-700">
-                <p className="font-medium text-slate-800">
+              <div className="mt-3 space-y-1 rounded-card bg-paper px-3 py-2 text-[11px] text-ink-7">
+                <p className="font-medium text-ink-9">
                   新增 {outcome.inserted} · 更新 {outcome.updated} · 跳过 {outcome.skipped}
                 </p>
                 <p>
@@ -333,10 +333,10 @@ export default function Applications() {
                     .join('，')}
                 </p>
                 {outcome.unmatched_headers.length > 0 && (
-                  <p className="text-amber-700">没认出来的列：{outcome.unmatched_headers.join('、')}</p>
+                  <p className="text-warn">没认出来的列：{outcome.unmatched_headers.join('、')}</p>
                 )}
                 {outcome.skipped_details.length > 0 && (
-                  <ul className="list-disc pl-4 text-amber-700">
+                  <ul className="list-disc pl-4 text-warn">
                     {outcome.skipped_details.slice(0, 5).map(([line, reason]) => (
                       <li key={`${line}-${reason}`}>
                         第 {line} 行：{reason}
@@ -349,22 +349,22 @@ export default function Applications() {
           </section>
 
           {/* 简历版本 A/B */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-2 text-sm font-semibold text-slate-800">简历版本 A/B</h3>
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-2 text-sm font-semibold text-ink-9">简历版本 A/B</h3>
             {!stats || stats.resume_versions.length === 0 ? (
-              <p className="text-xs text-slate-500">CSV 里加一列「简历版本」就能对比效果。</p>
+              <p className="text-xs text-ink-6">CSV 里加一列「简历版本」就能对比效果。</p>
             ) : (
               <ul className="space-y-2">
                 {stats.resume_versions.map((row) => (
                   <li key={row.version}>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-700">{row.version}</span>
-                      <span className="text-slate-500">
+                      <span className="text-ink-7">{row.version}</span>
+                      <span className="text-ink-6">
                         {percent(row.response_rate)}（{row.responded}/{row.total}）
                       </span>
                     </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full bg-emerald-500" style={{ width: `${row.response_rate * 100}%` }} />
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-sunken">
+                      <div className="h-full bg-ok" style={{ width: `${row.response_rate * 100}%` }} />
                     </div>
                   </li>
                 ))}
@@ -373,22 +373,22 @@ export default function Applications() {
           </section>
 
           {/* 响应时长 */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-2 text-sm font-semibold text-slate-800">响应时长</h3>
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-2 text-sm font-semibold text-ink-9">响应时长</h3>
             {!stats || stats.response_time.samples === 0 ? (
-              <p className="text-xs text-slate-500">还没有"投递 → 有回应"的样本。</p>
+              <p className="text-xs text-ink-6">还没有"投递 → 有回应"的样本。</p>
             ) : (
-              <dl className="grid gap-1 text-xs text-slate-700">
+              <dl className="grid gap-1 text-xs text-ink-7">
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">样本</dt>
+                  <dt className="text-ink-6">样本</dt>
                   <dd>{stats.response_time.samples}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">中位数</dt>
+                  <dt className="text-ink-6">中位数</dt>
                   <dd>{stats.response_time.median_hours} 小时</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">最快 / 最慢</dt>
+                  <dt className="text-ink-6">最快 / 最慢</dt>
                   <dd>
                     {stats.response_time.fastest_hours} / {stats.response_time.slowest_hours} 小时
                   </dd>
@@ -398,20 +398,20 @@ export default function Applications() {
           </section>
 
           {/* 待跟进 */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-2 text-sm font-semibold text-slate-800">
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-2 text-sm font-semibold text-ink-9">
               待跟进（{stats?.follow_ups.length ?? 0}）
             </h3>
             {!stats || stats.follow_ups.length === 0 ? (
-              <p className="text-xs text-slate-500">没有超过 7 天还没动静的投递。</p>
+              <p className="text-xs text-ink-6">没有超过 7 天还没动静的投递。</p>
             ) : (
               <ul className="space-y-2">
                 {stats.follow_ups.map((item) => (
-                  <li key={item.application_id} className="rounded-lg bg-amber-50 px-3 py-2 text-xs">
-                    <p className="text-slate-800">
+                  <li key={item.application_id} className="rounded-card bg-warn-soft px-3 py-2 text-xs">
+                    <p className="text-ink-9">
                       {item.company} · {item.title}
                     </p>
-                    <p className="text-[11px] text-amber-700">
+                    <p className="text-[11px] text-warn">
                       投出 {item.days_since} 天仍是「{STATUS_LABELS[item.status] ?? item.status}」，可以主动催一下
                     </p>
                   </li>
@@ -421,12 +421,12 @@ export default function Applications() {
           </section>
 
           {/* 导入流水 */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-2 text-sm font-semibold text-slate-800">导入流水</h3>
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h3 className="mb-2 text-sm font-semibold text-ink-9">导入流水</h3>
             {batches.length === 0 ? (
-              <p className="text-xs text-slate-500">还没有导入过。</p>
+              <p className="text-xs text-ink-6">还没有导入过。</p>
             ) : (
-              <ul className="space-y-1 text-[11px] text-slate-600">
+              <ul className="space-y-1 text-[11px] text-ink-6">
                 {batches.slice(0, 6).map((batch) => (
                   <li key={batch.id}>
                     #{batch.id} {batch.source} · 新增 {batch.inserted} / 更新 {batch.updated} / 跳过{' '}

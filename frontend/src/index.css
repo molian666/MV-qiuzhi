@@ -1,5 +1,53 @@
 @import "tailwindcss";
 
+/* IBM Plex Mono：只引需要的字重，且只引拉丁子集——
+   项目定位是本地/内网可用，所以字体必须随包走，不能挂 CDN。
+   中文正文用系统栈（中文 webfont 动辄几 MB，不值得）。 */
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-600.css";
+
+/* ---------------------------------------------------------------------------
+   设计 tokens
+
+   这个界面服务的是机器视觉方向的面试准备。主题世界里最真实的东西是工业相机的
+   灰度输出与 OK/NG 判定，所以这里**灰度是主角，彩色只用来表示状态**——
+   这正是工检界面的实际语言，也顺带避开了"每个产品都长一样"的默认套路。
+
+   层级靠几何（圆角按层级分 4 / 6 / 8）与边框区分，不靠阴影堆叠。
+--------------------------------------------------------------------------- */
+@theme {
+  /* 中性：一条从近黑到近白的冷灰阶，像一张直方图 */
+  --color-ink-9: #14171a; /* 主文字、主按钮底 */
+  --color-ink-7: #2b3138; /* 强调文字 */
+  --color-ink-6: #4a5058; /* 次级文字 */
+  --color-ink-4: #7c848c; /* 弱提示 */
+  --color-ink-3: #9aa2aa; /* 占位符 */
+  --color-ink-2: #b6bdc4; /* 边框（重） */
+  --color-ink-1: #e2e6ea; /* 分隔线与边框（轻） */
+  --color-paper: #f7f8f9; /* 工作区底 */
+  --color-surface: #ffffff; /* 面板 */
+  --color-sunken: #f0f2f4; /* 凹槽、代码块、进度槽 */
+
+  /* 状态：只有这四种颜色是"有意义的" */
+  --color-ok: #15803d; /* 通过 / 已掌握 */
+  --color-ok-soft: #eaf5ee;
+  --color-ng: #be123c; /* 失败 / 待改进 */
+  --color-ng-soft: #fdeef1;
+  --color-warn: #b45309; /* 待办 / 注意 */
+  --color-warn-soft: #fdf3e7;
+  --color-info: #1d4ed8; /* 中性信息 */
+  --color-info-soft: #eef2fe;
+
+  /* 数字与代码：等宽 + tabular figures。
+     精度、误检率、IoU、评分都是要竖着比大小的量，等宽对齐后能直接看出来。 */
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --radius-control: 4px;
+  --radius-card: 6px;
+  --radius-panel: 8px;
+}
+
 html,
 body,
 #root {
@@ -10,4 +58,30 @@ body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
+  background: var(--color-paper);
+  color: var(--color-ink-9);
+}
+
+/* 等宽数字统一开 tabular，避免在列表与表格里跳动 */
+.font-mono,
+code,
+kbd,
+samp {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 焦点可见：键盘用户必须能看清自己在哪 */
+:focus-visible {
+  outline: 2px solid var(--color-ink-9);
+  outline-offset: 2px;
+}
+
+/* 尊重系统的减少动效设置 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

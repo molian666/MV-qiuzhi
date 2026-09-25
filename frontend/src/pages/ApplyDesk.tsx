@@ -220,11 +220,11 @@ export default function ApplyDesk() {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+        <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
       )}
 
       {status?.broken && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div className="rounded-control border border-warn bg-warn-soft px-3 py-2 text-sm text-warn">
           <div className="font-medium">已触发熔断，今天不会再投递任何岗位。</div>
           <div className="mt-1 text-xs">
             恢复时间：{status.circuit_broken_until ? new Date(status.circuit_broken_until).toLocaleString('zh-CN') : '—'}
@@ -234,23 +234,23 @@ export default function ApplyDesk() {
       )}
 
       {/* 状态与开关 */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-card border border-ink-1 bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold">投递执行台</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs text-ink-6">
               抓候选 → 你逐条确认 → 按限速投递。模块默认关闭，开启需要显式确认风险。
             </p>
           </div>
           <div className="flex items-center gap-3 text-xs">
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
+            <span className="rounded-full bg-sunken px-2.5 py-1 text-ink-6">
               今日额度 {status ? `${status.daily_sent}/${status.daily_limit}` : '—'}
             </span>
             <span
               className={
                 enabled
-                  ? 'rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700'
-                  : 'rounded-full bg-slate-100 px-2.5 py-1 text-slate-600'
+                  ? 'rounded-full bg-ok-soft px-2.5 py-1 text-ok'
+                  : 'rounded-full bg-sunken px-2.5 py-1 text-ink-6'
               }
             >
               {enabled ? '已开启' : '已关闭'}
@@ -259,14 +259,14 @@ export default function ApplyDesk() {
         </div>
 
         {!enabled && (
-          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="text-xs font-medium text-slate-700">开启前请先确认你了解这几点：</div>
-            <ul className="mt-2 space-y-1 text-xs text-slate-600">
+          <div className="mt-3 rounded-control border border-ink-1 bg-paper p-3">
+            <div className="text-xs font-medium text-ink-7">开启前请先确认你了解这几点：</div>
+            <ul className="mt-2 space-y-1 text-xs text-ink-6">
               {RISK_POINTS.map((point) => (
-                <li key={point}>· {point}</li>
+                <li key={point}>— {point}</li>
               ))}
             </ul>
-            <label className="mt-3 flex items-start gap-2 text-xs text-slate-700">
+            <label className="mt-3 flex items-start gap-2 text-xs text-ink-7">
               <input
                 type="checkbox"
                 className="mt-0.5"
@@ -279,7 +279,7 @@ export default function ApplyDesk() {
               type="button"
               disabled={!riskAck || busy || !settings}
               onClick={() => void saveSettings({ enabled: true, risk_acknowledged: true })}
-              className="mt-3 rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="mt-3 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
             >
               开启半自动投递
             </button>
@@ -288,10 +288,10 @@ export default function ApplyDesk() {
 
         {enabled && settings && (
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="text-xs text-slate-600">
+            <label className="text-xs text-ink-6">
               平台
               <select
-                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                 value={settings.platform}
                 onChange={(event) => void saveSettings({ platform: event.target.value })}
               >
@@ -302,47 +302,47 @@ export default function ApplyDesk() {
                 ))}
               </select>
             </label>
-            <label className="text-xs text-slate-600">
+            <label className="text-xs text-ink-6">
               每分钟上限（≤{settings.max_per_minute}）
               <input
                 type="number"
                 min={1}
                 max={settings.max_per_minute}
-                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                 value={settings.per_minute}
                 onChange={(event) => void saveSettings({ per_minute: Number(event.target.value) })}
               />
             </label>
-            <label className="text-xs text-slate-600">
+            <label className="text-xs text-ink-6">
               每天上限（≤{settings.max_per_day}）
               <input
                 type="number"
                 min={1}
                 max={settings.max_per_day}
-                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                 value={settings.per_day}
                 onChange={(event) => void saveSettings({ per_day: Number(event.target.value) })}
               />
             </label>
-            <label className="text-xs text-slate-600">
+            <label className="text-xs text-ink-6">
               期望月薪下限（元）
               <input
                 type="number"
                 min={0}
                 step={1000}
-                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
                 value={settings.want_salary_min}
                 onChange={(event) => void saveSettings({ want_salary_min: Number(event.target.value) })}
               />
             </label>
-            <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-6">
               <span>
                 每条之间随机等待 {settings.jitter_min_seconds}–{settings.jitter_max_seconds} 秒（可在后端设置里调整）。
               </span>
               <button
                 type="button"
                 onClick={() => void saveSettings({ enabled: false, risk_acknowledged: false })}
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-slate-600 hover:bg-slate-50"
+                className="rounded-control border border-ink-2 px-2.5 py-1 text-ink-6 hover:bg-paper"
               >
                 关闭模块
               </button>
@@ -351,34 +351,34 @@ export default function ApplyDesk() {
         )}
 
         {status && !status.adapter_ready && (
-          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <div className="mt-3 rounded-control border border-warn bg-warn-soft px-3 py-2 text-xs text-warn">
             适配器还没就绪：{status.adapter_note}
           </div>
         )}
       </section>
 
       {/* 抓候选 */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-card border border-ink-1 bg-surface p-4">
         <h2 className="text-sm font-semibold">1. 抓取候选</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
+        <p className="mt-0.5 text-xs text-ink-6">
           抓取只会把岗位放进待确认队列，**不会投递**。不通过的岗位会连原因一起列出来。
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="text-xs text-slate-600">
+          <label className="text-xs text-ink-6">
             关键词（空格分隔）
             <input
-              className="mt-1 w-56 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 w-56 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
               value={keywords}
               onChange={(event) => setKeywords(event.target.value)}
             />
           </label>
-          <label className="text-xs text-slate-600">
+          <label className="text-xs text-ink-6">
             抓取数量
             <input
               type="number"
               min={1}
               max={60}
-              className="mt-1 w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 w-20 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
               value={candidateLimit}
               onChange={(event) => setCandidateLimit(Number(event.target.value))}
             />
@@ -387,28 +387,28 @@ export default function ApplyDesk() {
             type="button"
             disabled={busy || !enabled}
             onClick={() => void runSearch()}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="rounded-control bg-ink-9 px-3 py-1.5 text-sm text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
           >
             抓取候选
           </button>
-          {!enabled && <span className="text-xs text-slate-500">先在上面开启模块</span>}
+          {!enabled && <span className="text-xs text-ink-6">先在上面开启模块</span>}
         </div>
 
         {search && (
           <div className="mt-4 space-y-3">
-            <div className="text-xs text-slate-600">
+            <div className="text-xs text-ink-6">
               抓到 {search.fetched} 个 · 通过过滤 {search.passed} · 被拦 {search.blocked} · 新入队 {search.queued}
               {search.duplicates > 0 && ` · 队列里已有 ${search.duplicates}`}
             </div>
             {search.notes.map((note) => (
-              <div key={note} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div key={note} className="rounded-control border border-warn bg-warn-soft px-3 py-2 text-xs text-warn">
                 {note}
               </div>
             ))}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="text-slate-500">
+                <thead className="text-ink-6">
                   <tr>
                     <th className="py-1.5 pr-2">选</th>
                     <th className="py-1.5 pr-2">公司</th>
@@ -421,7 +421,7 @@ export default function ApplyDesk() {
                 </thead>
                 <tbody>
                   {search.candidates.map((item) => (
-                    <tr key={`${item.external_id}-${item.job_posting_id}`} className="border-t border-slate-100 align-top">
+                    <tr key={`${item.external_id}-${item.job_posting_id}`} className="border-t border-ink-1 align-top">
                       <td className="py-2 pr-2">
                         <input
                           type="checkbox"
@@ -441,7 +441,7 @@ export default function ApplyDesk() {
                       <td className="py-2 pr-2">{item.company}</td>
                       <td className="py-2 pr-2">
                         {item.jd_url ? (
-                          <a className="text-sky-700 hover:underline" href={item.jd_url} target="_blank" rel="noreferrer">
+                          <a className="text-info hover:underline" href={item.jd_url} target="_blank" rel="noreferrer">
                             {item.title}
                           </a>
                         ) : (
@@ -453,15 +453,15 @@ export default function ApplyDesk() {
                       <td className="py-2 pr-2">{item.matched_score}</td>
                       <td className="py-2 pr-2">
                         {item.passed ? (
-                          <span className="text-emerald-700">通过</span>
+                          <span className="text-ok">通过</span>
                         ) : (
-                          <span className="text-rose-700">
+                          <span className="text-ng">
                             已拦：{item.reasons.join('；')}
                           </span>
                         )}
                         {item.passed && item.say_hi && (
                           <textarea
-                            className="mt-1 w-72 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                            className="mt-1 w-72 rounded-control border border-ink-2 px-2 py-1 text-xs"
                             rows={2}
                             value={drafts[item.task_id as number] ?? item.say_hi}
                             onChange={(event) =>
@@ -481,7 +481,7 @@ export default function ApplyDesk() {
                 type="button"
                 disabled={busy || picked.length === 0}
                 onClick={() => void approvePicked()}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
               >
                 确认投递（{picked.length} 条）
               </button>
@@ -489,7 +489,7 @@ export default function ApplyDesk() {
                 type="button"
                 disabled={busy || picked.length === 0}
                 onClick={() => void skipPicked()}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed"
+                className="rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-6 hover:bg-paper disabled:cursor-not-allowed"
               >
                 跳过
               </button>
@@ -499,10 +499,10 @@ export default function ApplyDesk() {
       </section>
 
       {/* 队列 */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-card border border-ink-1 bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">2. 待投队列</h2>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-ink-6">
             {snapshot
               ? `共 ${snapshot.total} · 待确认 ${snapshot.pending} · 已确认 ${snapshot.approved} · 已投 ${snapshot.sent} · 失败 ${snapshot.failed}`
               : '—'}
@@ -510,7 +510,7 @@ export default function ApplyDesk() {
         </div>
 
         {queue.length === 0 ? (
-          <p className="mt-3 text-xs text-slate-500">队列是空的。先抓一批候选。</p>
+          <p className="mt-3 text-xs text-ink-6">队列是空的。先抓一批候选。</p>
         ) : (
           <div className="mt-3 space-y-4">
             {[
@@ -519,34 +519,34 @@ export default function ApplyDesk() {
               { title: `已处理（${doneQueue.length}）`, items: doneQueue.slice(0, 20) },
             ].map((group) => (
               <div key={group.title}>
-                <div className="text-xs font-medium text-slate-600">{group.title}</div>
+                <div className="text-xs font-medium text-ink-6">{group.title}</div>
                 {group.items.length === 0 ? (
-                  <div className="mt-1 text-xs text-slate-400">—</div>
+                  <div className="mt-1 text-xs text-ink-4">—</div>
                 ) : (
                   <table className="mt-1 w-full text-left text-xs">
                     <tbody>
                       {group.items.map((item) => (
-                        <tr key={item.id} className="border-t border-slate-100 align-top">
-                          <td className="py-1.5 pr-2 text-slate-500">#{item.id}</td>
+                        <tr key={item.id} className="border-t border-ink-1 align-top">
+                          <td className="py-1.5 pr-2 text-ink-6">#{item.id}</td>
                           <td className="py-1.5 pr-2">
                             {item.company} · {item.title}
                           </td>
-                          <td className="py-1.5 pr-2 text-slate-500">{item.salary_range || '—'}</td>
+                          <td className="py-1.5 pr-2 text-ink-6">{item.salary_range || '—'}</td>
                           <td className="py-1.5 pr-2">
                             <span
                               className={
                                 item.status === 'sent'
-                                  ? 'text-emerald-700'
+                                  ? 'text-ok'
                                   : item.status === 'failed'
-                                    ? 'text-rose-700'
-                                    : 'text-slate-600'
+                                    ? 'text-ng'
+                                    : 'text-ink-6'
                               }
                             >
                               {statusLabel(item.status)}
                             </span>
-                            {item.error && <div className="text-rose-700">{item.error}</div>}
+                            {item.error && <div className="text-ng">{item.error}</div>}
                           </td>
-                          <td className="py-1.5 pr-2 text-slate-500">{item.say_hi_text.slice(0, 40)}…</td>
+                          <td className="py-1.5 pr-2 text-ink-6">{item.say_hi_text.slice(0, 40)}…</td>
                         </tr>
                       ))}
                     </tbody>
@@ -560,28 +560,28 @@ export default function ApplyDesk() {
                 type="button"
                 disabled={busy || approvedQueue.length === 0 || !enabled || status?.broken}
                 onClick={() => void execute()}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
               >
                 3. 开始投递（最多 10 条）
               </button>
-              <label className="flex items-center gap-1.5 text-xs text-slate-600">
+              <label className="flex items-center gap-1.5 text-xs text-ink-6">
                 <input type="checkbox" checked={dryRun} onChange={(event) => setDryRun(event.target.checked)} />
                 演练模式（只报告会投什么，不真的发送）
               </label>
             </div>
 
             {outcome && (
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">
-                <div className="font-medium text-slate-700">
+              <div className="rounded-control border border-ink-1 bg-paper p-3 text-xs">
+                <div className="font-medium text-ink-7">
                   本次：尝试 {outcome.attempted} · 成功 {outcome.sent} · 失败 {outcome.failed}
                 </div>
-                {outcome.stopped_reason && <div className="mt-1 text-slate-600">停止原因：{outcome.stopped_reason}</div>}
+                {outcome.stopped_reason && <div className="mt-1 text-ink-6">停止原因：{outcome.stopped_reason}</div>}
                 {outcome.tripped && (
-                  <div className="mt-1 text-amber-800">熔断：{outcome.breaker_message}</div>
+                  <div className="mt-1 text-warn">熔断：{outcome.breaker_message}</div>
                 )}
                 <ul className="mt-2 space-y-1">
                   {outcome.items.map((item) => (
-                    <li key={`${item.task_id}-${item.detail}`} className={item.ok ? 'text-emerald-700' : 'text-rose-700'}>
+                    <li key={`${item.task_id}-${item.detail}`} className={item.ok ? 'text-ok' : 'text-ng'}>
                       {item.ok ? '✓' : '✗'} {item.company} · {item.title} —— {item.detail}
                     </li>
                   ))}
@@ -593,13 +593,13 @@ export default function ApplyDesk() {
       </section>
 
       {/* 规则 */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-card border border-ink-1 bg-surface p-4">
         <h2 className="text-sm font-semibold">过滤规则</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
+        <p className="mt-0.5 text-xs text-ink-6">
           优先级数字小的先判断，任何一条命中就拦下这个岗位。理由会显示在候选列表里。
         </p>
         <table className="mt-3 w-full text-left text-xs">
-          <thead className="text-slate-500">
+          <thead className="text-ink-6">
             <tr>
               <th className="py-1.5 pr-2">启用</th>
               <th className="py-1.5 pr-2">优先级</th>
@@ -610,14 +610,14 @@ export default function ApplyDesk() {
           </thead>
           <tbody>
             {rules.map((rule) => (
-              <tr key={rule.id} className="border-t border-slate-100">
+              <tr key={rule.id} className="border-t border-ink-1">
                 <td className="py-1.5 pr-2">
                   <input type="checkbox" checked={rule.enabled} onChange={() => void toggleRule(rule)} />
                 </td>
-                <td className="py-1.5 pr-2 text-slate-500">{rule.priority}</td>
+                <td className="py-1.5 pr-2 text-ink-6">{rule.priority}</td>
                 <td className="py-1.5 pr-2">{rule.name || '—'}</td>
-                <td className="py-1.5 pr-2 text-slate-500">{RULE_KIND_LABELS[rule.kind] ?? rule.kind}</td>
-                <td className="py-1.5 pr-2 text-slate-500">{ruleParams(rule)}</td>
+                <td className="py-1.5 pr-2 text-ink-6">{RULE_KIND_LABELS[rule.kind] ?? rule.kind}</td>
+                <td className="py-1.5 pr-2 text-ink-6">{ruleParams(rule)}</td>
               </tr>
             ))}
           </tbody>

@@ -118,27 +118,27 @@ export default function QuestionGenerator({
   const hasBatch = Boolean(current?.batch)
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div className="rounded-card border border-ink-1 bg-surface p-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h4 className="text-xs font-semibold text-slate-700">让模型出题</h4>
-          <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-            生成的题先存为草稿，<strong className="font-medium text-slate-700">不会进抽题池</strong>
+          <h4 className="text-xs font-semibold text-ink-7">让模型出题</h4>
+          <p className="mt-1 text-[10px] leading-relaxed text-ink-6">
+            生成的题先存为草稿，<strong className="font-medium text-ink-7">不会进抽题池</strong>
             ——你觉得能用，再「采纳进题库」。
           </p>
         </div>
         {(meta?.draft_count ?? 0) > 0 && (
-          <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">
+          <span className="shrink-0 rounded-control bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">
             待采纳 {meta?.draft_count} 题
           </span>
         )}
       </div>
 
       <div className="mt-2 flex flex-wrap items-end gap-2 text-[11px]">
-        <label className="text-slate-500">
+        <label className="text-ink-6">
           岗位
           <select
-            className="ml-1 rounded-md border border-slate-300 px-1.5 py-1"
+            className="ml-1 rounded-control border border-ink-2 px-1.5 py-1"
             value={role}
             onChange={(event) => setRole(event.target.value)}
           >
@@ -151,10 +151,10 @@ export default function QuestionGenerator({
               ))}
           </select>
         </label>
-        <label className="text-slate-500">
+        <label className="text-ink-6">
           分类
           <select
-            className="ml-1 rounded-md border border-slate-300 px-1.5 py-1"
+            className="ml-1 rounded-control border border-ink-2 px-1.5 py-1"
             value={category}
             onChange={(event) => setCategory(event.target.value)}
           >
@@ -166,10 +166,10 @@ export default function QuestionGenerator({
             ))}
           </select>
         </label>
-        <label className="text-slate-500">
+        <label className="text-ink-6">
           难度
           <select
-            className="ml-1 rounded-md border border-slate-300 px-1.5 py-1"
+            className="ml-1 rounded-control border border-ink-2 px-1.5 py-1"
             value={difficulty}
             onChange={(event) => setDifficulty(Number(event.target.value))}
           >
@@ -181,13 +181,13 @@ export default function QuestionGenerator({
             ))}
           </select>
         </label>
-        <label className="text-slate-500">
+        <label className="text-ink-6">
           数量
           <input
             type="number"
             min={1}
             max={12}
-            className="ml-1 w-14 rounded-md border border-slate-300 px-1.5 py-1"
+            className="ml-1 w-14 rounded-control border border-ink-2 px-1.5 py-1"
             value={count}
             onChange={(event) => setCount(Math.max(1, Math.min(12, Number(event.target.value) || 1)))}
           />
@@ -199,7 +199,7 @@ export default function QuestionGenerator({
         value={note}
         onChange={(event) => setNote(event.target.value)}
         placeholder="补充要求（可选），如「多出一些打光和选型相关的」"
-        className="mt-2 w-full rounded-md border border-slate-300 px-2 py-1.5 text-[11px]"
+        className="mt-2 w-full rounded-control border border-ink-2 px-2 py-1.5 text-[11px]"
       />
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -207,7 +207,7 @@ export default function QuestionGenerator({
           type="button"
           onClick={() => void run('new')}
           disabled={busy !== 'idle'}
-          className="rounded-md bg-slate-900 px-3 py-1.5 text-[11px] text-white disabled:bg-slate-300"
+          className="rounded-control bg-ink-9 px-3 py-1.5 text-[11px] text-surface disabled:bg-ink-2"
         >
           {busy === 'generating' ? '生成中…' : '生成一批'}
         </button>
@@ -218,7 +218,7 @@ export default function QuestionGenerator({
               type="button"
               onClick={() => void run('append')}
               disabled={busy !== 'idle'}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 disabled:text-slate-300"
+              className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-[11px] text-ink-7 disabled:text-ink-2"
               title="在同一批上追加，已出的题干会带给模型要求它别重复"
             >
               继续生成
@@ -227,7 +227,7 @@ export default function QuestionGenerator({
               type="button"
               onClick={() => void run('replace')}
               disabled={busy !== 'idle'}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[11px] text-slate-700 disabled:text-slate-300"
+              className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-[11px] text-ink-7 disabled:text-ink-2"
               title="丢掉这一批，按同样的参数重新生成"
             >
               重新生成
@@ -236,7 +236,7 @@ export default function QuestionGenerator({
               type="button"
               onClick={() => void adopt()}
               disabled={busy !== 'idle'}
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-[11px] text-white disabled:bg-slate-300"
+              className="rounded-control bg-ok px-3 py-1.5 text-[11px] text-surface disabled:bg-ink-2"
               title="这批题将进入模拟面试的抽题范围"
             >
               {busy === 'adopting' ? '采纳中…' : `采纳进题库（${draftQuestions.length} 题）`}
@@ -245,7 +245,7 @@ export default function QuestionGenerator({
               type="button"
               onClick={() => current?.batch && void discard(current.batch)}
               disabled={busy !== 'idle'}
-              className="rounded-md border border-rose-200 bg-white px-3 py-1.5 text-[11px] text-rose-700 disabled:text-slate-300"
+              className="rounded-control border border-ng bg-surface px-3 py-1.5 text-[11px] text-ng disabled:text-ink-2"
             >
               丢弃这批
             </button>
@@ -254,13 +254,13 @@ export default function QuestionGenerator({
       </div>
 
       {error && (
-        <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700">
+        <div className="mt-2 rounded-control border border-ng bg-ng-soft px-2 py-1.5 text-[11px] text-ng">
           {error}
         </div>
       )}
 
       {current && (
-        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] leading-relaxed text-slate-600">
+        <div className="mt-2 rounded-control border border-ink-1 bg-paper px-2.5 py-2 text-[11px] leading-relaxed text-ink-6">
           本次新增 {current.added} 题
           {current.skipped > 0 && `，跳过 ${current.skipped} 题（题干与题库已有重复）`}
           {current.note && `。${current.note}`}
@@ -268,11 +268,11 @@ export default function QuestionGenerator({
       )}
 
       {draftQuestions.length > 0 && (
-        <div className="mt-2 max-h-64 space-y-1 overflow-y-auto border-t border-slate-100 pt-2">
+        <div className="mt-2 max-h-64 space-y-1 overflow-y-auto border-t border-ink-1 pt-2">
           {draftQuestions.map((item) => (
-            <div key={item.id} className="rounded-md border border-slate-200 bg-white px-2 py-1.5">
-              <div className="text-[11px] leading-snug text-slate-700">{item.text}</div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
+            <div key={item.id} className="rounded-control border border-ink-1 bg-surface px-2 py-1.5">
+              <div className="text-[11px] leading-snug text-ink-7">{item.text}</div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-ink-4">
                 <span>{item.category}</span>
                 <span>难度 {item.difficulty}</span>
               </div>
@@ -282,16 +282,16 @@ export default function QuestionGenerator({
       )}
 
       {drafts.length > 0 && !current && (
-        <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
-          <div className="text-[10px] font-medium text-slate-500">待采纳的批次</div>
+        <div className="mt-2 space-y-1 border-t border-ink-1 pt-2">
+          <div className="text-[10px] font-medium text-ink-6">待采纳的批次</div>
           {drafts.map((item) => (
             <div key={item.batch} className="flex items-center gap-2 text-[11px]">
-              <span className="flex-1 text-slate-600">批次 {item.batch}</span>
-              <span className="text-slate-400">{item.count} 题</span>
+              <span className="flex-1 text-ink-6">批次 {item.batch}</span>
+              <span className="text-ink-4">{item.count} 题</span>
               <button
                 type="button"
                 onClick={() => void discard(item.batch)}
-                className="text-rose-600 hover:underline"
+                className="text-ng hover:underline"
               >
                 丢弃
               </button>

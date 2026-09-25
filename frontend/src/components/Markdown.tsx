@@ -114,14 +114,14 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
     const key = `${keyPrefix}-${index}`
     if (piece.startsWith('**') && piece.endsWith('**')) {
       return (
-        <strong key={key} className="font-semibold text-slate-900">
+        <strong key={key} className="font-semibold text-ink-9">
           {piece.slice(2, -2)}
         </strong>
       )
     }
     if (piece.startsWith('`') && piece.endsWith('`')) {
       return (
-        <code key={key} className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">
+        <code key={key} className="rounded-control bg-sunken px-1 py-0.5 text-[12px]">
           {piece.slice(1, -1)}
         </code>
       )
@@ -134,17 +134,17 @@ export default function Markdown({ text }: { text: string }) {
   const blocks = parse(text)
 
   return (
-    <div className="space-y-2.5 text-sm leading-relaxed text-slate-700">
+    <div className="space-y-2.5 text-sm leading-relaxed text-ink-7">
       {blocks.map((block, blockIndex) => {
         const key = `block-${blockIndex}`
         switch (block.kind) {
           case 'heading':
             return block.level <= 2 ? (
-              <h3 key={key} className="pt-1 text-sm font-semibold text-slate-900">
+              <h3 key={key} className="pt-1 text-sm font-semibold text-ink-9">
                 {inline(block.text, key)}
               </h3>
             ) : (
-              <h4 key={key} className="pt-1 text-xs font-semibold text-slate-700">
+              <h4 key={key} className="pt-1 text-xs font-semibold text-ink-7">
                 {inline(block.text, key)}
               </h4>
             )
@@ -152,7 +152,7 @@ export default function Markdown({ text }: { text: string }) {
             return (
               <pre
                 key={key}
-                className="overflow-x-auto rounded-md bg-slate-900 px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-100"
+                className="overflow-x-auto rounded-control bg-ink-9 px-3 py-2 font-mono text-[11px] leading-relaxed text-sunken"
               >
                 {block.text}
               </pre>
@@ -180,7 +180,7 @@ export default function Markdown({ text }: { text: string }) {
                       {block.header.map((cell, cellIndex) => (
                         <th
                           key={`${key}-h-${cellIndex}`}
-                          className="border border-slate-200 bg-slate-50 px-2 py-1.5 text-left font-semibold text-slate-700"
+                          className="border border-ink-1 bg-paper px-2 py-1.5 text-left font-semibold text-ink-7"
                         >
                           {inline(cell, `${key}-h-${cellIndex}`)}
                         </th>
@@ -193,7 +193,7 @@ export default function Markdown({ text }: { text: string }) {
                         {row.map((cell, cellIndex) => (
                           <td
                             key={`${key}-r-${rowIndex}-${cellIndex}`}
-                            className="border border-slate-200 px-2 py-1.5 align-top text-slate-600"
+                            className="border border-ink-1 px-2 py-1.5 align-top text-ink-6"
                           >
                             {inline(cell, `${key}-r-${rowIndex}-${cellIndex}`)}
                           </td>
