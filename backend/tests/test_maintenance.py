@@ -116,7 +116,11 @@ def test_unset_secret_reports_not_configured(isolated_env) -> None:
 def test_env_view_covers_every_editable_key() -> None:
     view = env_store.public_view()
     assert set(view) == set(env_store.EDITABLE_KEYS)
-    assert all(item["note"] for key, item in view.items() if key in env_store.KEY_NOTES)
+    # 每个可改的键都要有一句说明：界面上它既是标签也是占位提示，
+    # 缺了就会显示成空输入框，用户不知道这里该填什么。
+    missing = set(env_store.EDITABLE_KEYS) - set(env_store.KEY_NOTES)
+    assert not missing, f"这些键缺说明：{sorted(missing)}"
+    assert all(item["note"] for item in view.values())
 
 
 # --------------------------------------------------------------------------- #
@@ -148,6 +152,58 @@ def test_providers_reports_mock_mode(client: TestClient) -> None:
     assert body["llm"]["provider"] == "mock"
     assert body["llm"]["ready"] is True, "mock 是可用状态，不该报未就绪"
     assert "mock" in body["llm"]["hint"]
+
+
+def test_saving_model_settings_takes_effect_without_restart(
+    client: TestClient, isolated_env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """★ 界面上改完模型配置必须**立刻**生效，不能等重启。
+
+    这里曾经有个真 bug：`write_env` 只清了 `get_settings` 的缓存，
+    没清按配置建出来的 LLM 客户端单例（`deps._client_singleton`）。
+    于是在界面上把提供方切成 openai、Key 与地址都填好，程序却还在用旧的
+    Mock 客户端——看起来就像"配置填了不生效"。界面当时还写着"不需要重启"。
+
+    monkeypatch 先登记这些键，测试结束后环境变量会自动还原。
+    """
+    from app import deps
+    from app.providers.llm.mock import MockLLMClient
+    from app.providers.llm.openai_compat import OpenAICompatClient
+
+    for key in (
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_CHAT_MODEL",
+        "LLM_REASONER_MODEL",
+    ):
+        monkeypatch.setenv(key, "")
+
+    assert isinstance(deps.get_llm(), MockLLMClient), "默认该是 mock"
+
+    response = client.put(
+        "/api/system/settings",
+        json={
+            "values": {
+                "LLM_PROVIDER": "openai",
+                "LLM_BASE_URL": "https://api.moonshot.cn/v1",
+                "LLM_API_KEY": "sk-test-key",
+                "LLM_CHAT_MODEL": "moonshot-v1-8k",
+            }
+        },
+    )
+    assert response.status_code == 200
+
+    llm = deps.get_llm()
+    assert isinstance(llm, OpenAICompatClient), "保存后该换掉 Mock 客户端"
+    assert llm.label == "moonshot", "地址该被读进去"
+    assert llm.model_for("interview") == "moonshot-v1-8k", "模型名该被读进去"
+    # 没填推理模型 → 复用对话模型，而不是留着一个不存在的默认值
+    assert llm.model_for("scoring") == "moonshot-v1-8k"
+
+    # 切回 mock 同样立刻生效
+    client.put("/api/system/settings", json={"values": {"LLM_PROVIDER": "mock"}})
+    assert isinstance(deps.get_llm(), MockLLMClient)
 
 
 # --------------------------------------------------------------------------- #

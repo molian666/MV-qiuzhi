@@ -17,17 +17,70 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { ProviderStatus, SystemSettings, Usage } from '../api/types'
 
-/** 界面上的分组。只列用户真正会改的，技术性太强的（ASR 模型名之类）收在「更多」里。 */
-const PRIMARY_KEYS = ['LLM_PROVIDER', 'LLM_BASE_URL', 'LLM_API_KEY', 'DASHSCOPE_API_KEY', 'EXPORT_TOKEN']
-const ADVANCED_KEYS = [
-  'LLM_CHAT_MODEL',
-  'LLM_REASONER_MODEL',
+/** 模型服务的字段。顺序就是配置的顺序：先选平台地址，再填 Key，最后确认模型名。
+ *
+ *  **不写死任何厂商**：这四项填什么就调什么，DeepSeek / 百炼 / 智谱 / 硅基流动 /
+ *  OpenRouter / 本地 Ollama 都是同一套字段。
+ */
+type FieldSpec = {
+  key: string
+  label: string
+  placeholder: string
+  hint: string
+}
+
+const MODEL_FIELDS: FieldSpec[] = [
+  {
+    key: 'LLM_BASE_URL',
+    label: '接口地址',
+    placeholder: 'https://api.deepseek.com',
+    hint: '所选平台的 OpenAI 兼容地址，带不带结尾的 /v1 都可以',
+  },
+  {
+    key: 'LLM_API_KEY',
+    label: 'API Key',
+    placeholder: 'sk-…',
+    hint: '只写进 backend/.env，不入库、不导出、不回显完整值',
+  },
+  {
+    key: 'LLM_CHAT_MODEL',
+    label: '对话模型',
+    placeholder: 'deepseek-chat',
+    hint: '模拟面试的实时对话与追问用，延迟优先',
+  },
+  {
+    key: 'LLM_REASONER_MODEL',
+    label: '推理模型',
+    placeholder: 'deepseek-reasoner',
+    hint: '评分、纠错、简历诊断用，质量优先；留空则复用对话模型',
+  },
+]
+
+/** 常见平台的接口地址，点一下直接填进「接口地址」。
+ *
+ *  **只填地址，不预设模型名**：地址是各平台长期稳定的公开端点，
+ *  模型名却换得很勤（而且各家命名规则不一样），填错会让人以为是程序有问题。
+ *  模型名见上面的占位提示，以平台自己的文档为准。
+ */
+const PLATFORMS: { label: string; url: string }[] = [
+  { label: 'DeepSeek', url: 'https://api.deepseek.com' },
+  { label: '阿里云百炼', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+  { label: '智谱', url: 'https://open.bigmodel.cn/api/paas/v4' },
+  { label: '硅基流动', url: 'https://api.siliconflow.cn/v1' },
+  { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
+  { label: '本地 Ollama', url: 'http://localhost:11434/v1' },
+]
+
+/** 「其他配置」：与模型无关的那些，收在折叠区里 */
+const OTHER_KEYS = [
+  'DASHSCOPE_API_KEY',
   'SPEECH_PROVIDER',
   'DASHSCOPE_REALTIME_ENDPOINT',
   'DASHSCOPE_ASR_MODEL',
   'ASR_PROVIDER',
   'DASHSCOPE_ASR_FILE_MODEL',
   'TRUST_ENV_PROXY',
+  'EXPORT_TOKEN',
   // 旧名（只支持 DeepSeek 时的配置）：仍然可改、仍然生效，仅在新键为空时兜底
   'DEEPSEEK_API_KEY',
   'DEEPSEEK_BASE_URL',
@@ -100,44 +153,52 @@ export default function System() {
     }
   }
 
+  /** 通用字段渲染（「其他配置」用）。标签用后端给的键名 + 说明。 */
   const renderField = (key: string) => {
     const item = settings?.settings[key]
     if (!item) {
       return null
     }
-    const isLlmProvider = key === 'LLM_PROVIDER'
     return (
       <label key={key} className="block">
-        <span className="text-xs font-medium text-ink-7">{key}</span>
-        {item.is_secret ? (
-          <input
-            type="password"
-            autoComplete="off"
-            placeholder={item.configured ? `已配置（${item.masked}），留空表示不改` : '未配置'}
-            value={draft[key] ?? ''}
-            onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
-            className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs"
-          />
-        ) : isLlmProvider ? (
-          <select
-            value={draft[key] ?? item.value}
-            onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
-            className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs"
-          >
-            <option value="mock">mock —— 不需要 Key，但题目与评分都是固定示例</option>
-            <option value="openai">openai —— 真的调用模型（任意 OpenAI 兼容平台）</option>
-            <option value="deepseek">deepseek —— 旧的等价写法，等同 openai</option>
-          </select>
-        ) : (
-          <input
-            type="text"
-            autoComplete="off"
-            value={draft[key] ?? item.value}
-            onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
-            className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs"
-          />
-        )}
-        {item.note && <span className="mt-0.5 block text-[10px] text-ink-4">{item.note}</span>}
+        <span className="font-mono text-[11px] text-ink-6">{key}</span>
+        <input
+          type={item.is_secret ? 'password' : 'text'}
+          autoComplete="off"
+          placeholder={item.is_secret && item.configured ? `已配置（${item.masked}），留空表示不改` : item.note}
+          value={draft[key] ?? item.value}
+          onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
+          className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs placeholder:text-ink-3"
+        />
+      </label>
+    )
+  }
+
+  /** 模型字段：中文标签，键名放小字，示例放占位符。 */
+  const renderModelField = (field: FieldSpec) => {
+    const item = settings?.settings[field.key]
+    if (!item) {
+      return null
+    }
+    return (
+      <label key={field.key} className="block">
+        <span className="flex items-baseline justify-between gap-2">
+          <span className="text-xs font-medium text-ink-7">{field.label}</span>
+          <span className="font-mono text-[10px] text-ink-3">{field.key}</span>
+        </span>
+        <input
+          type={item.is_secret ? 'password' : 'text'}
+          autoComplete="off"
+          placeholder={
+            item.is_secret && item.configured
+              ? `已配置（${item.masked}），留空表示不改`
+              : field.placeholder
+          }
+          value={draft[field.key] ?? item.value}
+          onChange={(event) => setDraft({ ...draft, [field.key]: event.target.value })}
+          className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs placeholder:text-ink-3"
+        />
+        <span className="mt-0.5 block text-[10px] leading-relaxed text-ink-4">{field.hint}</span>
       </label>
     )
   }
@@ -186,18 +247,67 @@ export default function System() {
           <p className="mt-3 text-sm text-ink-6">加载中…</p>
         ) : (
           <>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">{PRIMARY_KEYS.map(renderField)}</div>
+            {/* 提供方：就两个选项，用按钮组比下拉更直接 */}
+            <div className="mt-3 flex items-center gap-1 self-start rounded-card border border-ink-1 bg-paper p-0.5">
+              {[
+                { key: 'mock', label: 'mock', hint: '不联网，内置示例' },
+                { key: 'openai', label: 'openai', hint: '真调模型' },
+              ].map((item) => {
+                const value = draft.LLM_PROVIDER ?? settings.settings.LLM_PROVIDER?.value ?? 'mock'
+                const active = value === item.key
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, LLM_PROVIDER: item.key })}
+                    title={item.hint}
+                    className={
+                      active
+                        ? 'rounded-control bg-ink-9 px-3 py-1 font-mono text-[11px] text-surface'
+                        : 'rounded-control px-3 py-1 font-mono text-[11px] text-ink-6 transition-colors hover:bg-surface'
+                    }
+                  >
+                    {item.label}
+                  </button>
+                )
+              })}
+              <span className="px-2 text-[10px] text-ink-4">
+                填好下面四项后切到 openai
+              </span>
+            </div>
+
+            {/* 常用平台的地址，点一下填进去 */}
+            <div className="mt-3">
+              <div className="mb-1 text-[10px] text-ink-4">常用平台（点一下填地址）</div>
+              <div className="flex flex-wrap gap-1">
+                {PLATFORMS.map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, LLM_BASE_URL: item.url })}
+                    title={item.url}
+                    className="rounded-control border border-ink-1 bg-paper px-2 py-0.5 text-[10px] text-ink-6 transition-colors hover:border-ink-2 hover:bg-surface"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3 space-y-3">
+              {MODEL_FIELDS.map(renderModelField)}
+            </div>
 
             <button
               type="button"
               onClick={() => setShowAdvanced((value) => !value)}
               className="mt-3 text-xs text-ink-6 hover:underline"
             >
-              {showAdvanced ? '收起高级项' : '高级项（模型名、语音、代理）'}
+              {showAdvanced ? '收起其他配置' : '其他配置（语音、导出令牌、旧键）'}
             </button>
             {showAdvanced && (
               <div className="mt-2 grid gap-3 border-t border-ink-1 pt-3 md:grid-cols-2">
-                {ADVANCED_KEYS.map(renderField)}
+                {OTHER_KEYS.map(renderField)}
               </div>
             )}
 

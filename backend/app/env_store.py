@@ -56,17 +56,23 @@ EDITABLE_KEYS: tuple[str, ...] = (
     "DEEPSEEK_REASONER_MODEL",
 )
 
-#: 界面上给这些键的说明（前端也有一份，这里用于校验与文档）
+#: 界面上给这些键的说明。也用作输入框的占位提示——**保持一行内**，
+#: 太长的说明在窄输入框里看不全。
 KEY_NOTES: dict[str, str] = {
-    "LLM_PROVIDER": "mock 不需要任何 Key；换成 openai 才会真的调用模型",
-    "LLM_BASE_URL": "所选平台的 OpenAI 兼容地址，例：https://api.deepseek.com",
-    "LLM_API_KEY": "模型服务的 API Key。填了之后模拟面试、评分、出题都用它",
-    "LLM_CHAT_MODEL": "日常对话与追问用的模型，延迟优先",
-    "LLM_REASONER_MODEL": "评分与纠错用的模型，质量优先；留空则复用上面的型号",
-    "SPEECH_PROVIDER": "语音面试的提供方",
-    "DASHSCOPE_API_KEY": "阿里云百炼的 Key，语音面试与录音转写要用",
-    "EXPORT_TOKEN": "导出接口的令牌。留空则导出一律 401",
-    "DEEPSEEK_API_KEY": "（旧名）等同 LLM_API_KEY，仅在 LLM_API_KEY 为空时生效",
+    "LLM_PROVIDER": "mock 不需要 Key；openai 才真的调用模型",
+    "LLM_BASE_URL": "所选平台的 OpenAI 兼容地址",
+    "LLM_API_KEY": "模型服务的 API Key",
+    "LLM_CHAT_MODEL": "对话与追问用的模型名",
+    "LLM_REASONER_MODEL": "评分与纠错用的模型名，留空复用上一个",
+    "SPEECH_PROVIDER": "语音面试的提供方：mock | qwen",
+    "DASHSCOPE_API_KEY": "阿里云百炼的 Key，实时语音与转写要用",
+    "DASHSCOPE_REALTIME_ENDPOINT": "百炼实时语音的 WebSocket 地址",
+    "DASHSCOPE_ASR_MODEL": "实时语音识别模型名",
+    "ASR_PROVIDER": "录音批量转写的提供方：mock | qwen-file",
+    "DASHSCOPE_ASR_FILE_MODEL": "录音文件转写的模型名",
+    "TRUST_ENV_PROXY": "是否让请求读系统代理：true | false",
+    "EXPORT_TOKEN": "导出接口的令牌，留空则导出一律 401",
+    "DEEPSEEK_API_KEY": "（旧名）等同 LLM_API_KEY，仅在后者为空时生效",
     "DEEPSEEK_BASE_URL": "（旧名）等同 LLM_BASE_URL",
     "DEEPSEEK_CHAT_MODEL": "（旧名）等同 LLM_CHAT_MODEL",
     "DEEPSEEK_REASONER_MODEL": "（旧名）等同 LLM_REASONER_MODEL",
@@ -183,7 +189,17 @@ def write_env(updates: dict[str, str]) -> list[str]:
 
 
 def _clear_settings_cache() -> None:
-    # 延迟导入：避免 config ↔ env_store 循环依赖
+    """配置变了，两个缓存都必须清。
+
+    `get_settings` 是配置的来源；`deps._client_singleton` 是**按配置建出来的**
+    LLM 客户端（`lru_cache`）。只清前者会留下一个"配置已更新但客户端还是旧的"
+    的状态——界面上贴着"立即生效、不需要重启"，实际却要重启，
+    这种不一致比直接报错更难排查。
+
+    延迟导入：避免 config ↔ env_store 循环依赖。
+    """
     from .config import get_settings
+    from .deps import reset_llm_client
 
     get_settings.cache_clear()
+    reset_llm_client()
