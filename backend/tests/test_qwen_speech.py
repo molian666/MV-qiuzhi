@@ -1,7 +1,11 @@
 """QwenRealtimeSpeechProvider 的协议映射测试。
 
 用注入的假连接驱动，**不需要真实 Key**：验证"我们发出的消息"与"我们如何翻译上游事件"。
-真机接入时最可能出问题的三处（session.update 字段、delta 拼接、cancel response）都在这里锚定了预期。
+
+⚠️ 这个文件曾经把 `input_audio_format` 断言成 `pcm16`（Omni 系列的取值），
+结果测试全绿而真机报 `1011 Audio format is not valid 'pcm16'!`。
+**锚错预期比没有测试更糟**——它给的是虚假的安全感。
+断言协议字段时以官方客户端事件文档为准，不要照另一套相似协议的示例推。
 """
 
 from __future__ import annotations
@@ -68,8 +72,9 @@ async def test_handshake_disables_upstream_vad() -> None:
     session = socket.sent[0]["session"]
     # 关键：上游 VAD 必须关闭，回合边界交给本地 TurnController
     assert session["turn_detection"] is None
-    assert session["input_audio_format"] == "pcm16"
-    assert session["modalities"] == ["text"]
+    # 取值见 test_session_update_uses_asr_series_audio_format：
+    # 这里曾经写死 `pcm16`，把错的值锚了住，真机才炸出来
+    assert session["input_audio_format"] == "pcm"
 
     await provider.close()
 
@@ -131,10 +136,104 @@ async def test_response_created_is_cancelled() -> None:
     assert "boom" in events[-1].message
 
 
+async def test_upstream_error_gets_actionable_hint() -> None:
+    """真机收到的是 `1011 ... Audio format is not valid 'pcm16'!` 这种文本。
+
+    对使用者完全不透明，而语音链路的排查本来就难（连接是通的、报错在握手之后，
+    看起来像"连上了又断"）。所以要在原始错误后面补一句"下一步查什么"。
+    """
+    socket = FakeSocket(
+        [
+            json.dumps(
+                {
+                    "type": "error",
+                    "error": {"message": "Audio format is not valid 'pcm16'!"},
+                }
+            )
+        ]
+    )
+    events: list[SpeechEvent] = []
+    provider = _provider(socket)
+
+    await provider.start(on_event=_recorder(events))
+    await _drain(provider)
+    await provider.close()
+
+    message = events[-1].message
+    assert events[-1].kind == "error"
+    assert "Audio format is not valid" in message, "原始错误要留着，方便对照文档"
+    assert "pcm" in message, "要补一句可操作的说明"
+
+
+async def test_unknown_upstream_error_has_no_invented_hint() -> None:
+    """认不出的错误不要硬凑建议——指错方向比不给更浪费时间。"""
+    socket = FakeSocket(
+        [json.dumps({"type": "error", "error": {"message": "some brand new failure"}})]
+    )
+    events: list[SpeechEvent] = []
+    provider = _provider(socket)
+
+    await provider.start(on_event=_recorder(events))
+    await _drain(provider)
+    await provider.close()
+
+    assert events[-1].message == "some brand new failure"
+
+
 async def test_missing_api_key_raises_speech_error() -> None:
     provider = QwenRealtimeSpeechProvider(api_key="")
     with pytest.raises(SpeechError, match="DASHSCOPE_API_KEY"):
         await provider.start(on_event=_recorder([]))
+
+
+# --------------------------------------------------------------------------- #
+# session.update 的取值 —— 真机踩过的坑
+# --------------------------------------------------------------------------- #
+async def test_session_update_uses_asr_series_audio_format() -> None:
+    """★ `input_audio_format` 必须是 **ASR 系列**的取值 `pcm`。
+
+    这条是**真机踩出来的**：写成 Omni 系列的 `pcm16` 会收到
+    `1011 Internal service error: Audio format is not valid 'pcm16'!`，
+    而且是在连接建立**之后**才报——看起来像"连上了又断"，很难第一眼归因到格式。
+
+    两套协议长得像但取值不通用：ASR 是 `pcm` / `opus`，Omni 是 `pcm16` / `pcm24`。
+    """
+    socket = FakeSocket([])
+    provider = _provider(socket)
+
+    await provider.start(on_event=_recorder([]), silence_ms=800)
+    await provider.close()
+
+    update = socket.sent[0]
+    assert update["type"] == "session.update"
+    session = update["session"]
+
+    assert session["input_audio_format"] == "pcm"
+    assert session["sample_rate"] == 16000
+    assert session["turn_detection"] is None, "null 才是 manual 模式，有值等于开了上游 VAD"
+
+    # Omni 系列才有的字段：ASR 没有输出音频，传了只会招错
+    assert "output_audio_format" not in session
+    assert "modalities" not in session
+
+
+async def test_session_update_feeds_glossary_as_context() -> None:
+    """名词表要进 `input_audio_transcription.corpus.text`（官方的上下文偏置）。
+
+    这是识别阶段的改善——比事后用同音字表纠错更上游，两者叠加。
+    """
+    socket = FakeSocket([])
+    provider = _provider(socket)
+
+    await provider.start(on_event=_recorder([]), silence_ms=800)
+    await provider.close()
+
+    transcription = socket.sent[0]["session"]["input_audio_transcription"]
+    assert transcription["language"] == "zh", "中文面试要显式指定语言"
+
+    corpus = transcription["corpus"]["text"]
+    for term in ("远心镜头", "亚像素", "九点标定", "Halcon"):
+        assert term in corpus, f"名词表里缺 {term}"
 
 
 async def test_ensure_fresh_reconnects_before_session_limit(monkeypatch: pytest.MonkeyPatch) -> None:

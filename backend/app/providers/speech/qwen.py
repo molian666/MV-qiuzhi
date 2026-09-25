@@ -1,17 +1,24 @@
-"""阿里云百炼实时语音识别（Qwen-Omni-Realtime 的 OpenAI-Realtime 方言）。
+"""阿里云百炼实时语音识别（Qwen-ASR-Realtime 的 OpenAI-Realtime 方言）。
 
-协议依据（已在 docs/PLAN.md §6.1.1 核实）：
+协议依据（已按官方客户端事件文档核实）：
 - 端点：`wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=<model>`
-- 头：`Authorization: Bearer $DASHSCOPE_API_KEY`，可选 `OpenAI-Beta: realtime=v1`
+- 头：`Authorization: Bearer $DASHSCOPE_API_KEY`，`OpenAI-Beta: realtime=v1`
 - 先发 `session.update` 再发音频；客户端事件 `input_audio_buffer.append` / `commit`
 - 服务端事件 `conversation.item.input_audio_transcription.delta|completed`
 
-⚠️ 诚实声明：本实现按官方文档的事件名与字段编写，但**尚未用真实 Key 端到端验证**
-（开发机没有 DASHSCOPE_API_KEY）。首次接真机时最可能需要微调的三处已用
-`# 待真机校准` 标出：session.update 的字段、delta 事件的拼接方式、是否需要主动 cancel response。
+⚠️ **字段取值是踩过坑的**，改动前先读这段：
 
-设计取舍：这里用 **manual 模式**（关闭上游 VAD），把"什么时候说完"完全交给本地
+`input_audio_format` 在 **ASR 系列**只接受 **`pcm` / `opus`**（默认 `pcm`）；
+而 `pcm16` / `pcm24` 是 **Omni 系列**的取值。两者协议相似但取值不同，
+混用会直接收到 `1011 Internal service error: Audio format is not valid 'pcm16'!`
+——这个错误实际发生过。改字段时先查文档，别照 Omni 的示例推。
+
+设计取舍：这里用 **manual 模式**（`turn_detection: null`），把"什么时候说完"完全交给本地
 `TurnController`——避免上游 VAD 与本地 VAD 打架，也让打断延迟可控。
+
+另外把机器视觉名词表塞进 `input_audio_transcription.corpus.text`（官方叫"上下文偏置"）：
+术语音在通用语料里罕见，ASR 会把「亚像素」听成「亚相素」。给一份术语清单当背景，
+识别阶段就能少错一些——这比事后纠错更上游，两者是叠加的。
 """
 
 from __future__ import annotations
@@ -22,6 +29,7 @@ import json
 import time
 from typing import Any
 
+from ...analysis.glossary import glossary_for_prompt
 from .base import SpeechError, SpeechEvent, SpeechEventHandler
 
 DEFAULT_ENDPOINT = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
@@ -82,16 +90,28 @@ class QwenRealtimeSpeechProvider:
         self._started_at = time.monotonic()
         self._closed = False
 
-        # 待真机校准 ①：session.update 的字段名与取值
+        # Qwen-ASR-Realtime 的 session 配置。
+        #
+        # 三个取值都不能想当然：
+        # - input_audio_format 只接受 pcm / opus（pcm16 是 Omni 的取值，会 1011）
+        # - output_audio_format 是 Omni 的字段，ASR 没有输出音频，传了反而可能报错
+        # - turn_detection 设 null 才是 manual 模式（有值等于开了上游 VAD）
+        #
+        # corpus.text 是官方给的"上下文偏置"：把术语清单当背景喂进去，
+        # 让 ASR 在识别阶段就少听错专业词（与事后的同音字纠错叠加）。
+        transcription: dict[str, object] = {"language": "zh"}
+        corpus = glossary_for_prompt()
+        if corpus:
+            transcription["corpus"] = {"text": corpus}
+
         await self._send(
             {
                 "type": "session.update",
                 "session": {
-                    "modalities": ["text"],  # 只要文本，不要它自己生成回复
-                    "input_audio_format": "pcm16",
-                    "output_audio_format": "pcm24",
-                    "turn_detection": None,  # manual 模式：边界由本地 TurnController 决定
-                    "instructions": "你只负责把用户的语音转写成文字，不要生成任何回复内容。",
+                    "input_audio_format": "pcm",
+                    "sample_rate": self.sample_rate,
+                    "input_audio_transcription": transcription,
+                    "turn_detection": None,
                 },
             }
         )
@@ -194,7 +214,12 @@ class QwenRealtimeSpeechProvider:
             raise
         except Exception as exc:  # noqa: BLE001
             if not self._closed:
-                await self._emit(SpeechEvent(kind="error", message=f"实时语音连接中断：{exc}"))
+                message = f"实时语音连接中断：{exc}"
+                hint = _hint_for_upstream_error(message)
+                # 把可操作的那句也带上——上游的错误文本对使用者是不透明的
+                if hint:
+                    message = f"{message}\n{hint}"
+                await self._emit(SpeechEvent(kind="error", message=message))
 
     async def _handle(self, data: dict[str, Any]) -> None:
         kind = data.get("type", "")
@@ -223,8 +248,44 @@ class QwenRealtimeSpeechProvider:
 
         elif kind == "error":
             message = data.get("error", {}).get("message") or json.dumps(data, ensure_ascii=False)[:300]
+            hint = _hint_for_upstream_error(message)
+            if hint:
+                message = f"{message}\n{hint}"
             await self._emit(SpeechEvent(kind="error", message=message))
+
+        elif kind == "session.updated":
+            # 配置被接受。这里不做事，但把它留住：排查"配置到底生效没有"时
+            # 靠的就是这个事件——`session.created` 带的是服务端**默认值**，
+            # 不反映我们发过去的 update。
+            pass
 
     async def _emit(self, event: SpeechEvent) -> None:
         if self._on_event is not None:
             await self._on_event(event)
+
+
+def _hint_for_upstream_error(message: str) -> str:
+    """把上游的原始错误翻成"下一步查什么"。
+
+    上游报错用的是它自己的术语（`1011`、`Audio format is not valid`），
+    对使用者完全不透明——而语音链路的排查本来就难：连接是通的，
+    报错在握手之后，看起来像"连上了又断"。
+
+    认不出就返回空串，**别硬凑建议**——指错方向比不给更浪费时间。
+    """
+    lowered = message.lower()
+
+    if "audio format" in lowered:
+        return (
+            "音频格式取值不对。Qwen-ASR 系列只接受 pcm / opus，"
+            "而 pcm16 / pcm24 是 Omni 系列的取值——两者协议相似但取值不通用。"
+        )
+    if "1011" in lowered and "internal" in lowered:
+        return "上游内部错误。先核对 session 配置的取值，再确认模型名与账号对该模型有权限。"
+    if "unauthorized" in lowered or "401" in lowered or "invalid api key" in lowered:
+        return "DASHSCOPE_API_KEY 无效或过期，去百炼控制台重新生成一把。"
+    if "model" in lowered and ("not found" in lowered or "not exist" in lowered):
+        return "模型名不存在。核对百炼的实时语音模型列表（如 qwen3-asr-flash-realtime）。"
+    if "timeout" in lowered or "timed out" in lowered:
+        return "连接超时。国内平台不要走系统代理（TRUST_ENV_PROXY=false），并确认网络能到 dashscope.aliyuncs.com。"
+    return ""

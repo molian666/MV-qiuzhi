@@ -102,6 +102,16 @@ pwsh -File scripts\deploy.ps1 -HostAddress <你的公网IP> -Port 8443 -Register
 | `SPEECH_PROVIDER=mock`（默认） | 不需要任何 Key。音频照常采集、录制、存档、回放；"音频→文字"这一步由你输入的文本替代——页面会明确显示「转写：文字替身」，**不会假装已经识别了语音** |
 | `SPEECH_PROVIDER=qwen` + `DASHSCOPE_API_KEY=...` | 阿里云百炼实时语音识别（`qwen3-asr-flash-realtime`），说话即转写 |
 
+> **配语音时注意**：百炼的**实时语音识别**属于 ASR 系列，它的 `session.update`
+> 与 **Omni 系列**是两套相似但不通用的协议。最典型的一处：`input_audio_format`
+> 在 ASR 系列只接受 `pcm` / `opus`，而 `pcm16` / `pcm24` 是 Omni 的取值——
+> 填错会收到 `1011 Internal service error: Audio format is not valid 'pcm16'!`，
+> 而且是握手**之后**才报，看起来像"连上了又断"。这些值已在代码里按官方文档核实并锁住，
+> 改动前请先查官方的「客户端事件」文档。
+>
+> 另外识别时会把**机器视觉名词表**当作「上下文偏置」（`corpus.text`）喂给 ASR，
+> 让「亚像素」这类术语在识别阶段就少听错一些；事后再过一遍同音字纠错。
+
 面试官的"说话"目前用浏览器 `speechSynthesis` 播报（`audio_mode=client`）：零依赖、中文音色开箱可用，
 让 M1 在没有服务端 TTS 的情况下也能真的听见对话。服务端 TTS 的协议位已留好
 （`app/providers/tts/base.py`），接入后把 `audio_mode` 切到 `server`，音频改由 `audio_chunk` 事件下发，

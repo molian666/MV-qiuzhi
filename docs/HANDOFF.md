@@ -94,6 +94,21 @@ a5340a6 M5: 薄弱点与训练
   正常结果而不是接口错误，用 4xx/5xx 表达会让前端只能拿到一句笼统的报错，
   而这里最需要的正是**原始错误**（401 与"模型不存在"是完全不同的修法）。
   `hint` 认不出错误类型时返回空串——别硬凑建议，指错方向更浪费时间。
+- **实时语音的 `session.update` 取值踩过坑**（`providers/speech/qwen.py`）：
+  百炼把 **ASR 系列**和 **Omni 系列**做成两套相似但不通用的协议——
+  - ASR（我们用 `qwen3-asr-flash-realtime`）：`input_audio_format` 只接受 **`pcm` / `opus`**
+  - Omni：是 **`pcm16` / `pcm24`**，还有 `output_audio_format`、`modalities` 这些字段
+
+  写成 `pcm16` 会收到 `1011 Internal service error: Audio format is not valid 'pcm16'!`，
+  **而且是握手之后才报**，看起来像"连上了又断"。改这些字段前先查官方**客户端事件**文档，
+  别照另一套相似协议的示例推。
+  - `turn_detection: null` 才是 manual 模式（有值等于开了上游 VAD，会和本地 `TurnController` 打架）
+  - `input_audio_transcription.corpus.text` 是官方给的"上下文偏置"，名词表就喂在这里——
+    识别阶段少听错，与事后的同音字纠错叠加
+- **锚错预期的测试比没有测试更糟**：`test_qwen_speech.py` 原先断言
+  `input_audio_format == "pcm16"`，于是测试全绿而真机失败。断言协议字段时以官方文档为准。
+- **上游错误要补一句可操作的说明**（`_hint_for_upstream_error`）：上游用的是它自己的术语
+  （`1011`、`Audio format is not valid`），对使用者不透明。认不出就返回空串，不硬凑建议。
 
 **项目的方向定位**：主要为**机器视觉（计算机视觉）方向的求职**服务。新做的东西优先
 服务这个方向——出题、评分维度、简历与技能字典都该往 CV 靠，不要平均用力做通用求职。
