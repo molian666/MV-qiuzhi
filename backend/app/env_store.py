@@ -29,17 +29,17 @@ ENV_EXAMPLE_PATH = BACKEND_DIR / ".env.example"
 
 #: 密钥类：读取时不回显内容，只报「配了没有」+ 末四位
 SECRET_KEYS: frozenset[str] = frozenset(
-    {"DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "EXPORT_TOKEN", "AUTH_PASSWORD"}
+    {"LLM_API_KEY", "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "EXPORT_TOKEN", "AUTH_PASSWORD"}
 )
 
 #: 允许通过界面修改的键。其余（HOST / PORT / DATA_DIR / SSL_* 等）
 #: 要么涉及绑定与安全，要么改了必须重启，不允许远程改。
 EDITABLE_KEYS: tuple[str, ...] = (
     "LLM_PROVIDER",
-    "DEEPSEEK_API_KEY",
-    "DEEPSEEK_BASE_URL",
-    "DEEPSEEK_CHAT_MODEL",
-    "DEEPSEEK_REASONER_MODEL",
+    "LLM_BASE_URL",
+    "LLM_API_KEY",
+    "LLM_CHAT_MODEL",
+    "LLM_REASONER_MODEL",
     "SPEECH_PROVIDER",
     "DASHSCOPE_API_KEY",
     "DASHSCOPE_REALTIME_ENDPOINT",
@@ -48,18 +48,28 @@ EDITABLE_KEYS: tuple[str, ...] = (
     "DASHSCOPE_ASR_FILE_MODEL",
     "TRUST_ENV_PROXY",
     "EXPORT_TOKEN",
+    # 旧名（只支持 DeepSeek 时的配置）。仍然可改、仍然生效，
+    # 仅在 LLM_* 没填时兜底，方便已有 .env 的用户平滑过渡。
+    "DEEPSEEK_API_KEY",
+    "DEEPSEEK_BASE_URL",
+    "DEEPSEEK_CHAT_MODEL",
+    "DEEPSEEK_REASONER_MODEL",
 )
 
 #: 界面上给这些键的说明（前端也有一份，这里用于校验与文档）
 KEY_NOTES: dict[str, str] = {
-    "LLM_PROVIDER": "mock 不需要任何 Key；换成 deepseek 才会真的调用模型",
-    "DEEPSEEK_API_KEY": "DeepSeek 的 API Key。填了之后模拟面试、评分、出题都用它",
-    "DEEPSEEK_BASE_URL": "官方地址是 https://api.deepseek.com，用代理时改成代理地址",
-    "DEEPSEEK_CHAT_MODEL": "日常任务用的模型",
-    "DEEPSEEK_REASONER_MODEL": "需要推理时用的模型",
+    "LLM_PROVIDER": "mock 不需要任何 Key；换成 openai 才会真的调用模型",
+    "LLM_BASE_URL": "所选平台的 OpenAI 兼容地址，例：https://api.deepseek.com",
+    "LLM_API_KEY": "模型服务的 API Key。填了之后模拟面试、评分、出题都用它",
+    "LLM_CHAT_MODEL": "日常对话与追问用的模型，延迟优先",
+    "LLM_REASONER_MODEL": "评分与纠错用的模型，质量优先；留空则复用上面的型号",
     "SPEECH_PROVIDER": "语音面试的提供方",
-    "DASHSCOPE_API_KEY": "百炼的 Key，语音面试与录音转写要用",
+    "DASHSCOPE_API_KEY": "阿里云百炼的 Key，语音面试与录音转写要用",
     "EXPORT_TOKEN": "导出接口的令牌。留空则导出一律 401",
+    "DEEPSEEK_API_KEY": "（旧名）等同 LLM_API_KEY，仅在 LLM_API_KEY 为空时生效",
+    "DEEPSEEK_BASE_URL": "（旧名）等同 LLM_BASE_URL",
+    "DEEPSEEK_CHAT_MODEL": "（旧名）等同 LLM_CHAT_MODEL",
+    "DEEPSEEK_REASONER_MODEL": "（旧名）等同 LLM_REASONER_MODEL",
 }
 
 _LINE = re.compile(r"^(?P<key>[A-Z_][A-Z0-9_]*)\s*=(?P<value>.*)$")

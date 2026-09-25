@@ -18,7 +18,7 @@ from ..analysis.export import bundle_stats
 from ..config import get_settings
 from ..deps import get_session
 from ..export_service import build_bundle, export_csv_zip, export_json_payload, export_markdown
-from ..schemas.career import ExportPreviewOut, ExportSectionStat
+from ..schemas.export import ExportPreviewOut, ExportSectionStat
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 

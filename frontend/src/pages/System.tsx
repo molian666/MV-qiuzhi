@@ -18,16 +18,21 @@ import { api } from '../api/client'
 import type { ProviderStatus, SystemSettings, Usage } from '../api/types'
 
 /** 界面上的分组。只列用户真正会改的，技术性太强的（ASR 模型名之类）收在「更多」里。 */
-const PRIMARY_KEYS = ['LLM_PROVIDER', 'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'DASHSCOPE_API_KEY', 'EXPORT_TOKEN']
+const PRIMARY_KEYS = ['LLM_PROVIDER', 'LLM_BASE_URL', 'LLM_API_KEY', 'DASHSCOPE_API_KEY', 'EXPORT_TOKEN']
 const ADVANCED_KEYS = [
-  'DEEPSEEK_CHAT_MODEL',
-  'DEEPSEEK_REASONER_MODEL',
+  'LLM_CHAT_MODEL',
+  'LLM_REASONER_MODEL',
   'SPEECH_PROVIDER',
   'DASHSCOPE_REALTIME_ENDPOINT',
   'DASHSCOPE_ASR_MODEL',
   'ASR_PROVIDER',
   'DASHSCOPE_ASR_FILE_MODEL',
   'TRUST_ENV_PROXY',
+  // 旧名（只支持 DeepSeek 时的配置）：仍然可改、仍然生效，仅在新键为空时兜底
+  'DEEPSEEK_API_KEY',
+  'DEEPSEEK_BASE_URL',
+  'DEEPSEEK_CHAT_MODEL',
+  'DEEPSEEK_REASONER_MODEL',
 ]
 
 function errorMessage(error: unknown): string {
@@ -120,7 +125,8 @@ export default function System() {
             className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
           >
             <option value="mock">mock —— 不需要 Key，但题目与评分都是固定示例</option>
-            <option value="deepseek">deepseek —— 真的调用模型</option>
+            <option value="openai">openai —— 真的调用模型（任意 OpenAI 兼容平台）</option>
+            <option value="deepseek">deepseek —— 旧的等价写法，等同 openai</option>
           </select>
         ) : (
           <input
@@ -155,7 +161,7 @@ export default function System() {
                     : 'rounded-full bg-rose-50 px-2 py-0.5 text-xs text-rose-700'
               }
             >
-              当前：{providers.llm.provider}
+              当前：{providers.llm.label || providers.llm.provider}
               {providers.llm.provider === 'mock' ? '（示例内容）' : providers.llm.ready ? ' 就绪' : ' 未就绪'}
             </span>
           )}
@@ -166,8 +172,8 @@ export default function System() {
             <strong className="font-medium">现在跑的是 Mock，所以题目和评分都是固定的示例。</strong>
             <br />
             模拟面试问的还是那份通用脚本（自我介绍、项目深挖……），不看你填的岗位 JD，
-            也不看简历——所以会显得「没深度、没场景」。填上 DEEPSEEK_API_KEY、
-            把上面切到 deepseek 之后，才会真的按岗位和简历出题。
+            也不看简历——所以会显得「没深度、没场景」。填上 LLM_BASE_URL 与 LLM_API_KEY、
+            把上面切到 openai 之后，才会真的按岗位和简历出题。
           </div>
         )}
 
@@ -244,7 +250,10 @@ export default function System() {
                     {info.ready ? '就绪' : '未就绪'}
                   </span>
                 </div>
-                <p className="mt-2 text-sm text-slate-600">提供方：{info.provider}</p>
+                <p className="mt-2 text-sm text-slate-600">
+                  提供方：{info.label ? `${info.provider} · ${info.label}` : info.provider}
+                </p>
+                {info.base_url && <p className="text-xs text-slate-500">接口地址：{info.base_url}</p>}
                 {info.chat_model && <p className="text-xs text-slate-500">对话模型：{info.chat_model}</p>}
                 {info.reasoner_model && <p className="text-xs text-slate-500">推理模型：{info.reasoner_model}</p>}
                 {info.hint && <p className="mt-2 text-xs text-amber-700">{info.hint}</p>}

@@ -14,6 +14,7 @@ from ..config import get_settings
 from ..deps import get_session
 from ..env_store import EnvError, public_view, write_env
 from ..models.session import LLMCall
+from ..providers.llm.openai_compat import provider_label
 from ..schemas.system import ProviderSettingsIn
 
 router = APIRouter(prefix="/api/system", tags=["system"])
@@ -24,32 +25,39 @@ def providers() -> dict[str, Any]:
     settings = get_settings()
 
     llm_ready = True
-    if settings.llm_provider == "deepseek":
-        llm_ready = bool(settings.deepseek_api_key)
+    if settings.llm_enabled:
+        llm_ready = bool(settings.resolved_llm_api_key and settings.resolved_llm_base_url)
 
     # 语音链路需要百炼的 Key；没配时语音面试的实时部分用不了（Mock 仍能跑）
     speech_ready = bool(settings.dashscope_api_key)
 
-    if settings.llm_provider == "mock":
+    if not settings.llm_enabled:
         # Mock 是「可用」状态，但必须说清它的局限——否则用户会以为功能坏了
         llm_hint = (
             "当前是 mock：不调用真实模型，题目与评分都是固定的示例内容，"
             "不会看你的岗位 JD 和简历，所以会显得没深度、没场景。"
-            "在下面的「模型与密钥」填上 DEEPSEEK_API_KEY 并把提供方切到 deepseek，"
-            "才会真的按岗位和简历出题。"
+            "在下面的「模型与密钥」里填上 LLM_BASE_URL、LLM_API_KEY 与模型名，"
+            "并把提供方切到 openai，才会真的按岗位和简历出题。"
         )
     elif not llm_ready:
-        llm_hint = "已选 deepseek 但没填 DEEPSEEK_API_KEY，请在下面的「模型与密钥」里填上"
+        llm_hint = (
+            "已选 openai 但 LLM_BASE_URL 或 LLM_API_KEY 没填全，"
+            "请在下面的「模型与密钥」里补上"
+        )
     else:
         llm_hint = ""
+
+    label = provider_label(settings.resolved_llm_base_url) if llm_ready else ""
 
     return {
         "llm": {
             "provider": settings.llm_provider,
+            "label": label,
+            "proxy_ready": llm_ready,
             "ready": llm_ready,
-            "chat_model": settings.deepseek_chat_model,
-            "reasoner_model": settings.deepseek_reasoner_model,
-            "base_url": settings.deepseek_base_url if settings.llm_provider == "deepseek" else "",
+            "chat_model": settings.resolved_llm_chat_model,
+            "reasoner_model": settings.resolved_llm_reasoner_model,
+            "base_url": settings.resolved_llm_base_url if settings.llm_enabled else "",
             "hint": llm_hint,
         },
         "speech": {

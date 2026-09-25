@@ -18,9 +18,7 @@ from app.analysis.export import (
     ExportBundle,
     ExportSection,
     build_applications,
-    build_benchmarks,
-    build_okr,
-    build_onboarding,
+    build_questions,
     build_resumes,
     bundle_stats,
     format_cell,
@@ -74,21 +72,14 @@ def test_build_applications_status_and_channel_kept() -> None:
     assert section.row_count == 1
 
 
-def test_build_okr_flattened_row() -> None:
-    row = {"period": "试用期", "objective": "融入团队", "objective_status": "进行中",
-           "key_result": "完成 3 次需求交付", "unit": "次", "target_value": 3,
-           "current_value": 1, "progress": 33.3, "confidence": 70, "updated_at": WHEN}
-    section = build_okr([row])
-    assert section.rows[0]["progress"] == 33.3
-    assert "关键结果" in [column.header for column in section.columns]
-
-
-def test_build_onboarding_columns() -> None:
-    task = NS(category="体检", title="预约入职体检", why_needed="公司要求", where_to_do="三甲体检中心",
-              done=True, done_at=WHEN, note="")
-    section = build_onboarding([task])
+def test_build_questions_has_expected_columns() -> None:
+    row = {"id": 1, "text": "相机怎么选？", "type": "application", "difficulty": 3,
+           "tags": ["相机与传感器"], "reference_points": ["先问精度", "再算像素当量"],
+           "sample_answer": "……", "source": "builtin:vision", "created_at": WHEN}
+    section = build_questions([row])
+    assert section.rows[0]["text"] == "相机怎么选？"
     assert [column.key for column in section.columns] == [
-        "category", "title", "why_needed", "where_to_do", "done", "done_at", "note",
+        "text", "category", "difficulty", "topics", "source", "created_at",
     ]
 
 
@@ -136,24 +127,21 @@ def test_csv_quotes_commas_and_newlines() -> None:
 
 
 def test_csv_one_file_per_section() -> None:
-    bundle = make_bundle([build_applications([]), build_benchmarks([])])
+    bundle = make_bundle([build_applications([]), build_resumes([])])
     files = render_csv_sections(bundle)
-    assert [name for name, _ in files] == ["applications.csv", "benchmarks.csv"]
+    assert [name for name, _ in files] == ["applications.csv", "resumes.csv"]
 
 
 # --------------------------------------------------------------------------- #
 # JSON 渲染
 # --------------------------------------------------------------------------- #
 def test_json_keeps_native_types() -> None:
-    bench = NS(company="乙公司", title="后端", city="上海", range_low=300000.0, range_high=400000.0,
-               currency="CNY", period="2026", source="同学打听", source_url="", verified=False,
-               note="", recorded_at=WHEN)
-    payload = render_json(make_bundle([build_benchmarks([bench])]))
+    resume = NS(name="主简历", content_text="……", version=1, variant_label="", created_at=WHEN)
+    payload = render_json(make_bundle([build_resumes([resume])]))
     round_tripped = json.loads(json.dumps(payload, ensure_ascii=False))
     row = round_tripped["sections"][0]["rows"][0]
-    assert row["range_low"] == 300000.0  # 数字没被变字符串
-    assert row["verified"] is False
-    assert row["recorded_at"] == "2026-09-24T10:00:00+00:00"
+    assert row["version"] == 1  # 数字没被变字符串
+    assert row["created_at"] == "2026-09-24T10:00:00+00:00"
 
 
 def test_json_is_bundle_shape() -> None:
@@ -181,13 +169,7 @@ def test_export_section_keys_cover_all_data_tables() -> None:
         "stories": "故事卡",
         "answers": "话术",
         "offers": "Offer",
-        "contacts": "人脉",
-        "interactions": "跟进",
-        "learning": "学习清单",
-        "onboarding": "入职清单",
-        "okr": "OKR",
-        "career_plan": "长期规划",
-        "benchmarks": "薪资基准",
+        "questions": "题库",
     }
     missing = set(required) - set(EXPORT_SECTION_KEYS)
     assert not missing, f"缺板块：{missing}"
@@ -196,14 +178,13 @@ def test_export_section_keys_cover_all_data_tables() -> None:
 def test_bundle_stats_and_row_count() -> None:
     apps = [NS(applied_at=WHEN, company="x", title="", channel="", status="",
                salary_range="", city="", resume_version="", jd_url="", note="")]
-    bundle = make_bundle([build_applications(apps), build_benchmarks([])])
+    bundle = make_bundle([build_applications(apps), build_resumes([])])
     stats = bundle_stats(bundle)
-    assert stats == [
-        {"key": "applications", "title": "投递记录", "rows": 1},
-        {"key": "benchmarks", "title": "薪资基准", "rows": 0},
-    ]
+    assert [item["key"] for item in stats] == ["applications", "resumes"]
+    assert stats[0]["rows"] == 1
+    assert stats[1]["rows"] == 0
     assert bundle.row_count == 1
-    assert bundle.section("benchmarks") is not None
+    assert bundle.section("resumes") is not None
     assert bundle.section("nope") is None
 
 
@@ -212,7 +193,7 @@ def test_markdown_renders_without_error_on_all_keys() -> None:
     builders = {
         "applications": build_applications,
         "resumes": build_resumes,
-        "onboarding": build_onboarding,
+        "questions": build_questions,
     }
     bundle = make_bundle([builder([]) for builder in builders.values()])
     assert render_markdown(bundle)

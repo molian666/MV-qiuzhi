@@ -19,21 +19,14 @@ from .analysis.export import (
     build_applications,
     build_apply_rules,
     build_apply_tasks,
-    build_benchmarks,
     build_blacklist,
-    build_career_plan,
-    build_contacts,
     build_expression,
     build_import_batches,
     build_improvements,
-    build_interactions,
     build_job_postings,
-    build_learning,
     build_mastery,
     build_mastery_events,
     build_offers,
-    build_okr,
-    build_onboarding,
     build_platform_accounts,
     build_profiles,
     build_questions,
@@ -52,7 +45,6 @@ from .analysis.export import (
     render_json,
     render_markdown,
 )
-from .analysis.okr import kr_pct
 from .clock import utcnow
 from .models.apply import (
     Application,
@@ -64,10 +56,8 @@ from .models.apply import (
     JobPosting,
     PlatformAccount,
 )
-from .models.career import CareerPlanItem, OkrKeyResult, OkrObjective, OnboardingTask, SalaryBenchmark
 from .models.core import JobTarget, QuestionAttempt, QuestionBank, Resume
 from .models.expression import ExpressionSnapshot
-from .models.network import Contact, ContactInteraction, LearningItem
 from .models.offer import Offer
 from .models.pacing import InterviewerProfile, Recording, TranscriptSegment
 from .models.scoring import (
@@ -134,44 +124,6 @@ def build_bundle(db: Session) -> ExportBundle:
     stories = list(db.exec(select(StoryCard).order_by(StoryCard.id)).all())
     answers = list(db.exec(select(AnswerDraft).order_by(AnswerDraft.id)).all())
     offers = list(db.exec(select(Offer).order_by(Offer.id)).all())
-    contacts = list(db.exec(select(Contact).order_by(Contact.id)).all())
-    contact_names = {contact.id: contact.name for contact in contacts}
-    interactions = [
-        {
-            "at": row.at,
-            "contact": contact_names.get(row.contact_id, f"联系人#{row.contact_id}"),
-            "direction": row.direction,
-            "kind": row.kind,
-            "summary": row.summary,
-            "promised": row.promised,
-            "next_follow_up_at": row.next_follow_up_at,
-        }
-        for row in db.exec(select(ContactInteraction).order_by(ContactInteraction.id)).all()
-    ]
-    learning = list(db.exec(select(LearningItem).order_by(LearningItem.id)).all())
-
-    onboarding = list(db.exec(select(OnboardingTask).order_by(OnboardingTask.sort_order, OnboardingTask.id)).all())
-    objectives = list(db.exec(select(OkrObjective).order_by(OkrObjective.sort_order, OkrObjective.id)).all())
-    krs = list(db.exec(select(OkrKeyResult).order_by(OkrKeyResult.sort_order, OkrKeyResult.id)).all())
-    okr_rows = [
-        {
-            "period": objective.period,
-            "objective": objective.title,
-            "objective_status": objective.status,
-            "key_result": kr.title,
-            "unit": kr.unit,
-            "target_value": kr.target_value,
-            "current_value": kr.current_value,
-            "progress": kr_pct(kr.current_value, kr.target_value),
-            "confidence": kr.confidence,
-            "updated_at": kr.updated_at,
-        }
-        for objective in objectives
-        for kr in krs
-        if kr.objective_id == objective.id
-    ]
-    plan_items = list(db.exec(select(CareerPlanItem).order_by(CareerPlanItem.id)).all())
-    benchmarks = list(db.exec(select(SalaryBenchmark).order_by(SalaryBenchmark.id)).all())
 
     # ---- M15 补充：投递侧的"配置与队列" ----
     postings = list(db.exec(select(JobPosting).order_by(JobPosting.id)).all())
@@ -276,13 +228,6 @@ def build_bundle(db: Session) -> ExportBundle:
             build_stories(stories),
             build_answers(answers),
             build_offers(offers),
-            build_contacts(contacts),
-            build_interactions(interactions),
-            build_learning(learning),
-            build_onboarding(onboarding),
-            build_okr(okr_rows),
-            build_career_plan(plan_items),
-            build_benchmarks(benchmarks),
             build_job_postings(postings),
             build_apply_tasks(apply_tasks),
             build_apply_rules(apply_rules),

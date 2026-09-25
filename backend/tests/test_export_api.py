@@ -23,11 +23,6 @@ def _seed(client: TestClient) -> None:
     client.post(f"/api/sessions/{session['id']}/finish")
     client.post(f"/api/sessions/{session['id']}/report")
     client.post("/api/offers", json={"company": "乙公司", "title": "后端", "monthly_salary": 25000})
-    client.post("/api/contacts", json={"name": "王同学", "relation": "alumni"})
-    client.post("/api/learning", json={"title": "补索引原理", "source": "manual"})
-    client.get("/api/onboarding")  # 触发入职清单种入
-    client.post("/api/okr/objectives", json={"title": "试用期站稳", "period": "2026Q4"})
-    client.post("/api/okr/objectives/1/krs", json={"title": "独立交付", "unit": "个", "target_value": 5, "current_value": 2})
 
 
 def test_export_requires_token(client: TestClient) -> None:
@@ -66,14 +61,11 @@ def test_preview_lists_all_sections(client: TestClient) -> None:
     keys = {section["key"] for section in payload["sections"]}
     expected = {"targets", "resumes", "applications", "application_events", "sessions", "turns",
                 "reports", "improvements", "expression", "mastery", "training", "stories",
-                "answers", "offers", "contacts", "interactions", "learning", "onboarding",
-                "okr", "career_plan", "benchmarks"}
+                "answers", "offers"}
     assert expected <= keys
     rows = {section["key"]: section["rows"] for section in payload["sections"]}
     assert rows["applications"] >= 1
     assert rows["turns"] >= 2  # 面试官提问 + 我的回答
-    assert rows["onboarding"] >= 10
-    assert rows["okr"] >= 1
     # Notion/飞书必须如实标注「未接入」，不能假装有
     integrations = {item["key"]: item["status"] for item in payload["integrations"]}
     assert integrations == {"notion": "not_configured", "feishu": "not_configured"}
@@ -85,7 +77,7 @@ def test_markdown_export_contains_seeded_data(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/markdown")
     body = response.text
-    for expected in ("甲公司", "王同学", "补索引原理", "试用期站稳", "独立交付", "## 投递记录"):
+    for expected in ("甲公司", "乙公司", "## 投递记录"):
         assert expected in body, f"导出的 Markdown 里没有：{expected}"
 
 
@@ -96,7 +88,7 @@ def test_csv_zip_has_one_file_per_section(client: TestClient) -> None:
     assert response.headers["content-type"] == "application/zip"
     archive = zipfile.ZipFile(io.BytesIO(response.content))
     names = set(archive.namelist())
-    assert {"applications.csv", "turns.csv", "offers.csv", "onboarding.csv", "okr.csv"} <= names
+    assert {"applications.csv", "turns.csv", "offers.csv", "sessions.csv"} <= names
     # 带 BOM：Excel 直接打开中文不乱码
     offers_csv = archive.read("offers.csv").decode("utf-8-sig")
     assert "乙公司" in offers_csv

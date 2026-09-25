@@ -209,7 +209,7 @@ def test_markdown_contains_new_sections(client: TestClient) -> None:
     _seed_extra()
     body = client.get("/api/export/markdown", headers=AUTH).text
 
-    for title in ("## 黑名单", "## 题库", "## 真实面试录音", "## 待投队列", "## 薪资基准"):
+    for title in ("## 黑名单", "## 题库", "## 真实面试录音", "## 待投队列"):
         assert title in body, f"Markdown 里缺板块：{title}"
 
 

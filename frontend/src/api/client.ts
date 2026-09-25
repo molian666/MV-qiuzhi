@@ -1,10 +1,6 @@
 /** 后端 REST 客户端。所有请求走 Vite 代理的 /api，不直连端口。 */
 
 import type {
-  AlgoAttempt,
-  AlgoAttemptIn,
-  AlgoProblem,
-  AlgoProblemBrief,
   AnswerDraft,
   AnswerMeta,
   AnswerResult,
@@ -19,30 +15,13 @@ import type {
   ApplyStatus,
   AtsIssue,
   AuthStatus,
-  BenchmarkItem,
   DesignAttempt,
   DesignAttemptIn,
   DesignQuestion,
   DesignQuestionBrief,
-  BenchmarkSummary,
-  CareerOptions,
   ContractReport,
-  ContactDetail,
-  ContactItem,
   ExportPreview,
-  FollowUpItem,
-  KrView,
-  LearningItemData,
-  LearningSummaryData,
   LoginResult,
-  MasteryLink,
-  NetworkOptions,
-  ObjectiveView,
-  OnboardingData,
-  OnboardingTask,
-  PlanItem,
-  ReviewDraft,
-  TimingData,
   CreateRecordingPayload,
   CreateResumePayload,
   CreateSessionPayload,
@@ -165,8 +144,6 @@ export const api = {
 
   // 删除（M13 补充）：会话会连带回合、作答、报告与录音文件
   deleteSession: (sessionId: number) => request<void>(`/sessions/${sessionId}`, { method: 'DELETE' }),
-  deleteAlgoAttempt: (attemptId: number) =>
-    request<void>(`/algo/attempts/${attemptId}`, { method: 'DELETE' }),
   deleteDesignAttempt: (attemptId: number) =>
     request<void>(`/design/attempts/${attemptId}`, { method: 'DELETE' }),
 
@@ -185,19 +162,6 @@ export const api = {
     setToken('')
     return result
   },
-
-  // 算法题白板（M13）。判题在浏览器端跑（见 src/sandbox/runner.ts），
-  // 这里提交的是判题结果，服务端据此做「思路—取舍—边界」评估。
-  algoProblems: (track?: string) =>
-    request<AlgoProblemBrief[]>(track ? `/algo/problems?track=${encodeURIComponent(track)}` : '/algo/problems'),
-  algoProblem: (slug: string) => request<AlgoProblem>(`/algo/problems/${encodeURIComponent(slug)}`),
-  submitAlgoAttempt: (payload: AlgoAttemptIn) =>
-    request<AlgoAttempt>('/algo/attempts', { method: 'POST', body: JSON.stringify(payload) }),
-  algoAttempts: (slug?: string) =>
-    request<AlgoAttempt[]>(
-      slug ? `/algo/attempts?slug=${encodeURIComponent(slug)}` : '/algo/attempts',
-    ),
-  algoAttempt: (attemptId: number) => request<AlgoAttempt>(`/algo/attempts/${attemptId}`),
 
   // 机器视觉面试题库（M13 的主线功能）
   visionMeta: () => request<VisionMeta>('/vision/meta'),
@@ -474,84 +438,6 @@ export const api = {
   replyNegotiation: (id: number, text: string) =>
     request<Negotiation>(`/negotiations/${id}/reply`, { method: 'POST', body: JSON.stringify({ text }) }),
 
-  // 人脉与学习计划（M14）
-  networkOptions: () => request<NetworkOptions>('/network/options'),
-  listContacts: (relation?: string) => {
-    const suffix = relation ? `?relation=${relation}` : ''
-    return request<ContactItem[]>(`/contacts${suffix}`)
-  },
-  createContact: (payload: Partial<ContactItem>) =>
-    request<ContactItem>('/contacts', { method: 'POST', body: JSON.stringify(payload) }),
-  getContact: (id: number) => request<ContactDetail>(`/contacts/${id}`),
-  updateContact: (id: number, payload: Partial<ContactItem>) =>
-    request<ContactItem>(`/contacts/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-  deleteContact: (id: number) => request<void>(`/contacts/${id}`, { method: 'DELETE' }),
-  addInteraction: (
-    contactId: number,
-    payload: { summary: string; kind?: string; promised?: string; at?: string; direction?: string },
-  ) =>
-    request<{ id: number }>(`/contacts/${contactId}/interactions`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  /** 该跟进的人（逾期优先，每条都带可直接发的话术） */
-  followUps: (horizonDays = 14, includeLater = false) =>
-    request<FollowUpItem[]>(`/follow-ups?horizon_days=${horizonDays}&include_later=${includeLater}`),
-
-  listLearning: (status?: string) => {
-    const suffix = status ? `?status=${status}` : ''
-    return request<LearningItemData[]>(`/learning${suffix}`)
-  },
-  generateLearning: (payload: { limit?: number; replace?: boolean; resume_id?: number | null } = {}) =>
-    request<LearningItemData[]>('/learning/generate', { method: 'POST', body: JSON.stringify(payload) }),
-  updateLearning: (id: number, payload: Partial<LearningItemData>) =>
-    request<LearningItemData>(`/learning/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-  deleteLearning: (id: number) => request<void>(`/learning/${id}`, { method: 'DELETE' }),
-  learningSummary: () => request<LearningSummaryData>('/learning/summary'),
-  /** 把「我学完了」和「我掌握了」对上 */
-  learningInsight: () => request<MasteryLink[]>('/learning/insight'),
-
-  // 入职与长期 + 导出（M15）
-  careerOptions: () => request<CareerOptions>('/career/options'),
-  onboarding: () => request<OnboardingData>('/onboarding'),
-  seedOnboarding: () => request<{ added: number }>('/onboarding/seed', { method: 'POST' }),
-  createOnboarding: (payload: Partial<OnboardingTask>) =>
-    request<OnboardingTask>('/onboarding', { method: 'POST', body: JSON.stringify(payload) }),
-  checkOnboarding: (id: number, done: boolean) =>
-    request<OnboardingTask>(`/onboarding/${id}/check`, { method: 'PUT', body: JSON.stringify({ done }) }),
-  deleteOnboarding: (id: number) => request<void>(`/onboarding/${id}`, { method: 'DELETE' }),
-
-  okr: () => request<ObjectiveView[]>('/okr'),
-  createObjective: (payload: { title: string; period?: string; note?: string }) =>
-    request<ObjectiveView>('/okr/objectives', { method: 'POST', body: JSON.stringify(payload) }),
-  updateObjective: (id: number, payload: Partial<ObjectiveView>) =>
-    request<ObjectiveView>(`/okr/objectives/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-  deleteObjective: (id: number) => request<void>(`/okr/objectives/${id}`, { method: 'DELETE' }),
-  addKeyResult: (objectiveId: number, payload: { title: string; unit?: string; target_value?: number }) =>
-    request<ObjectiveView>(`/okr/objectives/${objectiveId}/krs`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  updateKrProgress: (krId: number, currentValue: number, confidence?: number) =>
-    request<KrView>(`/okr/krs/${krId}/progress`, {
-      method: 'PATCH',
-      body: JSON.stringify({ current_value: currentValue, confidence }),
-    }),
-  deleteKr: (krId: number) => request<void>(`/okr/krs/${krId}`, { method: 'DELETE' }),
-  /** 转正述职稿：由 OKR 与本地记录确定性合成，不调模型 */
-  okrReview: () => request<ReviewDraft>('/okr/review'),
-
-  careerPlan: () => request<PlanItem[]>('/career-plan'),
-  createPlanItem: (payload: Partial<PlanItem>) =>
-    request<PlanItem>('/career-plan', { method: 'POST', body: JSON.stringify(payload) }),
-  deletePlanItem: (id: number) => request<void>(`/career-plan/${id}`, { method: 'DELETE' }),
-  careerTiming: () => request<TimingData>('/career/timing'),
-
-  benchmarks: () => request<BenchmarkItem[]>('/benchmarks'),
-  createBenchmark: (payload: Partial<BenchmarkItem>) =>
-    request<BenchmarkItem>('/benchmarks', { method: 'POST', body: JSON.stringify(payload) }),
-  deleteBenchmark: (id: number) => request<void>(`/benchmarks/${id}`, { method: 'DELETE' }),
-  benchmarkSummary: () => request<BenchmarkSummary>('/benchmarks/summary'),
 
   exportPreview: (token: string) => request<ExportPreview>(`/export/preview?token=${encodeURIComponent(token)}`),
   /** 导出文件的下载地址（带令牌，直接挂到 <a href> 上） */

@@ -13,8 +13,8 @@ from .providers.asr.base import BatchTranscriber
 from .providers.asr.mock import MockBatchTranscriber
 from .providers.asr.qwen_file import QwenFileTranscriber
 from .providers.llm.base import LLMClient
-from .providers.llm.deepseek import DeepSeekClient
 from .providers.llm.mock import MockLLMClient
+from .providers.llm.openai_compat import OpenAICompatClient
 from .providers.speech.base import SpeechProvider
 from .providers.speech.mock import MockSpeechProvider
 from .providers.speech.qwen import QwenRealtimeSpeechProvider
@@ -22,12 +22,12 @@ from .providers.speech.qwen import QwenRealtimeSpeechProvider
 
 def build_llm_client() -> LLMClient:
     settings = get_settings()
-    if settings.llm_provider == "deepseek":
-        return DeepSeekClient(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            chat_model=settings.deepseek_chat_model,
-            reasoner_model=settings.deepseek_reasoner_model,
+    if settings.llm_enabled:
+        return OpenAICompatClient(
+            api_key=settings.resolved_llm_api_key,
+            base_url=settings.resolved_llm_base_url,
+            chat_model=settings.resolved_llm_chat_model,
+            reasoner_model=settings.resolved_llm_reasoner_model,
             timeout=settings.llm_timeout_seconds,
             trust_env=settings.trust_env_proxy,
         )

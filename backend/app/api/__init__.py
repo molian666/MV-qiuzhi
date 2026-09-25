@@ -6,17 +6,14 @@ from fastapi import APIRouter
 
 from ..config import get_settings
 from . import (
-    algo,
     applications,
     apply,
     auth,
-    career,
     decision,
     design,
     export,
     expression,
     interview_options,
-    network,
     profiles,
     questions,
     recordings,
@@ -53,7 +50,6 @@ api_router.include_router(questions.router)
 api_router.include_router(system.router)
 api_router.include_router(reports.router)
 api_router.include_router(training.router)
-api_router.include_router(algo.router)
 api_router.include_router(vision.router)
 api_router.include_router(design.router)
 api_router.include_router(recordings.router)
@@ -64,7 +60,5 @@ api_router.include_router(story.router)
 api_router.include_router(expression.router)
 api_router.include_router(interview_options.router)
 api_router.include_router(decision.router)
-api_router.include_router(network.router)
-api_router.include_router(career.router)
 api_router.include_router(export.router)
 api_router.include_router(ws.router)

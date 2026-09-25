@@ -1,6 +1,5 @@
 """数据模型总入口：导入所有模型模块，保证 SQLModel 元数据完整。"""
 
-from .algo import AlgoAttempt
 from .apply import (
     Application,
     ApplicationEvent,
@@ -11,31 +10,9 @@ from .apply import (
     JobPosting,
     PlatformAccount,
 )
-from .career import (
-    OKR_STATUSES,
-    OKR_STATUS_LABELS,
-    ONBOARDING_CATEGORIES,
-    PLAN_KINDS,
-    PLAN_KIND_LABELS,
-    PLAN_STATUSES,
-    PLAN_STATUS_LABELS,
-    CareerPlanItem,
-    OkrKeyResult,
-    OkrObjective,
-    OnboardingTask,
-    SalaryBenchmark,
-)
 from .core import JobTarget, QuestionAttempt, QuestionBank, Resume
 from .design import DesignAttempt
 from .expression import ExpressionSnapshot
-from .network import (
-    CONTACT_RELATIONS,
-    INTERACTION_KINDS,
-    LEARNING_STATUSES,
-    Contact,
-    ContactInteraction,
-    LearningItem,
-)
 from .offer import OFFER_STATUS_LABELS, OFFER_STATUSES, Offer
 from .pacing import InterviewerProfile, PacingSample, Recording, TranscriptSegment
 from .scoring import (
@@ -53,7 +30,6 @@ from .system import AppSetting, ProviderConfig
 __all__ = [
     "STORY_TAG_ORDER",
     "STORY_TAGS",
-    "AlgoAttempt",
     "AppSetting",
     "AnswerDraft",
     "Application",
@@ -62,13 +38,8 @@ __all__ = [
     "ApplyTask",
     "AudioAsset",
     "Blacklist",
-    "CONTACT_RELATIONS",
-    "CareerPlanItem",
-    "Contact",
-    "ContactInteraction",
     "DesignAttempt",
     "ExpressionSnapshot",
-    "INTERACTION_KINDS",
     "ImportBatch",
     "ImprovementItem",
     "InterviewSession",
@@ -76,23 +47,11 @@ __all__ = [
     "JobPosting",
     "JobTarget",
     "LLMCall",
-    "LEARNING_STATUSES",
-    "LearningItem",
     "MasteryEvent",
     "OFFER_STATUSES",
     "OFFER_STATUS_LABELS",
-    "OKR_STATUSES",
-    "OKR_STATUS_LABELS",
-    "ONBOARDING_CATEGORIES",
     "Offer",
-    "OkrKeyResult",
-    "OkrObjective",
-    "OnboardingTask",
     "PacingSample",
-    "PLAN_KINDS",
-    "PLAN_KIND_LABELS",
-    "PLAN_STATUSES",
-    "PLAN_STATUS_LABELS",
     "PlatformAccount",
     "ProviderConfig",
     "QuestionAttempt",
@@ -100,7 +59,6 @@ __all__ = [
     "Recording",
     "Resume",
     "ReviewTask",
-    "SalaryBenchmark",
     "ScoreReport",
     "SessionTurn",
     "SkillMastery",

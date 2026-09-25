@@ -8,7 +8,7 @@
 
 ## 一、这个项目是什么
 
-**本地优先的求职操作系统**：模拟面试 → 评分与教学 → 薄弱点训练 → 简历与话术 → 半自动投递 → 投递分析 → 表达体检 → 压力面 → Offer 与谈判 → 人脉与学习。
+**本地优先的求职操作系统**：模拟面试 → 评分与教学 → 薄弱点训练 → 简历与话术 → 半自动投递 → 投递分析 → 表达体检 → 压力面 → Offer 与谈判。
 
 - 后端：Python 3.14 + FastAPI + SQLModel + SQLite（`backend/`）
 - 前端：React + TypeScript + Vite + Tailwind + recharts（`frontend/`）
@@ -38,47 +38,34 @@ a5340a6 M5: 薄弱点与训练
 ```
 
 - 工作区干净（`git status --short` 无输出）
-- **测试基线：`901 passed`**（51 个测试文件）
-- 已完成：**M0 / M1 / M3 / M4 / M5 / M6 / M8 / M9 / M10 / M11 / M12 / M14 / M15** + **部署适配** + **M13 的题库（含导入与模型出题）、算法题白板、系统设计白板、模型配置与删除**
+- **测试基线：`773 passed`**（45 个测试文件）
+- 已完成：**M0 / M1 / M3 / M4 / M5 / M6 / M8 / M9 / M10 / M11 / M12 / M15** + **部署适配** + **M13 的题库（含导入与模型出题）、系统设计白板、模型配置与删除**
 - 未完成：**M2**（题库的 Alembic 迁移）、**M13 最后一块**（群面多 agent）
+- **已移除**：算法题白板、人脉与学习、入职与长期（OKR / 长期规划 / 薪资基准）三个模块。
+  与 CV 方向无关或价值不足，代码已删干净；`learning_service.py` 保留——它是**技能掌握度**，
+  训练与报告在用，与人脉那条线无关。
+- **模型提供方已通用化**：不再硬编码某一家。`providers/llm/openai_compat.py` 是唯一的
+  真实模型客户端，走标准 `/chat/completions`；换平台只改 `LLM_BASE_URL` + `LLM_API_KEY`
+  + 模型名。旧的 `DEEPSEEK_*` 键**仍然生效**，只在对应 `LLM_*` 为空时兜底——
+  **别把兜底写回"新键缺项就退回 DeepSeek 默认值"**：那会让填了别家 Key 却漏填
+  `LLM_BASE_URL` 的人收到一个莫名其妙的 401（见 `Settings._uses_new_llm_keys` 的注释与
+  `test_new_keys_do_not_fall_back_to_deepseek_defaults`）。
 
 **项目的方向定位**：主要为**机器视觉（计算机视觉）方向的求职**服务。新做的东西优先
 服务这个方向——出题、评分维度、简历与技能字典都该往 CV 靠，不要平均用力做通用求职。
 
 **M13 已经定下的几个决定（接着往下做时别推翻）**：
 
-- **判题在浏览器端**（`frontend/src/sandbox/runner.ts`）：Web Worker + 整轮超时 `terminate()`
   + 屏蔽 `fetch`/`XHR`/`WebSocket`。**服务端永不执行用户或模型生成的代码**——本机没有
   docker，起不了隔离容器（PLAN §9.2 的原话）。前端只回传「哪一例过了 / 实际输出 / 报错」，
   `expected` 与 `note` 由后端从题库补：**判题事实的来源必须在后端**。
 - 沙箱**不是安全沙箱**（Worker 与页面同源同权限），只防误伤与死循环。别在文档或 UI 里
   把它说成隔离环境。
-- **题库是代码常量**（`backend/app/algo/problems.py`），不进 DB。M2 做 Alembic 时若需要
-  用户自建题目，再把它搬进表——那时有明确对照物。
+
 - 评估输出必须区分 `measured`（有测试结果支撑）与 `inferred`（模型从代码推断），
   缺省按 `inferred`（没证据时说得保守）。这是「不编造」在 M13 的落地方式。
-- `AlgoProblemOut` **刻意不下发 `key_points`**（评分参照）。提前看到就把「你有没有想到」
-  变成了「你抄得对不对」，而 M13 验收的正是前者。
-- Monaco 从**本地**打包（`loader.config({ monaco })` + `?worker`），不走 CDN——项目定位是
-  本地/内网可用。注意 0.56 的 `exports` 是 `"./*": "./esm/vs/*.js"`，子路径要写
-  `monaco-editor/editor/editor.worker`，写 `monaco-editor/esm/vs/...` 会解析成
-  `esm/vs/esm/vs/...`。
-- **题库分两套**：`algo/bank_general.py`（通用算法，JS）与 `algo/bank_vision.py`
-  （**机器视觉方向，Python**）。项目主要为 CV 方向的求职服务，视觉题是主线。
-- **多语言靠三个 dict**：`starters` / `function_names` / `signatures` 都以语言为键，
-  `problem.languages` 从 `starters` 推导。一道题只声明它真支持的语言——CV 题给个
-  JS 起始代码只会让人以为自己选错了。
-- **Python 判题用 Pyodide**（`sandbox/python.worker.ts` + `pythonRunner.ts`）：运行时
-  由 `scripts/copy-pyodide.mjs` 从 node_modules 复制到 `frontend/public/pyodide/`
-  （该目录已 gitignore，**不进仓库**）。numpy 的 wheel 不在 npm 包里，脚本会试着下载；
-  下不动就用 `frontend/scripts/fetch-numpy-wheel.ps1`（走系统代理，比 node 直连稳）。
-  有了它 Python 判题可完全离线。
-- **Python 沙箱的比较逻辑用 `np.allclose`（rtol=1e-6, atol=1e-8）而不是 `==`**：
-  IoU、卷积、softmax 的手写实现必有 1e-16 量级差异，用等于号会让所有正确解判失败。
-- **出题后必须用参考实现验一遍期望值**。我手算 softmax 那两道题的期望值就错了
-  （写成 9.0798e-05，实际 9.0796e-05），conv2d 也错了一例——这类错误会让用户
-  永远做不过那道题。验证方式：纯 Python 参考实现跑一遍题库，或直接在 Node 里跑
-  Pyodide（`pytest` 只能验 API 契约，验不了「题目可解」）。
+
+- **出题后必须用参考实现验一遍期望值**：我手算 softmax 两道题的期望值就错过，这类错误会让用户永远做不过那道题。`pytest` 只能验 API 契约，验不了「题目可解」——期望值要真跑一遍参考实现。
 
 **机器视觉面试题库（`app/vision/`）——当前主线，比算法题白板更重要**：
 
@@ -237,7 +224,7 @@ cd frontend; cmd /c "pnpm dev"
 
 ### 2. `providers/` 是可插拔的，且 Mock 必须能跑通全链路
 
-`llm/`（deepseek + mock）、`speech/`（qwen + mock）、`asr/`、`tts/`。
+`llm/`（openai_compat + mock）、`speech/`（qwen + mock）、`asr/`、`tts/`。
 **Mock 不是占位符，是基础设施**：项目从 M0 起就靠"没有 Key 也能端到端跑通"来保证开发不被外部服务卡住。
 新增 LLM 任务时，记得给 Mock 加一个分支（见 `providers/llm/mock.py`），并且
 **Mock 要真的读输入**（比如 Mock 评分会看回答文本、Mock 招呼语会看 JD 关键词），
@@ -420,7 +407,7 @@ cd frontend; cmd /c "pnpm dev"
 
 - **M2（题库与会话管理）**：题库 CRUD、按 JD 生成题、回合文本精修、**Alembic 迁移**。
   它是唯一剩下的"主干"工程债；Alembic 一旦引入，之后改表结构就不再有顾虑。
-- **M13（硬核技术面）**：算法题白板（Monaco + 浏览器端判题沙箱）、系统设计白板、群面多 agent。
-  工程量最大，且判题沙箱涉及安全边界，需要单独想清楚（别在本地跑不可信代码）。
+- **M13（硬核技术面）**：群面/无领导小组多 agent 混音——题库与系统设计白板已完成。
+  剩下这块要处理多说话人音频的混合与区分，工程量集中在实时链路。
 
 不管选哪个，**先读 PLAN 里对应小节的验收标准**，那才是任务定义。

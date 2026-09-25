@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react'
 import { api } from './api/client'
 import type { AuthStatus } from './api/types'
-import AlgoBoard from './pages/AlgoBoard'
 import Applications from './pages/Applications'
 import ApplyDesk from './pages/ApplyDesk'
-import CareerDesk from './pages/CareerDesk'
 import DesignBoard from './pages/DesignBoard'
 import Expression from './pages/Expression'
 import Login from './pages/Login'
 import InterviewLive from './pages/InterviewLive'
 import InterviewVoice from './pages/InterviewVoice'
-import NetworkDesk from './pages/NetworkDesk'
 import OfferDesk from './pages/OfferDesk'
 import Report from './pages/Report'
 import Recordings from './pages/Recordings'
@@ -28,7 +25,6 @@ const TABS = [
   { key: 'expression', label: '表达体检' },
   { key: 'training', label: '训练' },
   { key: 'bank', label: 'CV 面试题' },
-  { key: 'algo', label: '算法题' },
   { key: 'design', label: '系统设计' },
   { key: 'pacing', label: '节奏学习' },
   { key: 'resume', label: '简历体检' },
@@ -36,8 +32,6 @@ const TABS = [
   { key: 'apply', label: '投递执行台' },
   { key: 'applications', label: '投递分析' },
   { key: 'offer', label: 'Offer 与谈判' },
-  { key: 'network', label: '人脉与学习' },
-  { key: 'career', label: '入职与长期' },
   { key: 'sessions', label: '历史面试' },
   { key: 'system', label: '系统与用量' },
 ] as const
@@ -129,7 +123,6 @@ export default function App() {
         {tab === 'expression' && <Expression />}
         {tab === 'training' && <Training />}
         {tab === 'bank' && <VisionBank />}
-        {tab === 'algo' && <AlgoBoard />}
         {tab === 'design' && <DesignBoard />}
         {tab === 'pacing' && <Recordings />}
         {tab === 'resume' && <ResumeHealth />}
@@ -137,8 +130,6 @@ export default function App() {
         {tab === 'apply' && <ApplyDesk />}
         {tab === 'applications' && <Applications />}
         {tab === 'offer' && <OfferDesk />}
-        {tab === 'network' && <NetworkDesk />}
-        {tab === 'career' && <CareerDesk />}
         {tab === 'system' && <System />}
       </main>
     </div>

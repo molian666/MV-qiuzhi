@@ -26,13 +26,22 @@ class Settings(BaseSettings):
     # 数据
     data_dir: Path = BACKEND_DIR / "data"
 
-    # LLM
-    llm_provider: str = "mock"  # mock | deepseek
+    # LLM（通用 OpenAI 兼容：任何提供 /chat/completions 的平台都能用）
+    # provider: mock 不联网、返回固定示例；openai 走真实模型。
+    # 兼容旧值 "deepseek"（等同 openai），老的 .env 不用改也能继续跑。
+    llm_provider: str = "mock"  # mock | openai（旧值 deepseek 等价于 openai）
+    llm_base_url: str = ""  # 例：https://api.deepseek.com
+    llm_api_key: str = ""
+    llm_chat_model: str = ""  # 日常对话/追问，延迟优先
+    llm_reasoner_model: str = ""  # 评分/纠错，质量优先；不填则复用 chat 模型
+    llm_timeout_seconds: float = 60.0
+
+    # 旧名（M13 之前只支持 DeepSeek）。新配置请用上面的 LLM_*，
+    # 这两组会在 resolved_* 里被优先取新值，只在用户没改过时才兜底。
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_chat_model: str = "deepseek-chat"
     deepseek_reasoner_model: str = "deepseek-reasoner"
-    llm_timeout_seconds: float = 60.0
 
     # 面试默认值
     default_max_questions: int = 6
@@ -52,7 +61,7 @@ class Settings(BaseSettings):
     # 判定说完后，等待 ASR 给出 final 的时间
     asr_wait_ms: int = 1500
     # 是否让 httpx / websockets 读取系统代理（HTTP_PROXY 等）。
-    # 默认 False：DeepSeek、百炼都是国内直连，跟着墙外代理走通常直接失败。
+    # 默认 False：国内厂商（DeepSeek、百炼等）多数直连，跟着墙外代理走通常直接失败。
     trust_env_proxy: bool = False
 
     # 导出接口的访问令牌（M15）。为空时 /api/export/* 一律 401 并提示如何配置——
@@ -76,6 +85,57 @@ class Settings(BaseSettings):
     static_dir: str = ""
     # 是否信任反向代理传来的 X-Forwarded-*（自己上 Nginx/Caddy 时设 true）。
     trust_proxy_headers: bool = False
+
+    # ---------- LLM 生效值（新键优先，旧键兜底）----------
+    # 目的：老的 .env（只有 DEEPSEEK_*）不改也能继续跑，
+    # 新用户填 LLM_* 即可，两者混填时新的说了算。
+    @property
+    def llm_enabled(self) -> bool:
+        """是否走真实模型。旧值 "deepseek" 等价于 "openai"。"""
+        return self.llm_provider.strip().lower() in {"openai", "deepseek"}
+
+    @property
+    def _uses_new_llm_keys(self) -> bool:
+        """用户是否已经在用新的通用键。
+
+        这个判断很关键：旧键的**默认值**（DeepSeek 的地址与型号）不能用来
+        兜底"正在用新键、只是没填这一项"的情况。否则填了硅基流动的 Key 与型号、
+        却漏填 LLM_BASE_URL 时，请求会被静默发到 DeepSeek 官方地址——
+        报个 401 让人一头雾水。宁可留空，让客户端给出明确的"缺 base_url"提示。
+        """
+        return bool(
+            self.llm_base_url.strip()
+            or self.llm_api_key.strip()
+            or self.llm_chat_model.strip()
+            or self.llm_reasoner_model.strip()
+        )
+
+    @property
+    def resolved_llm_base_url(self) -> str:
+        if self._uses_new_llm_keys:
+            return self.llm_base_url.strip()
+        return self.deepseek_base_url.strip()
+
+    @property
+    def resolved_llm_api_key(self) -> str:
+        return self.llm_api_key.strip() or self.deepseek_api_key.strip()
+
+    @property
+    def resolved_llm_chat_model(self) -> str:
+        if self._uses_new_llm_keys:
+            return self.llm_chat_model.strip()
+        # 老 .env：沿用旧的默认型号
+        return self.deepseek_chat_model.strip() or "deepseek-chat"
+
+    @property
+    def resolved_llm_reasoner_model(self) -> str:
+        if self.llm_reasoner_model.strip():
+            return self.llm_reasoner_model.strip()
+        # 新配置下留空 = "和 chat 同一档"，兼容只有单一型号的平台
+        if self._uses_new_llm_keys:
+            return self.resolved_llm_chat_model
+        # 老 .env：沿用旧的两档分工
+        return self.deepseek_reasoner_model.strip() or self.resolved_llm_chat_model
 
     @property
     def cors_origin_list(self) -> list[str]:

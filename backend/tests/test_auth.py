@@ -39,7 +39,7 @@ def _login(client: TestClient) -> str:
 def test_without_password_everything_is_open(client: TestClient) -> None:
     assert client.get("/api/auth/status").json()["auth_enabled"] is False
     assert client.get("/api/targets").status_code == 200
-    assert client.get("/api/okr").status_code == 200
+    assert client.get("/api/vision/meta").status_code == 200
 
 
 def test_login_is_rejected_when_not_enabled(client: TestClient) -> None:
@@ -57,13 +57,13 @@ def test_every_api_endpoint_requires_login(secured: TestClient) -> None:
         "/api/targets",
         "/api/sessions",
         "/api/resumes",
-        "/api/okr",
-        "/api/onboarding",
-        "/api/benchmarks",
+        "/api/vision/questions",
+        "/api/vision/meta",
+        "/api/design/questions",
         "/api/apply/queue",
         "/api/export/preview",
         "/api/applications",
-        "/api/network/contacts",
+        "/api/skills/mastery",
     ):
         assert secured.get(path).status_code == 401, path
 

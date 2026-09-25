@@ -33,11 +33,6 @@ frontend/dist/
 frontend/.vite/
 *.log
 
-# ---- Pyodide 运行时（~13MB wasm + 标准库 + numpy wheel）----
-# 由 frontend/scripts/copy-pyodide.mjs 在 dev/build 前从 node_modules 复制过来，
-# 不进仓库；运行时由本机托管，所以 Python 判题能离线用。
-frontend/public/pyodide/
-
 # ---- 编辑器 / 系统 ----
 .vscode/
 .idea/

@@ -151,6 +151,133 @@ def test_providers_reports_mock_mode(client: TestClient) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# 通用模型配置（任意 OpenAI 兼容平台）
+# --------------------------------------------------------------------------- #
+
+
+def test_provider_label_reads_host() -> None:
+    from app.providers.llm.openai_compat import provider_label
+
+    assert provider_label("https://api.deepseek.com") == "deepseek"
+    assert provider_label("https://dashscope.aliyuncs.com/compatible-mode/v1") == "bailian"
+    assert provider_label("https://api.siliconflow.cn/v1") == "siliconflow"
+    assert provider_label("https://openrouter.ai/api/v1") == "openrouter"
+    # 自建网关：猜不出就用域名，不能报错——这只是个展示标签
+    assert provider_label("https://api.my-gateway.example/v1") == "my-gateway"
+    assert provider_label("") == "openai-compat"
+
+
+def test_llm_enabled_accepts_legacy_deepseek_value() -> None:
+    """老 .env 里写 LLM_PROVIDER=deepseek 的人不该因为改名而失效。"""
+    from app.config import Settings
+
+    assert Settings(llm_provider="openai").llm_enabled is True
+    assert Settings(llm_provider="deepseek").llm_enabled is True
+    assert Settings(llm_provider="Mock").llm_enabled is False
+
+
+def test_new_llm_keys_win_over_legacy_but_legacy_still_works() -> None:
+    """新键优先、旧键兜底：两种 .env 都能跑。"""
+    from app.config import Settings
+
+    # 只有旧键：按旧键生效
+    legacy = Settings(
+        llm_provider="deepseek",
+        deepseek_api_key="sk-legacy",
+        deepseek_base_url="https://api.deepseek.com",
+        deepseek_chat_model="deepseek-chat",
+    )
+    assert legacy.resolved_llm_api_key == "sk-legacy"
+    assert legacy.resolved_llm_base_url == "https://api.deepseek.com"
+    assert legacy.resolved_llm_chat_model == "deepseek-chat"
+
+    # 新旧都填：新的说了算
+    both = Settings(
+        llm_provider="openai",
+        llm_api_key="sk-new",
+        llm_base_url="https://api.siliconflow.cn/v1",
+        llm_chat_model="Qwen/Qwen3-32B",
+        deepseek_api_key="sk-legacy",
+        deepseek_base_url="https://api.deepseek.com",
+        deepseek_chat_model="deepseek-chat",
+    )
+    assert both.resolved_llm_api_key == "sk-new"
+    assert both.resolved_llm_base_url == "https://api.siliconflow.cn/v1"
+    assert both.resolved_llm_chat_model == "Qwen/Qwen3-32B"
+
+
+def test_reasoner_model_falls_back_to_chat_model() -> None:
+    """单一型号的平台（如本地 Ollama）只填一个模型名也该能跑。"""
+    from app.config import Settings
+
+    settings = Settings(
+        llm_provider="openai",
+        llm_api_key="sk-x",
+        llm_base_url="http://localhost:11434/v1",
+        llm_chat_model="qwen3:8b",
+        llm_reasoner_model="",
+        deepseek_reasoner_model="",
+    )
+    assert settings.resolved_llm_reasoner_model == "qwen3:8b"
+
+
+def test_new_keys_do_not_fall_back_to_deepseek_defaults() -> None:
+    """用新键但漏填某项时，不能静默打到 DeepSeek 官方地址。
+
+    否则填了别家的 Key 却漏填 LLM_BASE_URL，会收到一个莫名其妙的 401
+    （Key 跟地址不匹配）。宁可留空，由客户端给出"缺 base_url"的明确提示。
+    """
+    from app.config import Settings
+
+    partial = Settings(
+        llm_provider="openai",
+        llm_api_key="sk-siliconflow",
+        llm_chat_model="Qwen/Qwen3-32B",
+    )
+    assert partial.resolved_llm_base_url == "", "漏填就是漏填，不能兜底到 DeepSeek"
+    assert partial.resolved_llm_reasoner_model == "Qwen/Qwen3-32B"
+
+    # 老 .env（一个 LLM_* 都没填）仍然按旧的两档分工生效
+    legacy = Settings(llm_provider="deepseek", deepseek_api_key="sk-legacy")
+    assert legacy.resolved_llm_base_url == "https://api.deepseek.com"
+    assert legacy.resolved_llm_reasoner_model == "deepseek-reasoner"
+
+
+def test_build_llm_client_uses_configured_platform(monkeypatch: pytest.MonkeyPatch) -> None:
+    """工厂要按当前配置建客户端，且不再硬编码任何厂商。"""
+    from app import deps
+    from app.config import Settings
+    from app.providers.llm.openai_compat import OpenAICompatClient
+
+    monkeypatch.setattr(
+        "app.deps.get_settings",
+        lambda: Settings(
+            llm_provider="openai",
+            llm_api_key="sk-x",
+            llm_base_url="https://api.moonshot.cn/v1",
+            llm_chat_model="moonshot-v1-8k",
+        ),
+    )
+    client = deps.build_llm_client()
+    assert isinstance(client, OpenAICompatClient)
+    assert client.label == "moonshot"
+    assert client.model_for("interview") == "moonshot-v1-8k"
+    assert client.model_for("scoring") == "moonshot-v1-8k", "没配 reasoner 就复用 chat"
+
+
+def test_missing_key_is_reported_not_swallowed() -> None:
+    """没配 Key 时要给出「去哪儿配」的明确错误，而不是等网络超时。"""
+    import asyncio
+
+    from app.providers.llm.base import LLMError
+    from app.providers.llm.openai_compat import OpenAICompatClient
+
+    client = OpenAICompatClient(api_key="", base_url="https://api.deepseek.com", chat_model="x")
+    with pytest.raises(LLMError, match="LLM_API_KEY"):
+        asyncio.run(client.complete(task="interview", messages=[]))
+
+
+# --------------------------------------------------------------------------- #
 # 删除
 # --------------------------------------------------------------------------- #
 
@@ -219,28 +346,6 @@ def test_delete_leaves_other_sessions_alone(client: TestClient, monkeypatch: pyt
     client.delete(f"/api/sessions/{first}")
     remaining = [item["id"] for item in client.get("/api/sessions").json()]
     assert remaining == [second]
-
-
-def test_delete_algo_attempt(client: TestClient) -> None:
-    problem = client.get("/api/algo/problems/two-sum").json()
-    created = client.post(
-        "/api/algo/attempts",
-        json={
-            "problem_slug": "two-sum",
-            "language": "javascript",
-            "code": "function twoSum(){}",
-            "cases": [{"index": 0, "passed": True}],
-        },
-    ).json()
-
-    assert client.delete(f"/api/algo/attempts/{created['id']}").status_code == 204
-    assert client.get(f"/api/algo/attempts/{created['id']}").status_code == 404
-    assert client.get("/api/algo/attempts").json() == []
-    assert problem["slug"] == "two-sum", "题库本身不该受影响"
-
-
-def test_delete_algo_attempt_404(client: TestClient) -> None:
-    assert client.delete("/api/algo/attempts/999999").status_code == 404
 
 
 def test_delete_design_attempt(client: TestClient) -> None:
