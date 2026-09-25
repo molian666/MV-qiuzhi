@@ -11,7 +11,26 @@ from pydantic import BaseModel, Field
 
 class ProviderSettingsIn(BaseModel):
     values: dict[str, str] = Field(default_factory=dict)
-    """要改的键值。键不在白名单里会返回 400，不会静默丢弃。"""
+    """要改的键：不在白名单里会返回 400，不会静默丢弃。"""
+
+
+class LlmTestOut(BaseModel):
+    """「测试连接」的结果。
+
+    设计成**永远返回 200**、用 `ok` 表示成败：测试失败是正常结果，
+    不是接口错误。用 4xx/5xx 表达会让前端只能拿到一句笼统的报错，
+    而这里最需要的是把**原始错误**摊开给用户看。
+    """
+
+    ok: bool
+    reply: str = ""
+    """模型的一句话回答，用来确认"确实通了、不是缓存" """
+    model: str = ""
+    latency_ms: int = 0
+    error: str = ""
+    """原始错误信息，原样给出，不做加工"""
+    hint: str = ""
+    """针对这个错误的排查建议。说不出具体原因时留空，别硬凑"""
 
 
 class SettingItemOut(BaseModel):

@@ -154,6 +154,89 @@ def test_providers_reports_mock_mode(client: TestClient) -> None:
     assert "mock" in body["llm"]["hint"]
 
 
+def test_test_llm_reports_mock_mode(client: TestClient) -> None:
+    """mock 下点"测试连接"要直说是 mock，并指出去改哪一项。"""
+    body = client.post("/api/system/test-llm").json()
+
+    assert body["ok"] is False
+    assert "mock" in body["error"]
+    assert "openai" in body["hint"], "要说清下一步做什么，不能只说失败"
+
+
+def test_test_llm_surfaces_provider_error(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """★ 失败也返回 200，并且**把原始错误摊开**。
+
+    包成 4xx 的话前端只能拿到一句笼统的报错，而这里最需要的正是原始信息
+    （「401 invalid api key」和「模型不存在」是两种完全不同的修法）。
+    """
+    from app.config import get_settings
+    from app.providers.llm.base import LLMError
+
+    class Failing:
+        name = "failing"
+
+        def model_for(self, task: str) -> str:
+            return "x"
+
+        async def complete(self, **kwargs: object) -> object:
+            raise LLMError("deepseek 返回 401：invalid api key")
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_API_KEY", "sk-x")
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.deepseek.com")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.api.system.get_llm", lambda: Failing())
+
+    response = client.post("/api/system/test-llm")
+
+    assert response.status_code == 200, "测试失败不是接口错误"
+    body = response.json()
+    assert body["ok"] is False
+    assert "401" in body["error"], "原始错误要原样给出"
+    assert "Key" in body["hint"], "401 该指向 Key"
+
+
+def test_test_llm_reports_success(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.config import get_settings
+    from app.providers.llm.base import LLMResult
+
+    class Working:
+        name = "working"
+
+        def model_for(self, task: str) -> str:
+            return "m"
+
+        async def complete(self, **kwargs: object) -> LLMResult:
+            return LLMResult(
+                text="可用",
+                task="connectivity_test",
+                model="moonshot-v1-8k",
+                provider="openai-compat",
+                prompt_tokens=5,
+                completion_tokens=2,
+                latency_ms=123,
+                raw={},
+            )
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_API_KEY", "sk-x")
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.moonshot.cn/v1")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.api.system.get_llm", lambda: Working())
+
+    body = client.post("/api/system/test-llm").json()
+
+    assert body["ok"] is True
+    assert body["model"] == "moonshot-v1-8k"
+    assert body["reply"] == "可用"
+    assert body["latency_ms"] == 123
+    assert body["error"] == ""
+
+
 def test_saving_model_settings_takes_effect_without_restart(
     client: TestClient, isolated_env, monkeypatch: pytest.MonkeyPatch
 ) -> None:

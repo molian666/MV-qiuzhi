@@ -44,6 +44,8 @@ export interface AsrEvent {
   type: 'asr_partial' | 'asr_final'
   text: string
   seq: number
+  /** 术语纠错记录：ASR 把「亚像素」听成「亚相素」时，这里说明改了什么 */
+  corrections?: { wrong: string; right: string }[]
 }
 
 export interface SpeechStateEvent {

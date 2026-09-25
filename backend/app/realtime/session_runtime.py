@@ -20,6 +20,7 @@ from typing import Any, Awaitable, Callable
 
 from ..analysis.pressure import exceeded_time_limit, normalize_pressure, should_interrupt
 from ..clock import utcnow
+from ..analysis.glossary import correct_transcript
 from ..db import session_scope
 from ..models.core import JobTarget, Resume
 from ..models.session import InterviewSession, SessionTurn
@@ -234,9 +235,22 @@ class VoiceSessionRuntime:
             self._asr_partial = event.text
             await self._send({"type": "asr_partial", "text": event.text})
         elif event.kind == "final":
-            self._asr_final = event.text
+            # 术语纠错：ASR 会把「亚像素」听成「亚相素」这类同音词——
+            # 机器视觉术语在通用语料里太罕见，通用语言模型兜不住。
+            # 纠正后的文本同时用于落库与前端显示：两处不一致会让人以为系统记错了。
+            text, corrections = correct_transcript(event.text)
+            self._asr_final = text
             self._asr_ready.set()
-            await self._send({"type": "asr_final", "text": event.text})
+            await self._send(
+                {
+                    "type": "asr_final",
+                    "text": text,
+                    # 带上改动清单，界面能显示"改了什么"——静默替换是没法核对的
+                    "corrections": [
+                        {"wrong": item.wrong, "right": item.right} for item in corrections
+                    ],
+                }
+            )
         elif event.kind == "speech_started":
             await self._send({"type": "speech_state", "state": "speech_started", "at_ms": event.at_ms})
         elif event.kind == "speech_stopped":

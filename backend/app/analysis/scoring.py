@@ -20,6 +20,7 @@ from ..providers.llm.base import (
     RECORD_MARKER_START,
     LLMMessage,
 )
+from .glossary import glossary_for_prompt
 from .rubric import DIMENSIONS, build_rubric_prompt, is_valid_dimension, label_for
 
 SCORING_SYSTEM_PROMPT = """你是一位严格但公正的面试教练，正在给一场模拟面试打分并给出改进建议。
@@ -32,6 +33,10 @@ SCORING_SYSTEM_PROMPT = """你是一位严格但公正的面试教练，正在�
    候选人没提到的信息不要编造；缺信息就写成"补上具体数字"这样的占位提示。
 5. 至少给 3 条改进项，按严重程度排序（high → medium → low）。
 6. 全部用中文。
+7. **术语用规范写法**：这是机器视觉方向的面试，说错术语比说错观点更扣分。
+   例如「亚像素」不是「亚相素」、「仿射变换」不是「放射变换」、「九点标定」不是「九点标订」。
+   常用术语（照着用，不要另造词）：
+{GLOSSARY}
 
 只输出一个 JSON 对象，不要输出任何其他内容，格式：
 {
@@ -54,6 +59,10 @@ SCORING_SYSTEM_PROMPT = """你是一位严格但公正的面试教练，正在�
   ]
 }
 """
+
+# 术语清单用 replace 而不是 format 注入：prompt 里含 JSON 示例，
+# 大括号会被 str.format 当成占位符直接报错。
+SCORING_SYSTEM_PROMPT = SCORING_SYSTEM_PROMPT.replace("{GLOSSARY}", glossary_for_prompt())
 
 # 结构化输入的包裹标记定义在协议层（providers/llm/base.py），
 # 真实模型与 Mock 共用同一份约定，避免两边各写一份字符串而悄悄跑偏

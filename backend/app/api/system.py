@@ -11,11 +11,12 @@ from sqlmodel import Session, select
 
 from ..clock import utcnow
 from ..config import get_settings
-from ..deps import get_session
+from ..deps import get_llm, get_session
 from ..env_store import EnvError, public_view, write_env
 from ..models.session import LLMCall
+from ..providers.llm.base import LLMError, LLMMessage
 from ..providers.llm.openai_compat import provider_label
-from ..schemas.system import ProviderSettingsIn
+from ..schemas.system import LlmTestOut, ProviderSettingsIn
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -93,6 +94,65 @@ def update_settings(payload: ProviderSettingsIn) -> dict[str, Any]:
         "providers": providers(),
         "note": "已写入 backend/.env 并立即生效，不需要重启。",
     }
+
+
+@router.post("/test-llm", response_model=LlmTestOut, summary="用当前配置真发一次请求，确认模型能用")
+async def test_llm() -> LlmTestOut:
+    """**真发一次请求**——这是唯一能确定"配好了没有"的办法。
+
+    常见的自欺是"点保存没报错就以为通了"，其实保存只验证了白名单与格式；
+    地址写错、Key 过期、模型名不存在，都要真的调用一次才会暴露。
+
+    永远返回 200、用 `ok` 表达结果：测试失败是正常结果而不是接口错误，
+    包成 4xx/5xx 只会让前端拿到一句笼统的报错，看不到原始信息。
+    """
+    settings = get_settings()
+    if not settings.llm_enabled:
+        return LlmTestOut(
+            ok=False,
+            error="当前是 mock 模式，并没有在调用真实模型。",
+            hint="把提供方切成 openai，并填好接口地址、API Key 与模型名。",
+        )
+
+    client = get_llm()
+    try:
+        result = await client.complete(
+            task="connectivity_test",
+            messages=[
+                LLMMessage(role="user", content="只回两个字：可用"),
+            ],
+            temperature=0,
+        )
+    except LLMError as exc:
+        message = str(exc)
+        return LlmTestOut(ok=False, error=message, hint=_test_hint(message))
+
+    return LlmTestOut(
+        ok=True,
+        reply=result.text.strip()[:200],
+        model=result.model,
+        latency_ms=result.latency_ms,
+    )
+
+
+def _test_hint(message: str) -> str:
+    """把常见错误翻成"下一步做什么"。
+
+    认不出来就返回空串——**别硬凑建议**，指错方向比不给建议更浪费时间。
+    """
+    lowered = message.lower()
+
+    if "401" in lowered or "authentication" in lowered or "invalid" in lowered and "key" in lowered:
+        return "API Key 无效或已过期。去对应平台的控制台重新生成一把，注意复制完整。"
+    if "model" in lowered and ("not found" in lowered or "not exist" in lowered or "不存在" in message):
+        return "模型名可能不对。核对平台的模型列表——同一个模型在不同平台叫法不一样。"
+    if "404" in lowered:
+        return "接口地址可能不对。确认填的是该平台的 OpenAI 兼容地址（多数要带 /v1）。"
+    if "429" in lowered or "quota" in lowered or "insufficient" in lowered or "balance" in lowered:
+        return "额度不足或触发了限流。检查账户余额与并发限制。"
+    if "请求失败" in message or "timeout" in lowered or "connect" in lowered:
+        return "连不上接口地址。确认网络能通；国内平台不要把请求走系统代理（TRUST_ENV_PROXY=false）。"
+    return ""
 
 
 @router.get("/usage", summary="LLM 用量与失败统计")

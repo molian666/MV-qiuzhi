@@ -29,6 +29,7 @@ import type {
   ImportBatch,
   ImportOutcome,
   JobTarget,
+  LlmTest,
   MasteryEvent,
   MasteryOverview,
   MatchBandReport,
@@ -137,6 +138,8 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ values }),
     }),
+  /** 用当前配置真发一次请求。失败也返回 200，看结果里的 ok 字段。 */
+  testLlm: () => request<LlmTest>('/system/test-llm', { method: 'POST' }),
 
   // 删除（M13 补充）：会话会连带回合、作答、报告与录音文件
   deleteSession: (sessionId: number) => request<void>(`/sessions/${sessionId}`, { method: 'DELETE' }),

@@ -15,7 +15,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { ProviderStatus, SystemSettings, Usage } from '../api/types'
+import type { LlmTest, ProviderStatus, SystemSettings, Usage } from '../api/types'
 
 /** 模型服务的字段。顺序就是配置的顺序：先选平台地址，再填 Key，最后确认模型名。
  *
@@ -100,6 +100,8 @@ export default function System() {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedNote, setSavedNote] = useState('')
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<LlmTest | null>(null)
   const [error, setError] = useState('')
 
   const load = () => {
@@ -150,6 +152,31 @@ export default function System() {
       setError(errorMessage(err))
     } finally {
       setSaving(false)
+    }
+  }
+
+  /** 用**当前保存好的配置**真发一次请求。
+   *
+   *  测试失败的两种情况要分清：接口返回 200 且 `ok=false`（配置问题，
+   *  有原始错误可看），和请求本身发不出去（网络/服务没起来）——后者
+   *  在这里兜住，否则界面上什么都不显示。
+   */
+  const runTest = async () => {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      setTestResult(await api.testLlm())
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        reply: '',
+        model: '',
+        latency_ms: 0,
+        error: errorMessage(err),
+        hint: '请求没发出去——确认后端服务在运行。',
+      })
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -328,6 +355,18 @@ export default function System() {
               >
                 撤销改动
               </button>
+              {/* 测试连接：唯一能确定"到底通没通"的动作。
+                  保存只验证白名单与格式，地址写错、Key 过期、模型名不存在
+                  都要真发一次请求才会暴露。 */}
+              <button
+                type="button"
+                onClick={() => void runTest()}
+                disabled={testing || hasChanges}
+                title={hasChanges ? '先保存改动，再测试' : '用当前配置发一次真实请求'}
+                className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-7 transition-colors hover:bg-paper disabled:text-ink-2"
+              >
+                {testing ? '测试中…' : '测试连接'}
+              </button>
               <span className="text-[11px] text-ink-6">
                 {settings.note} 密钥框留空表示保持不变。
               </span>
@@ -337,6 +376,34 @@ export default function System() {
               <p className="mt-2 rounded-control border border-ok bg-ok-soft px-3 py-1.5 text-xs text-ok">
                 {savedNote}
               </p>
+            )}
+
+            {testResult && (
+              <div
+                className={
+                  testResult.ok
+                    ? 'mt-2 rounded-control border border-ok bg-ok-soft px-3 py-2 text-xs leading-relaxed text-ok'
+                    : 'mt-2 rounded-control border border-ng bg-ng-soft px-3 py-2 text-xs leading-relaxed text-ng'
+                }
+              >
+                {testResult.ok ? (
+                  <>
+                    <div className="font-medium">
+                      通了：{testResult.model} 在 {testResult.latency_ms} ms 内回话
+                    </div>
+                    <div className="mt-1 text-ink-6">模型说：{testResult.reply}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-medium">没通</div>
+                    {/* 原始错误原样给出：401 和"模型不存在"是完全不同的修法 */}
+                    <div className="mt-1 font-mono text-[11px] break-all">{testResult.error}</div>
+                    {testResult.hint && (
+                      <div className="mt-1.5 text-ink-7">{testResult.hint}</div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </>
         )}

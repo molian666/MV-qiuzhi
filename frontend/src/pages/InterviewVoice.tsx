@@ -58,6 +58,8 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
   const [recording, setRecording] = useState(false)
   const [level, setLevel] = useState(0)
   const [partial, setPartial] = useState('')
+  /** 术语纠错记录：ASR 把「亚像素」听成「亚相素」时，界面要说清改了什么 */
+  const [corrections, setCorrections] = useState<{ wrong: string; right: string }[]>([])
   const [status, setStatus] = useState('未开始')
   const [awaitingText, setAwaitingText] = useState('')
   const [audioMode, setAudioMode] = useState<'client' | 'server'>('client')
@@ -153,6 +155,7 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
 
         case 'asr_final':
           setPartial('')
+          setCorrections(event.corrections ?? [])
           break
 
         case 'speech_state':
@@ -432,9 +435,22 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
 
           {partial && (
             <div className="flex justify-end">
-              <div className="max-w-[80%] rounded-2xl rounded-br-sm border border-dashed border-info px-4 py-2 text-sm text-info">
+              <div className="max-w-[80%] rounded-panel rounded-br-control border border-dashed border-info px-4 py-2 text-sm text-info">
                 {partial}
               </div>
+            </div>
+          )}
+
+          {/* 纠错提示：说清系统改了哪几个字。
+              静默替换是没法核对的，用户有权知道自己的话被怎么处理了。 */}
+          {corrections.length > 0 && (
+            <div className="rounded-control bg-paper px-3 py-1.5 text-[11px] leading-relaxed text-ink-6">
+              <span className="text-ink-4">已按机器视觉名词表纠正：</span>
+              {corrections.map((item) => (
+                <span key={`${item.wrong}-${item.right}`} className="ml-2 font-mono">
+                  {item.wrong} → {item.right}
+                </span>
+              ))}
             </div>
           )}
         </div>

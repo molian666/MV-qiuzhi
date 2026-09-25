@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy import delete
 from sqlmodel import Session, select
 
+from .analysis.glossary import correct_transcript
 from .analysis.pacing import (
     QuestionUnit,
     apply_labels,
@@ -143,7 +144,9 @@ async def transcribe_recording(
                 recording_id=recording_id,
                 idx=draft.idx,
                 speaker=draft.speaker,
-                text=draft.text,
+                # 与实时链路同一套术语纠错：录音转写的误识别和实时的一样多，
+                # 慢跑一遍没有实时性压力，没理由不做
+                text=correct_transcript(draft.text)[0],
                 start_ms=draft.start_ms,
                 end_ms=draft.end_ms,
                 confidence=draft.confidence,

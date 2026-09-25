@@ -28,6 +28,18 @@ export interface SystemSettingsUpdated {
   note: string
 }
 
+export interface LlmTest {
+  ok: boolean
+  /** 模型的一句话回答，用来确认"确实通了、不是缓存" */
+  reply: string
+  model: string
+  latency_ms: number
+  /** 原始错误信息，原样给出 */
+  error: string
+  /** 针对这个错误的排查建议；认不出来时是空串 */
+  hint: string
+}
+
 export interface Turn {
   id: number
   idx: number
