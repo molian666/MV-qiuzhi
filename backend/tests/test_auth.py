@@ -59,7 +59,6 @@ def test_every_api_endpoint_requires_login(secured: TestClient) -> None:
         "/api/resumes",
         "/api/vision/questions",
         "/api/vision/meta",
-        "/api/design/questions",
         "/api/apply/queue",
         "/api/export/preview",
         "/api/applications",

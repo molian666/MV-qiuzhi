@@ -43,7 +43,7 @@ PACING_LABEL_PROMPT = """你是面试分析助手。请给下面这些面试问�
 
 要求：
 1. type 从这些里选一个：self_intro（自我介绍）、project_deep（项目深挖）、tech（技术细节）、
-   behavior（行为面试）、algorithm（算法题）、design（系统设计）、scenario（场景题）、
+   behavior（行为面试）、algorithm（算法题）、scenario（场景题）、
    salary（薪资与期望）、reverse（反问环节）、general（其他）。
 2. topic 用不超过 8 个字概括这一题在问什么。
 3. key_points 给 2–4 条"好答案需要覆盖什么"。

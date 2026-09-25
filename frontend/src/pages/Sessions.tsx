@@ -94,8 +94,8 @@ export default function Sessions({ onOpenReport }: Props) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-      <section className="rounded-panel border border-ink-1 bg-surface">
+    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <section className="flex min-h-0 flex-col rounded-panel border border-ink-1 bg-surface">
         <header className="flex items-center justify-between border-b border-ink-1 px-4 py-3">
           <h2 className="text-base font-semibold text-ink-9">历史面试</h2>
           <button
@@ -114,7 +114,7 @@ export default function Sessions({ onOpenReport }: Props) {
         ) : items.length === 0 ? (
           <p className="px-4 py-6 text-sm text-ink-6">还没有面试记录。去「面试间」跑一场文字面试。</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="min-h-0 flex-1 overflow-auto">
             <table className="w-full text-sm">
               <thead className="bg-paper text-left text-xs text-ink-6">
                 <tr>
@@ -166,7 +166,7 @@ export default function Sessions({ onOpenReport }: Props) {
         )}
       </section>
 
-      <aside className="rounded-panel border border-ink-1 bg-surface p-4">
+      <aside className="min-h-0 overflow-y-auto rounded-panel border border-ink-1 bg-surface p-4">
         {!detail ? (
           <p className="text-sm text-ink-6">点击左侧任意一行查看该场面试的全部回合。</p>
         ) : (

@@ -35,7 +35,6 @@ TOPIC_LABELS: dict[str, str] = {
     "tech": "技术细节",
     "behavior": "行为面试",
     "algorithm": "算法题",
-    "design": "系统设计",
     "scenario": "场景题",
     "salary": "薪资与期望",
     "reverse": "反问环节",

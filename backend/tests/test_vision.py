@@ -558,6 +558,66 @@ def test_discard_removes_drafts(client: TestClient) -> None:
 
     assert client.delete(f"/api/vision/drafts/{batch}").json()["removed"] == 3
     assert client.get("/api/vision/drafts").json() == []
+
+
+# --------------------------------------------------------------------------- #
+# 按题采纳：生成一批 5 道、只满意 2 道时的粒度
+# --------------------------------------------------------------------------- #
+def test_adopt_selected_questions_only(client: TestClient) -> None:
+    """★ 只采纳选中的那几道，同批剩下的仍是草稿。"""
+    drafts = generate(client)["drafts"]
+    picked = drafts[0]["id"]
+
+    assert client.post("/api/vision/questions/adopt", json={"question_ids": [picked]}).json() == {
+        "adopted": 1
+    }
+
+    sources = {item["key"]: item["count"] for item in client.get("/api/vision/meta").json()["sources"]}
+    assert sources["generated"] == 1, "只该进池一道"
+    # 同批另外两道还是草稿，没被顺手带进来
+    assert client.get("/api/vision/meta").json()["draft_count"] == 2
+    assert client.get("/api/vision/drafts").json()[0]["count"] == 2
+
+
+def test_adopt_selected_is_idempotent(client: TestClient) -> None:
+    """已经采纳过的再传一次不重复计数——前端可以把整批 id 直接丢过来。"""
+    drafts = generate(client)["drafts"]
+    ids = [item["id"] for item in drafts]
+
+    assert client.post("/api/vision/questions/adopt", json={"question_ids": ids}).json() == {
+        "adopted": 3
+    }
+    assert client.post("/api/vision/questions/adopt", json={"question_ids": ids}).json() == {
+        "adopted": 0
+    }
+
+
+def test_adopt_selected_ignores_non_draft_questions(client: TestClient) -> None:
+    """这个接口不该能改动已有的题（内置题、已采纳的生成题都不动）。"""
+    builtin = client.get("/api/vision/questions", params={"role": "development"}).json()[0]
+
+    assert client.post(
+        "/api/vision/questions/adopt", json={"question_ids": [builtin["id"]]}
+    ).json() == {"adopted": 0}
+
+    # 采纳过一轮的生成题也不再是草稿，同样不该被"再采纳"
+    first = generate(client)
+    adopted_ids = [item["id"] for item in first["drafts"]]
+    assert client.post("/api/vision/questions/adopt", json={"question_ids": adopted_ids}).json() == {
+        "adopted": 3
+    }
+    assert client.post("/api/vision/questions/adopt", json={"question_ids": adopted_ids}).json() == {
+        "adopted": 0
+    }
+
+
+def test_adopt_selected_rejects_unknown_and_empty(client: TestClient) -> None:
+    # 不存在的 id：没什么可采纳的，不是错误
+    assert client.post(
+        "/api/vision/questions/adopt", json={"question_ids": [999999]}
+    ).json() == {"adopted": 0}
+    # 空列表：调用方搞错了，直接拒
+    assert client.post("/api/vision/questions/adopt", json={"question_ids": []}).status_code == 422
     assert client.get("/api/vision/meta").json()["draft_count"] == 0
 
 

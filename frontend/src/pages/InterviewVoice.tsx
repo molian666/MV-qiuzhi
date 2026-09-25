@@ -35,9 +35,11 @@ function nowIso(): string {
 
 interface Props {
   onOpenReport?: (sessionId: number) => void
+  /** 上报"是否有一场进行中的面试"，供面试间容器决定能不能切换模式 */
+  onSessionChange?: (active: boolean) => void
 }
 
-export default function InterviewVoice({ onOpenReport }: Props) {
+export default function InterviewVoice({ onOpenReport, onSessionChange }: Props) {
   const [targets, setTargets] = useState<JobTarget[]>([])
   const [resumes, setResumes] = useState<ResumeItem[]>([])
   const [profiles, setProfiles] = useState<ProfileListItem[]>([])
@@ -85,6 +87,11 @@ export default function InterviewVoice({ onOpenReport }: Props) {
       .then(setOptions)
       .catch(() => setOptions(null))
   }, [])
+
+  // 上报会话状态：面试间容器据此决定能否切换文字/语音模式
+  useEffect(() => {
+    onSessionChange?.(session !== null)
+  }, [session, onSessionChange])
 
   const handleEvent = useCallback(
     (event: ServerEvent) => {
@@ -351,15 +358,9 @@ export default function InterviewVoice({ onOpenReport }: Props) {
   const inputClass = 'w-full rounded-card border border-ink-2 px-3 py-2 text-sm outline-none focus:border-info'
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="flex min-h-[70vh] flex-col rounded-panel border border-ink-1 bg-surface">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-1 px-4 py-3">
-          <div>
-            <h2 className="text-base font-semibold text-ink-9">语音面试间</h2>
-            <p className="text-xs text-ink-6">
-              {session ? `会话 #${session.id} · ${session.target_label || '通用面试'}` : '右侧选好岗位与简历，然后开始'}
-            </p>
-          </div>
+    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="flex h-full min-h-0 flex-col rounded-panel border border-ink-1 bg-surface">
+        <header className="flex flex-wrap items-center justify-end gap-3 border-b border-ink-1 px-4 py-2.5">
           <div className="flex items-center gap-2">
             <span
               className={
@@ -534,7 +535,7 @@ export default function InterviewVoice({ onOpenReport }: Props) {
         </footer>
       </section>
 
-      <aside className="space-y-4">
+      <aside className="min-h-0 space-y-4 overflow-y-auto pr-1">
         <div className="rounded-panel border border-ink-1 bg-surface p-4">
           <h3 className="mb-3 text-sm font-semibold text-ink-9">本场配置</h3>
 

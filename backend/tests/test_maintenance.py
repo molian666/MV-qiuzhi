@@ -348,24 +348,6 @@ def test_delete_leaves_other_sessions_alone(client: TestClient, monkeypatch: pyt
     assert remaining == [second]
 
 
-def test_delete_design_attempt(client: TestClient) -> None:
-    created = client.post(
-        "/api/design/attempts",
-        json={
-            "question_slug": "design-inline-defect-pipeline",
-            "writeup": "先确认节拍与误检代价，再把成像按振动、环境光、粉尘分别应对。",
-        },
-    ).json()
-
-    assert client.delete(f"/api/design/attempts/{created['id']}").status_code == 204
-    assert client.get(f"/api/design/attempts/{created['id']}").status_code == 404
-    assert client.get("/api/design/attempts").json() == []
-
-
-def test_delete_design_attempt_404(client: TestClient) -> None:
-    assert client.delete("/api/design/attempts/999999").status_code == 404
-
-
 def test_deletion_does_not_touch_llm_usage_log(client: TestClient) -> None:
     """用量流水独立于会话存在——删会话不该篡改成本账。"""
     session_id = make_session(client)

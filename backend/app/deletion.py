@@ -144,13 +144,3 @@ def delete_session(db: Session, session_id: int) -> dict[str, int]:
         "removed_reports": len(reports),
         "removed_files": removed_files,
     }
-
-
-def delete_design_attempt(db: Session, attempt_id: int) -> None:
-    from .models.design import DesignAttempt
-
-    row = db.get(DesignAttempt, attempt_id)
-    if row is None:
-        raise DeletionError(f"没有这次作答：{attempt_id}")
-    db.delete(row)
-    db.commit()

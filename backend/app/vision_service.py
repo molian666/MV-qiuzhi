@@ -393,6 +393,33 @@ def adopt_draft(db: Session, batch: str) -> int:
     return adopted
 
 
+def adopt_questions(db: Session, question_ids: Sequence[int]) -> int:
+    """按题采纳：只把指定的这几道草稿放进抽题池。
+
+    与 `adopt_draft` 的区别是**粒度**——生成一批 5 道，你可能只满意其中 2 道。
+
+    只认「模型生成 + 还是草稿」的题，两条都满足才动：
+    这个接口不该被用来改已有的题，也不该能采纳非生成来源的题。
+    已经采纳过的不重复计数，所以前端可以把整批 id 直接传过来。
+    """
+    if not question_ids:
+        return 0
+
+    rows = db.exec(select(QuestionBank).where(QuestionBank.id.in_(list(question_ids)))).all()  # type: ignore[attr-defined]
+
+    adopted = 0
+    for row in rows:
+        if DRAFT_TAG not in (row.tags or []):
+            continue
+        if not str(row.source or "").startswith(f"{GENERATE_SOURCE_PREFIX}:"):
+            continue
+        row.tags = [tag for tag in (row.tags or []) if tag != DRAFT_TAG]
+        db.add(row)
+        adopted += 1
+    db.commit()
+    return adopted
+
+
 def discard_draft(db: Session, batch: str) -> int:
     """丢弃：整批删掉（连带自测记录）。"""
     rows = _rows_of_batch(db, batch)

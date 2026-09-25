@@ -1,25 +1,19 @@
-/** 机器视觉面试题库（M13）。
+/** 面试题题库：**查阅**用的页面。
  *
- * 这是当前的主线功能。核心交互是**「先自己答，再看答案」**：
- * 详情默认只显示题干，答案要点与参考答案收在「看答案」后面。
- * 直接看到答案会产生「我会了」的错觉——自测时先说一遍，再对照要点，
- * 才是这个页面真正有用的用法。
+ * 职责边界（与「训练」分开）：
  *
- * 三类岗位（开发 / 应用 / 实施）的面试重点差别很大，所以按岗位分第一级，
- * 而不是按难度分。
+ * - **这里只负责看**：按岗位与主题找题、看要点与参考答案、给自己打个自评分。
+ * - **往里加题**（导入文档、让模型出题、决定采纳哪些）都在「训练」页——
+ *   那些是"积累题库"的动作，和"刷题"是两种心态，混在一页里两边都做不好。
+ *
+ * 一类岗位的面试重点差别很大，所以按岗位分第一级，而不是按难度分。
+ * 详情默认只显示题干：**先自己答一遍再看答案**，否则会产生"我会了"的错觉。
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
-import type {
-  VisionImportResult,
-  VisionMeta,
-  VisionQuestion,
-  VisionQuestionBrief,
-  VisionUpload,
-} from '../api/types'
+import type { VisionMeta, VisionQuestion, VisionQuestionBrief } from '../api/types'
 import Markdown from '../components/Markdown'
-import QuestionGenerator from '../components/QuestionGenerator'
 
 /** 难度色：绿（基础）→ 琥珀（要展开）→ 红（要真懂原理）。
  *
@@ -67,26 +61,13 @@ export default function VisionBank() {
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [uploads, setUploads] = useState<VisionUpload[]>([])
-  const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState<VisionImportResult | null>(null)
-  const [importWarnings, setImportWarnings] = useState<string[]>([])
-
-  const loadUploads = useCallback(async () => {
-    try {
-      setUploads(await api.visionUploads())
-    } catch {
-      setUploads([])
-    }
-  }, [])
 
   useEffect(() => {
     api
       .visionMeta()
       .then(setMeta)
       .catch((err) => setError(errorMessage(err)))
-    void loadUploads()
-  }, [loadUploads])
+  }, [])
 
   const loadList = useCallback(async () => {
     setLoading(true)
@@ -138,45 +119,7 @@ export default function VisionBank() {
     }
   }
 
-  const handleImport = async (file: File | undefined) => {
-    if (!file) {
-      return
-    }
-    setImporting(true)
-    setImportResult(null)
-    setImportWarnings([])
-    setError('')
-    try {
-      const result = await api.visionImport(file)
-      setImportResult(result)
-      setImportWarnings(result.warnings)
-      await loadUploads()
-      await loadList()
-      setMeta(await api.visionMeta())
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  const handleDelete = async (batch: string) => {
-    setError('')
-    try {
-      await api.visionDeleteUpload(batch)
-      setSelectedId(null)
-      await loadUploads()
-      await loadList()
-      setMeta(await api.visionMeta())
-    } catch (err) {
-      setError(errorMessage(err))
-    }
-  }
-
-  const currentRole = useMemo(
-    () => meta?.roles.find((item) => item.key === role),
-    [meta, role],
-  )
+  const currentRole = useMemo(() => meta?.roles.find((item) => item.key === role), [meta, role])
 
   // 岗位切换后旧的选中项可能不在列表里了
   useEffect(() => {
@@ -196,74 +139,88 @@ export default function VisionBank() {
   }, [items])
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-      <aside className="space-y-3">
-        {/* 岗位方向 */}
-        <div className="space-y-1.5">
-          {(meta?.roles ?? []).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => {
-                setRole(item.key)
-                setSelectedId(null)
-                setCategory('')
-              }}
-              className={`w-full rounded-card border px-3 py-2 text-left transition-colors ${
-                item.key === role
-                  ? 'border-ink-9 bg-surface'
-                  : 'border-ink-1 bg-paper hover:bg-surface'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-ink-9">{item.label}</span>
-                <span className="text-[10px] text-ink-4">{item.count} 题</span>
-              </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-ink-6">{item.description}</p>
-            </button>
-          ))}
+    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[208px_minmax(240px,320px)_1fr]">
+      <aside className="flex min-h-0 flex-col gap-3">
+        {/* 岗位方向：机器视觉的三类岗位面试重点差别很大，这是第一级分类 */}
+        <div className="space-y-1">
+          {(meta?.roles ?? []).map((item) => {
+            const active = item.key === role
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => {
+                  setRole(item.key)
+                  setSelectedId(null)
+                  setCategory('')
+                }}
+                className={`w-full rounded-card border px-2.5 py-2 text-left transition-colors ${
+                  active
+                    ? 'border-ink-9 bg-ink-9 text-surface'
+                    : 'border-ink-1 bg-surface text-ink-7 hover:bg-paper'
+                }`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-medium">{item.label}</span>
+                  <span className={`font-mono text-[10px] ${active ? 'text-ink-3' : 'text-ink-4'}`}>
+                    {item.count}
+                  </span>
+                </div>
+                <p
+                  className={`mt-1 text-[10px] leading-relaxed ${
+                    active ? 'text-ink-3' : 'text-ink-4'
+                  }`}
+                >
+                  {item.description}
+                </p>
+              </button>
+            )
+          })}
         </div>
 
         {/* 筛选 */}
-        <div className="space-y-2 rounded-card border border-ink-1 bg-surface p-3">
+        <div className="space-y-2 rounded-card border border-ink-1 bg-surface p-2.5">
           <input
             type="search"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             placeholder="搜关键词，如「打光」「标定」"
-            className="w-full rounded-control border border-ink-2 px-2.5 py-1.5 text-xs"
+            className="w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs placeholder:text-ink-3"
           />
-          <div className="flex flex-wrap gap-1">
-            <button
-              type="button"
-              onClick={() => setCategory('')}
-              className={`rounded-control px-1.5 py-0.5 text-[10px] ${
-                category === '' ? 'bg-ink-9 text-surface' : 'bg-sunken text-ink-6'
-              }`}
-            >
-              全部
-            </button>
-            {(meta?.categories ?? []).map((item) => (
+          <div>
+            <div className="mb-1 text-[10px] text-ink-4">主题</div>
+            <div className="flex flex-wrap gap-1">
               <button
-                key={item}
                 type="button"
-                onClick={() => setCategory(item === category ? '' : item)}
+                onClick={() => setCategory('')}
                 className={`rounded-control px-1.5 py-0.5 text-[10px] ${
-                  item === category ? 'bg-ink-9 text-surface' : 'bg-sunken text-ink-6'
+                  category === '' ? 'bg-ink-9 text-surface' : 'bg-sunken text-ink-6'
                 }`}
               >
-                {item}
+                全部
               </button>
-            ))}
+              {(meta?.categories ?? []).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setCategory(item === category ? '' : item)}
+                  className={`rounded-control px-1.5 py-0.5 text-[10px] ${
+                    item === category ? 'bg-ink-9 text-surface' : 'bg-sunken text-ink-6'
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-ink-6">难度上限</span>
             {[0, 2, 3, 4, 5].map((level) => (
               <button
                 key={level}
                 type="button"
                 onClick={() => setMaxDifficulty(level)}
-                className={`rounded-control px-1.5 py-0.5 text-[10px] ${
+                className={`rounded-control px-1.5 py-0.5 font-mono text-[10px] ${
                   maxDifficulty === level ? 'bg-ink-9 text-surface' : 'bg-sunken text-ink-6'
                 }`}
               >
@@ -271,160 +228,102 @@ export default function VisionBank() {
               </button>
             ))}
           </div>
-          {/* 自测进度：用一条灰阶直方图表示，而不是写一句话。
-              这个界面的主角本来就是灰度——一眼看出"练了多少、漏了多少"。 */}
-          {progress.total > 0 && (
-            <div className="border-t border-ink-1 pt-2">
-              <div className="flex items-baseline justify-between text-[10px] text-ink-6">
-                <span>自测进度</span>
-                <span className="font-mono">
-                  {progress.tested}/{progress.total}
-                </span>
-              </div>
-              <div className="mt-1 flex h-1.5 overflow-hidden rounded-control bg-sunken">
-                <div
-                  className="bg-ok"
-                  style={{ width: `${(progress.solid / progress.total) * 100}%` }}
-                  title={`答上来 ${progress.solid} 题`}
-                />
-                <div
-                  className="bg-warn"
-                  style={{
-                    width: `${((progress.tested - progress.solid - progress.shaky) / progress.total) * 100}%`,
-                  }}
-                  title="答了一半"
-                />
-                <div
-                  className="bg-ng"
-                  style={{ width: `${(progress.shaky / progress.total) * 100}%` }}
-                  title={`还没答上来 ${progress.shaky} 题`}
-                />
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* 导入自己的题库 */}
-        <div className="rounded-card border border-ink-1 bg-surface p-3">
-          <h4 className="text-xs font-semibold text-ink-7">导入自己的题库</h4>
-          <p className="mt-1 text-[10px] leading-relaxed text-ink-6">
-            JSON / CSV 最可靠；Markdown、TXT 靠「问题以问号结尾」推断，导入后请核对。
-          </p>
-          <input
-            type="file"
-            accept=".json,.csv,.md,.markdown,.txt"
-            disabled={importing}
-            onChange={(event) => {
-              void handleImport(event.target.files?.[0])
-              event.target.value = ''
-            }}
-            className="mt-2 w-full text-[11px] file:mr-2 file:rounded-control file:border-0 file:bg-ink-9 file:px-2 file:py-1 file:text-[11px] file:text-surface disabled:opacity-50"
-          />
-          {importing && <p className="mt-1 text-[11px] text-ink-6">正在解析…</p>}
-          {importResult && (
-            <div className="mt-2 rounded-control border border-ok bg-ok-soft px-2 py-1.5 text-[11px] leading-relaxed text-ok">
-              {importResult.filename}（{importResult.source_format}）：解析出 {importResult.total} 道，
-              新增 {importResult.added} 道
-              {importResult.skipped > 0 && `，跳过 ${importResult.skipped} 道（题干已存在）`}
-            </div>
-          )}
-          {importWarnings.length > 0 && (
-            <ul className="mt-1.5 space-y-0.5 text-[10px] leading-relaxed text-warn">
-              {importWarnings.map((warning, index) => (
-                <li key={index}>— {warning}</li>
-              ))}
-            </ul>
-          )}
-          {uploads.length > 0 && (
-            <div className="mt-2 space-y-1 border-t border-ink-1 pt-2">
-              <div className="text-[10px] font-medium text-ink-6">已导入的批次</div>
-              {uploads.map((item) => (
-                <div key={item.batch} className="flex items-center gap-2 text-[11px]">
-                  <span className="flex-1 truncate text-ink-6" title={item.filename}>
-                    {item.filename}
-                  </span>
-                  <span className="shrink-0 text-ink-4">{item.count} 题</span>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(item.batch)}
-                    className="shrink-0 text-ng hover:underline"
-                  >
-                    删除
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* 自测进度：用一条灰阶直方图表示，而不是写一句话。
+            这个界面的主角本来就是灰度——一眼看出"练了多少、漏了多少"。 */}
+        <div className="mt-auto rounded-card border border-ink-1 bg-surface p-2.5">
+          <div className="flex items-baseline justify-between text-[10px] text-ink-6">
+            <span>自测进度</span>
+            <span className="font-mono">
+              {progress.tested}/{progress.total}
+            </span>
+          </div>
+          <div className="mt-1 flex h-1.5 overflow-hidden rounded-control bg-sunken">
+            <div
+              className="bg-ok"
+              style={{ width: `${progress.total ? (progress.solid / progress.total) * 100 : 0}%` }}
+              title={`答上来 ${progress.solid} 题`}
+            />
+            <div
+              className="bg-warn"
+              style={{
+                width: `${
+                  progress.total
+                    ? ((progress.tested - progress.solid - progress.shaky) / progress.total) * 100
+                    : 0
+                }%`,
+              }}
+              title="答了一半"
+            />
+            <div
+              className="bg-ng"
+              style={{ width: `${progress.total ? (progress.shaky / progress.total) * 100 : 0}%` }}
+              title={`还没答上来 ${progress.shaky} 题`}
+            />
+          </div>
         </div>
-
-        {/* 让模型出题 */}
-        <QuestionGenerator
-          meta={meta}
-          onChanged={() => {
-            void api.visionMeta().then(setMeta)
-            void loadList()
-          }}
-        />
-
       </aside>
 
       {/* 题目列表：单独占一列，与"选中的题"分开——
           翻找列表时不丢详情，这是这个页面最主要的动作。 */}
-      <div className="min-w-0 space-y-1 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto xl:pr-1">
-        <div className="flex items-baseline justify-between px-0.5 pb-1">
+      <div className="flex min-h-0 flex-col">
+        <div className="flex shrink-0 items-baseline justify-between pb-1">
           <span className="text-[11px] text-ink-6">题目</span>
           <span className="font-mono text-[11px] text-ink-4">{items.length}</span>
         </div>
-        {loading && items.length === 0 && <p className="px-1 text-xs text-ink-4">加载中…</p>}
-        {!loading && items.length === 0 && (
-          <p className="px-1 text-xs text-ink-4">没有符合条件的题。</p>
-        )}
-        {items.map((item) => {
-          const active = item.id === selectedId
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setSelectedId(item.id)}
-              className={`w-full rounded-card border px-2.5 py-2 text-left text-xs transition-colors ${
-                active
-                  ? 'border-ink-9 bg-surface'
-                  : 'border-ink-1 bg-surface hover:border-ink-2 hover:bg-paper'
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <span className="flex-1 font-medium leading-snug text-ink-9">{item.text}</span>
-                {item.last_rating && (
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+          {loading && items.length === 0 && <p className="px-1 text-xs text-ink-4">加载中…</p>}
+          {!loading && items.length === 0 && (
+            <p className="px-1 text-xs text-ink-4">没有符合条件的题。</p>
+          )}
+          {items.map((item) => {
+            const active = item.id === selectedId
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSelectedId(item.id)}
+                className={`w-full rounded-card border px-2.5 py-2 text-left text-xs transition-colors ${
+                  active
+                    ? 'border-ink-9 bg-surface'
+                    : 'border-ink-1 bg-surface hover:border-ink-2 hover:bg-paper'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <span className="flex-1 font-medium leading-snug text-ink-9">{item.text}</span>
+                  {item.last_rating && (
+                    <span
+                      className={`shrink-0 rounded-control border px-1 py-0.5 text-[10px] ${
+                        RATING_STYLES[item.last_rating] ?? 'border-ink-1 text-ink-6'
+                      }`}
+                    >
+                      {RATING_LABELS[item.last_rating] ?? item.last_rating}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <span
-                    className={`shrink-0 rounded-control border px-1 py-0.5 text-[10px] ${
-                      RATING_STYLES[item.last_rating] ?? 'border-ink-1 text-ink-6'
+                    className={`rounded-control px-1.5 py-0.5 font-mono text-[10px] ${
+                      DIFFICULTY_STYLES[item.difficulty] ?? 'bg-sunken text-ink-6'
                     }`}
                   >
-                    {RATING_LABELS[item.last_rating] ?? item.last_rating}
+                    {item.difficulty}
                   </span>
-                )}
-              </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <span
-                  className={`rounded-control px-1.5 py-0.5 font-mono text-[10px] ${
-                    DIFFICULTY_STYLES[item.difficulty] ?? 'bg-sunken text-ink-6'
-                  }`}
-                >
-                  {item.difficulty}
-                </span>
-                <span className="rounded-control bg-sunken px-1.5 py-0.5 text-[10px] text-ink-6">
-                  {item.category}
-                </span>
-                {item.attempts > 0 && (
-                  <span className="font-mono text-[10px] text-ink-4">×{item.attempts}</span>
-                )}
-              </div>
-            </button>
-          )
-        })}
+                  <span className="rounded-control bg-sunken px-1.5 py-0.5 text-[10px] text-ink-6">
+                    {item.category}
+                  </span>
+                  {item.attempts > 0 && (
+                    <span className="font-mono text-[10px] text-ink-4">×{item.attempts}</span>
+                  )}
+                </div>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="min-w-0 space-y-3">
+      <div className="flex min-h-0 flex-col gap-3">
         {error && (
           <div className="rounded-card border border-ng bg-ng-soft px-3 py-2 text-xs text-ng">
             {error}
@@ -432,16 +331,19 @@ export default function VisionBank() {
         )}
 
         {!detail && !error && (
-          <div className="rounded-panel border border-ink-1 bg-surface p-6 text-xs leading-relaxed text-ink-4">
+          <div className="rounded-panel border border-ink-1 bg-surface p-5 text-xs leading-relaxed text-ink-4">
             <p>{currentRole?.description ?? '从左边选一道题开始。'}</p>
             <p className="mt-2">
               建议的用法：先自己把答案说一遍（或写下来），再点「看答案」对照要点。
+            </p>
+            <p className="mt-2">
+              想往题库里加题（导入文档、让模型出题）去「训练」页——那里管积累，这里管查阅。
             </p>
           </div>
         )}
 
         {detail && (
-          <>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             <div className="rounded-panel border border-ink-1 bg-surface p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-control bg-ink-9 px-1.5 py-0.5 text-[10px] text-surface">
@@ -451,7 +353,7 @@ export default function VisionBank() {
                   {detail.category}
                 </span>
                 <span
-                  className={`rounded-control px-1.5 py-0.5 text-[10px] ${
+                  className={`rounded-control px-1.5 py-0.5 font-mono text-[10px] ${
                     DIFFICULTY_STYLES[detail.difficulty] ?? 'bg-sunken text-ink-6'
                   }`}
                 >
@@ -459,7 +361,7 @@ export default function VisionBank() {
                 </span>
                 {detail.attempts > 0 && (
                   <span className="text-[10px] text-ink-4">
-                    自测 {detail.attempts} 次
+                    自测 <span className="font-mono">{detail.attempts}</span> 次
                     {detail.last_rating && `，最近：${RATING_LABELS[detail.last_rating] ?? ''}`}
                   </span>
                 )}
@@ -477,7 +379,7 @@ export default function VisionBank() {
                   <button
                     type="button"
                     onClick={() => setRevealed(true)}
-                    className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface"
+                    className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface transition-opacity hover:opacity-90"
                   >
                     看答案
                   </button>
@@ -488,7 +390,7 @@ export default function VisionBank() {
             {revealed && (
               <>
                 <div className="rounded-panel border border-ink-1 bg-surface p-4">
-                  <h4 className="text-xs font-semibold text-ink-6">答题要点（对照这个自评）</h4>
+                  <h4 className="text-xs font-medium text-ink-6">答题要点（对照这个自评）</h4>
                   <ol className="mt-2 space-y-1.5">
                     {detail.points.map((point, index) => (
                       <li key={index} className="flex gap-2 text-xs leading-relaxed text-ink-7">
@@ -502,13 +404,13 @@ export default function VisionBank() {
                 </div>
 
                 <div className="rounded-panel border border-ink-1 bg-surface p-4">
-                  <h4 className="mb-3 text-xs font-semibold text-ink-6">参考答案</h4>
+                  <h4 className="mb-3 text-xs font-medium text-ink-6">参考答案</h4>
                   <Markdown text={detail.answer} />
                 </div>
 
                 {detail.followups.length > 0 && (
                   <div className="rounded-panel border border-ink-1 bg-surface p-4">
-                    <h4 className="text-xs font-semibold text-ink-6">面试官大概率会追问</h4>
+                    <h4 className="text-xs font-medium text-ink-6">面试官大概率会追问</h4>
                     <p className="mt-1 text-[11px] text-ink-4">
                       答对主问题只是入场券，追问才是分水岭。
                     </p>
@@ -521,8 +423,8 @@ export default function VisionBank() {
                 )}
 
                 {detail.pitfalls.length > 0 && (
-                  <div className="rounded-panel border border-warn bg-warn-soft/60 p-4">
-                    <h4 className="text-xs font-semibold text-warn">常见错误回答</h4>
+                  <div className="rounded-panel border border-warn bg-warn-soft p-4">
+                    <h4 className="text-xs font-medium text-warn">常见错误回答</h4>
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-warn">
                       {detail.pitfalls.map((item, index) => (
                         <li key={index}>{item}</li>
@@ -532,7 +434,7 @@ export default function VisionBank() {
                 )}
 
                 <div className="rounded-panel border border-ink-1 bg-surface p-4">
-                  <h4 className="text-xs font-semibold text-ink-6">自评</h4>
+                  <h4 className="text-xs font-medium text-ink-6">自评</h4>
                   <p className="mt-1 text-[11px] text-ink-4">
                     按上面的要点看：说到了几条？能不能展开讲？
                   </p>
@@ -559,7 +461,7 @@ export default function VisionBank() {
                 </div>
               </>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

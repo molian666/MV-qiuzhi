@@ -54,6 +54,12 @@ class VisionGenerateIn(BaseModel):
     batch: str | None = None
     """append / replace 时必填"""
     note: str = Field(default="", max_length=500)
+
+
+class VisionAdoptIn(BaseModel):
+    """按题采纳草稿。整批采纳走 `POST /drafts/{batch}/adopt`，这里只针对选中的题。"""
+
+    question_ids: list[int] = Field(min_length=1, max_length=200)
     """补充要求，如「多出一些打光相关的」"""
 
 

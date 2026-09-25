@@ -19,6 +19,7 @@ from sqlmodel import Session
 from ..deps import get_llm, get_session
 from ..providers.llm.base import LLMClient
 from ..schemas.vision import (
+    VisionAdoptIn,
     VisionAttemptIn,
     VisionAttemptOut,
     VisionDraftOut,
@@ -34,6 +35,7 @@ from ..vision.import_doc import decode_bytes, parse_document
 from ..vision_service import (
     VisionError,
     adopt_draft,
+    adopt_questions,
     delete_upload,
     discard_draft,
     generate_draft,
@@ -192,6 +194,16 @@ def adopt_draft_route(batch: str, db: Session = Depends(get_session)) -> dict[st
     except VisionError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"adopted": adopted}
+
+
+@router.post("/questions/adopt", summary="按题采纳草稿（只采纳选中的几道）")
+def adopt_questions_route(payload: VisionAdoptIn, db: Session = Depends(get_session)) -> dict[str, int]:
+    """生成一批 5 道、只满意 2 道时用这个。
+
+    只对「模型生成 + 仍是草稿」的题生效：不是草稿的会被忽略（已经采纳过的不重复计数），
+    非生成来源的题一律不动——这个接口不该能改动已有的题。
+    """
+    return {"adopted": adopt_questions(db, payload.question_ids)}
 
 
 @router.delete("/drafts/{batch}", summary="丢弃这批草稿")

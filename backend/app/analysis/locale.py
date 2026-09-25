@@ -108,7 +108,6 @@ TOPIC_LABELS_EN: dict[str, str] = {
     "tech": "Technical details",
     "behavior": "Behavioral",
     "algorithm": "Algorithms",
-    "design": "System design",
     "scenario": "Scenario",
     "salary": "Compensation",
     "reverse": "Your questions",

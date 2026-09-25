@@ -145,10 +145,15 @@ export default function System() {
   const hasChanges = Object.keys(draft).length > 0
 
   return (
-    <div className="space-y-4">
-      {error && <p className="rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>}
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      {error && (
+        <p className="shrink-0 rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>
+      )}
 
-      <section className="rounded-panel border border-ink-1 bg-surface p-4">
+      {/* 左右分栏：模型与密钥是"要填的东西"，提供方状态与用量是"看的东西"。
+          竖着堆会一屏放不下，而这两类内容本来就不必抢同一块纵向空间。 */}
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+        <section className="min-h-0 overflow-y-auto rounded-panel border border-ink-1 bg-surface p-4 xl:pr-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-ink-9">模型与密钥</h2>
           {providers?.llm && (
@@ -227,8 +232,10 @@ export default function System() {
         )}
       </section>
 
-      <section className="rounded-panel border border-ink-1 bg-surface p-4">
-        <h2 className="mb-3 text-base font-semibold text-ink-9">提供方</h2>
+        {/* 右栏：看的两块。各自不长，合起来滚动一次就够 */}
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h2 className="mb-3 text-base font-semibold text-ink-9">提供方</h2>
         {!providers ? (
           <p className="text-sm text-ink-6">加载中…</p>
         ) : (
@@ -314,8 +321,9 @@ export default function System() {
                       <td className="px-3 py-2 text-right font-mono text-ink-6">
                         {item.completion_tokens}
                       </td>
-                      <td className="px-3 py-2 text-ink-6">{item.completion_tokens}</td>
-                      <td className="px-3 py-2 text-ink-6">{item.avg_latency_ms} ms</td>
+                      <td className="px-3 py-2 text-right font-mono text-ink-6">
+                        {item.avg_latency_ms} ms
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -323,7 +331,9 @@ export default function System() {
             </div>
           </>
         )}
-      </section>
+          </section>
+        </div>
+      </div>
     </div>
   )
 }

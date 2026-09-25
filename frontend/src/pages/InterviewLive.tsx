@@ -24,9 +24,11 @@ function errorMessage(error: unknown): string {
 
 interface Props {
   onOpenReport?: (sessionId: number) => void
+  /** 上报"是否有一场进行中的面试"，供面试间容器决定能不能切换模式 */
+  onSessionChange?: (active: boolean) => void
 }
 
-export default function InterviewLive({ onOpenReport }: Props) {
+export default function InterviewLive({ onOpenReport, onSessionChange }: Props) {
   const [targets, setTargets] = useState<JobTarget[]>([])
   const [resumes, setResumes] = useState<ResumeItem[]>([])
   const [profiles, setProfiles] = useState<ProfileListItem[]>([])
@@ -69,12 +71,16 @@ export default function InterviewLive({ onOpenReport }: Props) {
     void refreshOptions()
   }, [refreshOptions])
 
+  // 上报会话状态：面试间容器据此决定能否切换文字/语音模式
+  useEffect(() => {
+    onSessionChange?.(session !== null)
+  }, [session, onSessionChange])
+
   useEffect(() => {
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: 'smooth' })
   }, [session])
 
   const isLive = session?.status === 'live'
-  const maxQ = session?.plan.max_questions ?? maxQuestions
 
   const currentInterviewer = session
     ? interviewerOf(session.turns.filter((turn) => turn.speaker === 'interviewer').slice(-1)[0]?.meta)
@@ -209,17 +215,9 @@ export default function InterviewLive({ onOpenReport }: Props) {
     'w-full rounded-card border border-ink-2 px-3 py-2 text-sm outline-none focus:border-info disabled:bg-paper'
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="flex min-h-[70vh] flex-col rounded-panel border border-ink-1 bg-surface">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-1 px-4 py-3">
-          <div>
-            <h2 className="text-base font-semibold text-ink-9">面试间（文字模式）</h2>
-            <p className="text-xs text-ink-6">
-              {session
-                ? `${session.target_label || '未指定岗位'} · 已问 ${session.question_count}/${maxQ} 题`
-                : '在右侧选好岗位与简历，然后开始'}
-            </p>
-          </div>
+    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="flex h-full min-h-0 flex-col rounded-panel border border-ink-1 bg-surface">
+        <header className="flex flex-wrap items-center justify-end gap-3 border-b border-ink-1 px-4 py-2.5">
           <div className="flex items-center gap-2">
             {session && (
               <span className="rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-6">
@@ -340,7 +338,7 @@ export default function InterviewLive({ onOpenReport }: Props) {
         </footer>
       </section>
 
-      <aside className="space-y-4">
+      <aside className="min-h-0 space-y-4 overflow-y-auto pr-1">
         <div className="rounded-panel border border-ink-1 bg-surface p-4">
           <h3 className="mb-3 text-sm font-semibold text-ink-9">本场配置</h3>
 

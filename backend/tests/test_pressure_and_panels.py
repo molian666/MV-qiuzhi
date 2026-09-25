@@ -11,6 +11,8 @@ import pytest
 from app.analysis.interviewer_styles import (
     STYLE_ORDER,
     STYLES,
+    TOPIC_KEY_LABELS,
+    TOPIC_KEYS,
     normalize_mix,
     resolve_style,
     style_options,
@@ -151,10 +153,19 @@ def test_resolve_style_falls_back_instead_of_failing() -> None:
 
 
 def test_normalize_mix_drops_unknown_and_sums_to_one() -> None:
-    mix = normalize_mix({"tech": 3, "design": 1, "not_a_topic": 5})
-    assert set(mix) == {"tech", "design"}
+    mix = normalize_mix({"tech": 3, "scenario": 1, "not_a_topic": 5})
+    assert set(mix) == {"tech", "scenario"}
     assert sum(mix.values()) == pytest.approx(1.0)
     assert normalize_mix({}) == {}
+
+
+def test_design_is_no_longer_a_question_type() -> None:
+    """系统设计题型已随白板一起移除：配比里给了也不该生效。"""
+    assert "design" not in TOPIC_KEYS
+    assert "design" not in TOPIC_KEY_LABELS
+    assert normalize_mix({"tech": 1, "design": 1}) == {"tech": pytest.approx(1.0)}
+    for style in STYLES.values():
+        assert "design" not in style.question_mix, style.key
 
 
 def test_style_prompt_block_carries_actionable_rules() -> None:
@@ -292,8 +303,8 @@ def test_locale_prompt_block_switches_language() -> None:
 def test_dimension_and_topic_labels_follow_locale() -> None:
     assert dimension_label("depth", "en") == "Technical Depth"
     assert dimension_label("depth", "zh", fallback="技术深度与正确性") == "技术深度与正确性"
-    assert topic_label("design", "en") == "System design"
-    assert topic_label("design", "zh", fallback="系统设计") == "系统设计"
+    assert topic_label("scenario", "en") == "Scenario"
+    assert topic_label("scenario", "zh", fallback="场景题") == "场景题"
 
 
 def test_locale_options_cover_all_supported() -> None:

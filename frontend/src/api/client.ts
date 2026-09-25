@@ -15,10 +15,6 @@ import type {
   ApplyStatus,
   AtsIssue,
   AuthStatus,
-  DesignAttempt,
-  DesignAttemptIn,
-  DesignQuestion,
-  DesignQuestionBrief,
   ContractReport,
   ExportPreview,
   LoginResult,
@@ -144,8 +140,6 @@ export const api = {
 
   // 删除（M13 补充）：会话会连带回合、作答、报告与录音文件
   deleteSession: (sessionId: number) => request<void>(`/sessions/${sessionId}`, { method: 'DELETE' }),
-  deleteDesignAttempt: (attemptId: number) =>
-    request<void>(`/design/attempts/${attemptId}`, { method: 'DELETE' }),
 
   // 登录（部署到云服务器时启用；服务端没配 AUTH_PASSWORD 时 auth_enabled=false）
   authStatus: () => request<AuthStatus>('/auth/status'),
@@ -209,21 +203,17 @@ export const api = {
     request<{ adopted: number }>(`/vision/drafts/${encodeURIComponent(batch)}/adopt`, {
       method: 'POST',
     }),
+  /** 按题采纳：只把选中的这几道草稿放进抽题池。已采纳的会被忽略，不重复计数。 */
+  visionAdoptQuestions: (questionIds: number[]) =>
+    request<{ adopted: number }>('/vision/questions/adopt', {
+      method: 'POST',
+      body: JSON.stringify({ question_ids: questionIds }),
+    }),
   visionDiscardDraft: (batch: string) =>
     request<{ removed: number }>(`/vision/drafts/${encodeURIComponent(batch)}`, {
       method: 'DELETE',
     }),
 
-  // 系统设计白板（M13）
-  designQuestions: () => request<DesignQuestionBrief[]>('/design/questions'),
-  designQuestion: (slug: string) => request<DesignQuestion>(`/design/questions/${encodeURIComponent(slug)}`),
-  submitDesignAttempt: (payload: DesignAttemptIn) =>
-    request<DesignAttempt>('/design/attempts', { method: 'POST', body: JSON.stringify(payload) }),
-  designAttempts: (slug?: string) =>
-    request<DesignAttempt[]>(
-      slug ? `/design/attempts?slug=${encodeURIComponent(slug)}` : '/design/attempts',
-    ),
-  designAttempt: (attemptId: number) => request<DesignAttempt>(`/design/attempts/${attemptId}`),
 
   listTargets: () => request<JobTarget[]>('/targets'),
   createTarget: (payload: CreateTargetPayload) =>
