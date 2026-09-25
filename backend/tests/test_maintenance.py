@@ -238,6 +238,7 @@ def test_new_llm_keys_win_over_legacy_but_legacy_still_works() -> None:
 
     # 只有旧键：按旧键生效
     legacy = Settings(
+        _env_file=None,
         llm_provider="deepseek",
         deepseek_api_key="sk-legacy",
         deepseek_base_url="https://api.deepseek.com",
@@ -249,6 +250,7 @@ def test_new_llm_keys_win_over_legacy_but_legacy_still_works() -> None:
 
     # 新旧都填：新的说了算
     both = Settings(
+        _env_file=None,
         llm_provider="openai",
         llm_api_key="sk-new",
         llm_base_url="https://api.siliconflow.cn/v1",
@@ -267,6 +269,7 @@ def test_reasoner_model_falls_back_to_chat_model() -> None:
     from app.config import Settings
 
     settings = Settings(
+        _env_file=None,
         llm_provider="openai",
         llm_api_key="sk-x",
         llm_base_url="http://localhost:11434/v1",
@@ -286,6 +289,7 @@ def test_new_keys_do_not_fall_back_to_deepseek_defaults() -> None:
     from app.config import Settings
 
     partial = Settings(
+        _env_file=None,
         llm_provider="openai",
         llm_api_key="sk-siliconflow",
         llm_chat_model="Qwen/Qwen3-32B",
@@ -294,7 +298,7 @@ def test_new_keys_do_not_fall_back_to_deepseek_defaults() -> None:
     assert partial.resolved_llm_reasoner_model == "Qwen/Qwen3-32B"
 
     # 老 .env（一个 LLM_* 都没填）仍然按旧的两档分工生效
-    legacy = Settings(llm_provider="deepseek", deepseek_api_key="sk-legacy")
+    legacy = Settings(_env_file=None, llm_provider="deepseek", deepseek_api_key="sk-legacy")
     assert legacy.resolved_llm_base_url == "https://api.deepseek.com"
     assert legacy.resolved_llm_reasoner_model == "deepseek-reasoner"
 
@@ -308,6 +312,7 @@ def test_build_llm_client_uses_configured_platform(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(
         "app.deps.get_settings",
         lambda: Settings(
+            _env_file=None,  # 不读用户的 .env：这条只验"给我这些参数会建出什么客户端"
             llm_provider="openai",
             llm_api_key="sk-x",
             llm_base_url="https://api.moonshot.cn/v1",

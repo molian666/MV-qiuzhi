@@ -40,6 +40,11 @@ BUILTIN_SOURCE = "builtin:vision"
 #: 这样「是否添加到提问的题库」就等价于「是否采纳」，语义直接对应得上。
 DRAFT_TAG = "草稿"
 
+#: tags 那一列存了三类信息，靠前缀区分（见 `_row_to_brief`）：
+#: 「上传:文件名」是来源、「标记:高频」是题目性质、其余的当分类。
+#: 前缀不是装饰——没有它，一道"有标记但没分类"的题会被显示成分类是「高频」。
+_TAG_MARK_PREFIX = "标记:"
+
 #: 模型出题时带上多少条已有题干（防止重复出题）。太多会把 prompt 撑爆，
 #: 太少又挡不住重复——60 条是个折中。
 EXISTING_HINT_LIMIT = 60
@@ -140,6 +145,12 @@ def import_questions(
         tags = [f"上传:{filename}"]
         if item.category:
             tags.append(item.category)
+        # 题目自带的标记（「高频」「易错」）也存下来——面试官反复问的题值得单独筛。
+        # 加前缀，免得它被当成分类
+        for tag in item.tags:
+            marked = f"{_TAG_MARK_PREFIX}{tag}"
+            if marked not in tags:
+                tags.append(marked)
         db.add(
             QuestionBank(
                 text=item.text,
@@ -586,9 +597,14 @@ def _attempt_stats(db: Session) -> dict[int, dict[str, object]]:
 def _row_to_brief(row: QuestionBank, stats: dict[int, dict[str, object]]) -> dict[str, object]:
     entry = stats.get(row.id or -1, {})
     role = row.type or "development"
-    # 上传的题把来源文件名也记在 tags 里（用来回答「这批来自哪个文件」），
-    # 那不是分类，取分类时要跳过——否则分类会显示成「上传:面经.md」
-    categories = [tag for tag in (row.tags or []) if not tag.startswith("上传:")]
+    # tags 一列存了三类东西，靠前缀区分：
+    #   「上传:文件名」= 来源批次（用来回答"这批来自哪个文件"）
+    #   「标记:高频」  = 题目性质（文档自带的标注）
+    #   其余          = 分类
+    # 分类必须能可靠地取到——不加前缀的话，一道"有标记但没分类"的题
+    # 会被显示成分类是「高频」。
+    tags = [tag for tag in (row.tags or []) if not tag.startswith("上传:")]
+    categories = [tag for tag in tags if not tag.startswith(_TAG_MARK_PREFIX)]
     return {
         "id": row.id or 0,
         "text": row.text,
@@ -596,6 +612,7 @@ def _row_to_brief(row: QuestionBank, stats: dict[int, dict[str, object]]) -> dic
         "role_label": ROLE_LABELS.get(role, role),
         "category": categories[0] if categories else "未分类",
         "difficulty": row.difficulty,
+        "tags": [tag.removeprefix(_TAG_MARK_PREFIX) for tag in tags],
         "attempts": int(entry.get("attempts", 0)),
         "last_rating": str(entry.get("last", "")),
     }

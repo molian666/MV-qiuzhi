@@ -273,6 +273,53 @@ MD_DOC = """# 相机与传感器
 - 运动物体要用全局快门
 """
 
+#: 整理好的面经文档：分章节 + `**Qn**` 加粗题干 + `出处：` 标注。
+#: 三种题干形态都要覆盖，因为真实文档里它们分别是 89 / 50 / 15 / 9 条——
+#: 只认"标准形态"会漏掉一大半。
+SECTIONED_DOC = """# 面试题整理
+
+> 素材来源：某公司几场技术面。
+
+## 目录
+
+| 章节 | 内容 |
+|---|---|
+| 第一部分 | 相机 |
+
+## 高频与易错速览
+
+**常问（几乎每场都要准备）**
+
+| 类别 | 必问内容 |
+|---|---|
+| 视觉 | 相机选型 |
+
+## 第一部分：相机与图像基础
+
+**Q1【高频·易错】（相机选型）像素当量是什么？怎么算？**
+
+像素当量就是单个像素代表的实际物理尺寸，等于视野尺寸除以该方向的像素数。
+工程上更准的做法是用标定后的实测值反算。
+
+出处：甲公司、乙公司
+
+**Q2【高频】：面阵相机与线阵相机有什么区别？**
+
+面阵一次拍下整个视野，适合中小视野的定位与尺寸测量；
+线阵逐行扫描，要配合编码器和运动平台拼接成图。
+
+出处：丙公司
+
+**Q3：图像整体偏暗，从哪些参数入手调亮？**
+
+先加曝光时间，再开大光圈，然后才用增益，最后才动光源亮度。
+注意帧率与亮度无关。
+
+## 附录：场次索引
+
+- 甲公司：2026-03
+"""
+
 
 def test_parse_json_imports_all_fields() -> None:
     result = parse_document("bank.json", JSON_DOC)
@@ -306,6 +353,50 @@ def test_parse_markdown_finds_question_answer_and_category() -> None:
     assert "安全系数要留够" in question.points
     # 规则推断出来的结果必须带提醒，不能让人以为它是准的
     assert any("规则推断" in warning for warning in result.warnings)
+
+
+def test_parse_sectioned_bank_precisely() -> None:
+    """★ 整理好的面经能精确切开：题干、分类、标签、出处都不靠猜。
+
+    这类文档在真实使用里很常见（把几场面试的录音整理成一份），
+    而"段落以问号结尾"那条通用规则对 `**Q1…？**` 一道都认不出来。
+    """
+    result = parse_document("真实面试题整理.md", SECTIONED_DOC)
+
+    assert result.source_format == "markdown-面经"
+    assert len(result.questions) == 3, [q.text for q in result.questions]
+    q1, q2, q3 = result.questions
+
+    # 三种题干形态都要认出来：带标记带子标签 / 只带标记 / 只有 Q+冒号
+    assert q1.text == "像素当量是什么？怎么算？"
+    assert q2.text == "面阵相机与线阵相机有什么区别？"
+    assert q3.text == "图像整体偏暗，从哪些参数入手调亮？"
+
+    # 「第X部分：」前缀剥掉；「（相机选型）」是更细一层的分类
+    assert q1.category == "相机与图像基础 / 相机选型"
+    assert q2.category == "相机与图像基础"
+    assert q3.category == "相机与图像基础"
+
+    # 【高频·易错】拆成两个标签：问 "哪些是高频题" 时能筛
+    assert q1.tags == ["高频", "易错"]
+    assert q2.tags == ["高频"]
+    assert q3.tags == []
+
+    # 出处是元信息：附在末尾，不混进正文里读；但也不丢
+    assert q1.answer.endswith("出处：甲公司、乙公司")
+    assert "单个像素代表的实际物理尺寸" in q1.answer
+
+    # 「目录」「速览」「附录」里没有题干，因此自然不产出题目——
+    # 不需要维护一张"要跳过哪些标题"的清单
+    assert all("速览" not in q.category and "附录" not in q.category for q in result.questions)
+
+
+def test_sectioned_needs_enough_questions_else_falls_back() -> None:
+    """只有一两道题的自由格式文档不该被当成结构化面经。"""
+    loose = "**Q1：什么是像素当量？**\n\n单个像素代表的实际物理尺寸，视野除以像素数。\n"
+    result = parse_document("随手记.md", loose)
+
+    assert result.source_format == "text", "认不出结构就该退回通用规则"
 
 
 def test_decode_gbk_document() -> None:
@@ -351,6 +442,27 @@ def test_import_adds_questions_to_bank(client: TestClient) -> None:
 
     sources = {item["key"]: item["count"] for item in client.get("/api/vision/meta").json()["sources"]}
     assert sources["uploaded"] == 1
+
+
+def test_import_sectioned_bank_keeps_marks_as_tags(client: TestClient) -> None:
+    """★ 面经里的「高频」「易错」标记要跟着进库，才能筛出"必问题"。"""
+    info = upload(client, filename="真实面试题整理.md", content=SECTIONED_DOC)
+    assert info["added"] == 3
+
+    items = client.get("/api/vision/questions", params={"role": "uploaded"}).json()
+    by_text = {item["text"]: item for item in items}
+    hot = by_text["像素当量是什么？怎么算？"]
+
+    # 分类落到了更细的一层
+    assert "相机选型" in hot["category"]
+    assert "高频" in hot["tags"] and "易错" in hot["tags"]
+    # 没标记的那道不该被硬塞「高频」「易错」（它仍有分类标签，那是应该的）
+    plain = by_text["图像整体偏暗，从哪些参数入手调亮？"]
+    assert "高频" not in plain["tags"] and "易错" not in plain["tags"]
+    assert plain["category"] == "相机与图像基础"
+
+    detail = client.get(f"/api/vision/questions/{hot['id']}").json()
+    assert "出处：甲公司、乙公司" in detail["answer"]
 
 
 def test_import_is_idempotent_by_question_text(client: TestClient) -> None:

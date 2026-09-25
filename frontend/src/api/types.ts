@@ -416,6 +416,8 @@ export interface VisionQuestionBrief {
   role_label: string
   category: string
   difficulty: number
+  /** 全部标签：含来源批次、分类，以及文档自带的标记（「高频」「易错」） */
+  tags: string[]
   attempts: number
   last_rating: string
 }

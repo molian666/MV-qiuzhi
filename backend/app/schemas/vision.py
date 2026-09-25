@@ -109,6 +109,9 @@ class VisionQuestionBriefOut(BaseModel):
     role_label: str
     category: str
     difficulty: int
+    tags: list[str] = Field(default_factory=list)
+    """题目标签：来源批次、「上传:文件名」、分类，以及文档自带的标记
+    （「高频」「易错」）。界面上据此显示这题是什么性质，也方便只练高频题。"""
     attempts: int
     """自测过几次"""
     last_rating: str

@@ -420,8 +420,13 @@ export default function Training() {
           <div className="rounded-card border border-ink-1 bg-surface p-3">
             <h4 className="text-xs font-medium text-ink-7">导入自己的题库</h4>
             <p className="mt-1 text-[10px] leading-relaxed text-ink-4">
-              JSON / CSV 最可靠；Markdown、TXT 靠「问题以问号结尾」推断，导入后请核对。
-              导入的题直接进题库，可去「面试题题库」查阅。
+              <strong className="font-medium text-ink-6">整理好的面经</strong>（分章节 +
+              加粗题干 <code className="rounded-control bg-sunken px-0.5">**Q1：问题？**</code>）会被精确解析：
+              章节变分类，<code className="rounded-control bg-sunken px-0.5">【高频】</code>
+              <code className="rounded-control bg-sunken px-0.5">【易错】</code> 变标签，
+              <code className="rounded-control bg-sunken px-0.5">出处：</code> 保留在答案末尾。
+              JSON / CSV 同样可靠；自由格式的 Markdown 与 TXT 靠「问题以问号结尾」推断，
+              导入后请核对。导入的题直接进题库，去「面试题题库」查阅。
             </p>
             <input
               type="file"

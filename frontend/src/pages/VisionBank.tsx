@@ -313,6 +313,25 @@ export default function VisionBank() {
                   <span className="rounded-control bg-sunken px-1.5 py-0.5 text-[10px] text-ink-6">
                     {item.category}
                   </span>
+                  {/* 只显示"性质"标签：「高频」「易错」这类来自文档标注的信息。
+                      分类已经单独显示了，重复一遍没有意义。 */}
+                  {item.tags
+                    .filter((tag) => tag !== item.category)
+                    .map((tag) => (
+                      <span
+                        key={tag}
+                        className={
+                          tag === '高频'
+                            ? 'rounded-control bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn'
+                            : tag === '易错'
+                              ? 'rounded-control bg-ng-soft px-1.5 py-0.5 text-[10px] text-ng'
+                              : 'rounded-control border border-ink-1 px-1.5 py-0.5 text-[10px] text-ink-4'
+                        }
+                        title={tag === '高频' ? '多场面试反复问到' : tag === '易错' ? '录音里有人答错或被追问' : ''}
+                      >
+                        {tag}
+                      </span>
+                    ))}
                   {item.attempts > 0 && (
                     <span className="font-mono text-[10px] text-ink-4">×{item.attempts}</span>
                   )}

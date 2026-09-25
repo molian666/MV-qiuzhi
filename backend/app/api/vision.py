@@ -91,7 +91,7 @@ def read_question(question_id: int, db: Session = Depends(get_session)) -> Visio
 @router.post(
     "/import",
     response_model=VisionImportOut,
-    summary="上传题库文档（JSON / CSV / Markdown / TXT）",
+    summary="上传题库文档（JSON / CSV / 面经 Markdown / TXT）",
 )
 async def import_document(
     file: UploadFile = File(...),

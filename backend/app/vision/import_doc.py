@@ -1,12 +1,15 @@
 """导入外部题库文档（M13）。
 
-支持三种输入，**可靠性依次下降**——这一点要在界面上如实告诉用户，
+支持四种输入，**可靠性依次下降**——这一点要在界面上如实告诉用户，
 否则他们会以为随便一个 PDF 粘进来就能用：
 
 1. **JSON**（最可靠）：`[{"question": "...", "answer": "...", "points": [...]}]`
 2. **CSV**（可靠）：表头 `question,answer,points,category,difficulty`，
    多个要点用 `|` 分隔
-3. **Markdown / 纯文本**（靠规则猜）：把「以问号结尾的段落」当题目，
+3. **整理好的面经 Markdown**（可靠）：分章节 + `**Q1【高频】：问题？**` 加粗题干，
+   见 `_parse_sectioned`。章节变成分类，`【高频】` 这类标注变成标签，
+   `出处：` 保留在答案末尾。这是"把几场面试录音整理成一份"最常见的写法
+4. **自由格式 Markdown / 纯文本**（靠规则猜）：把「以问号结尾的段落」当题目，
    紧随其后的段落当答案
 
 **为什么不用模型来抽题**：那需要 API Key，无 Key 时（Mock 模式）整条链路就断了，
@@ -46,6 +49,9 @@ class ImportedQuestion:
     points: list[str] = field(default_factory=list)
     category: str = ""
     difficulty: int = 3
+    tags: list[str] = field(default_factory=list)
+    """题目本身的标签（如「高频」「易错」）。与 `category` 不同：
+    分类讲的是"属于哪个方向"，标签讲的是"这题什么性质"。"""
     followups: list[str] = field(default_factory=list)
     """面试官会追问什么。导入的文档里通常没有，模型生成时会有。"""
     pitfalls: list[str] = field(default_factory=list)
@@ -72,7 +78,12 @@ def decode_bytes(raw: bytes) -> tuple[str, str]:
 
 
 def parse_document(filename: str, content: str) -> ImportResult:
-    """按文件名后缀与内容特征选择解析方式。"""
+    """按文件名后缀与内容特征选择解析方式。
+
+    顺序是有讲究的：**先认出结构，认不出才退回猜**。整理过的面经文档
+    （分章节 + `**Qn**` 加粗题干，见 `_parse_sectioned`）能精确切成题，
+    就不该让它走"段落以问号结尾"那条会切错的猜测路径。
+    """
     suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     stripped = content.lstrip()
 
@@ -80,6 +91,13 @@ def parse_document(filename: str, content: str) -> ImportResult:
         return _parse_json(content)
     if suffix == "csv" or _looks_like_csv(content):
         return _parse_csv(content)
+
+    # 结构化的面经文档：识别到足够多的题干就用精确解析
+    if suffix in {"md", "markdown"} or _HEADING_QUESTION.search(content):
+        structured = _parse_sectioned(content)
+        if len(structured.questions) >= _MIN_SECTIONED_QUESTIONS:
+            return structured
+
     return _parse_text(content)
 
 
@@ -158,7 +176,141 @@ def _parse_csv(content: str) -> ImportResult:
 
 
 # --------------------------------------------------------------------------- #
-# Markdown / 纯文本
+# 结构化面经（Markdown）：分章节 + **Qn** 加粗题干
+# --------------------------------------------------------------------------- #
+#: 题干行：`**Q12【高频·易错】（相机选型）问题文本？**`
+#:
+#: 三段后缀**都必须可选**——一份真实的整理文档里，163 道题是这样分布的：
+#: 有标记有子标签 50、有标记无子标签 89、无标记有子标签 15、只有 Q+冒号 9。
+#: 按"标准形态"写死会让一大半题漏掉。
+_HEADING_QUESTION = re.compile(
+    r"^\*\*\s*Q(?P<num>\d+)\s*"
+    r"(?:【(?P<marks>[^】]*)】)?\s*"
+    r"(?:[（(](?P<sub>[^）)]*)[）)])?\s*"
+    r"[:：]?\s*"
+    r"(?P<text>.+?)\s*\*\*\s*$",
+    re.MULTILINE,
+)
+
+#: 章节标题。「第X部分：」这类编号前缀要剥掉，剩下的才是能用的分类名
+_HEADING_SECTION = re.compile(r"^#{2,4}\s+(?P<title>.+?)\s*$", re.MULTILINE)
+_PART_PREFIX = re.compile(r"^第[一二三四五六七八九十百零\d]+\s*部分\s*[:：]\s*")
+
+#: 来源标注行。它是这道题的出处，有回溯价值，不丢
+_SOURCE_LINE = re.compile(r"^出处\s*[:：]\s*(?P<value>.+?)\s*$")
+
+#: 标记内部的分隔符：「高频·易错」要拆成两个标签
+_MARK_SEPARATORS = re.compile(r"[·、,，/\s]+")
+
+#: 识别到这么多道题才认为"这确实是结构化面经"，否则退回通用规则
+_MIN_SECTIONED_QUESTIONS = 3
+
+
+def _parse_sectioned(content: str) -> ImportResult:
+    """解析整理过的面经文档。
+
+    这类文档的结构是**确定的**（章节标题、`**Qn**` 加粗题干、`出处：` 标注），
+    所以能精确切开；通用规则靠"段落以问号结尾"去猜，遇到 `**Q1…？**`
+    这种"问号后面还有星号"的写法会一道都认不出来。
+
+    章节里没有题干就不产出题目——文档开头的「目录」「速览」这些章节
+    因此自然被跳过，不需要维护一张要跳过的标题清单。
+    """
+    questions: list[ImportedQuestion] = []
+    category = ""
+    pending: dict[str, object] | None = None
+
+    def flush() -> None:
+        nonlocal pending
+        if pending is None:
+            return
+        answer = _answer_with_source(pending["lines"])  # type: ignore[arg-type]
+        sub = str(pending["sub"] or "")
+        if sub and category:
+            full_category = f"{category} / {sub}"
+        else:
+            full_category = sub or category
+        questions.append(
+            ImportedQuestion(
+                text=str(pending["text"]),
+                answer=answer,
+                points=_split_points_from_answer(answer),
+                category=full_category,
+                tags=_mark_tags(str(pending["marks"] or "")),
+            )
+        )
+        pending = None
+
+    for line in content.splitlines():
+        heading = _HEADING_QUESTION.match(line)
+        if heading:
+            flush()
+            pending = {
+                "text": heading.group("text").strip(),
+                "marks": heading.group("marks"),
+                "sub": heading.group("sub"),
+                "lines": [],
+            }
+            continue
+
+        section = _HEADING_SECTION.match(line)
+        if section:
+            flush()
+            category = _PART_PREFIX.sub("", section.group("title")).strip()[:40]
+            continue
+
+        if pending is not None:
+            pending["lines"].append(line)  # type: ignore[union-attr]
+
+    flush()
+
+    warnings: list[str] = []
+    # 题干可能跨行导致漏切。宁可少报也不要漏报——把差额说出来
+    raw_heads = len(re.findall(r"^\s*\*\*Q\d", content, re.MULTILINE))
+    if raw_heads > len(questions):
+        warnings.append(
+            f"文档里有 {raw_heads} 行以 **Q 开头，只识别出 {len(questions)} 道——"
+            "可能有题干写了多行或没加粗，请核对。"
+        )
+    if questions:
+        warnings.append(
+            f"按整理好的面经格式解析：识别出 {len(questions)} 道题。"
+            "章节变成分类，「高频」「易错」这类标记变成标签。"
+        )
+    return ImportResult(questions, "markdown-面经", 0, warnings)
+
+
+def _mark_tags(raw: str) -> list[str]:
+    """「高频·易错」→ ['高频', '易错']。"""
+    if not raw:
+        return []
+    return [item for item in _MARK_SEPARATORS.split(raw) if item]
+
+
+def _answer_with_source(lines: list[str]) -> str:
+    """把正文当答案，`出处：` 行抽出来附在末尾。
+
+    出处是"这题从哪场面试整理来的"，有回溯价值，所以不丢；
+    但它是**元信息**不是答案内容，所以单列一段，不混进正文里读。
+    """
+    body: list[str] = []
+    sources: list[str] = []
+    for line in lines:
+        matched = _SOURCE_LINE.match(line.strip())
+        if matched:
+            sources.append(matched.group("value"))
+        else:
+            body.append(line)
+
+    answer = "\n".join(body).strip()
+    if sources:
+        note = "出处：" + "、".join(sources)
+        answer = f"{answer}\n\n{note}" if answer else note
+    return answer
+
+
+# --------------------------------------------------------------------------- #
+# Markdown / 纯文本（自由格式，靠规则猜）
 # --------------------------------------------------------------------------- #
 _QUESTION_MARK = re.compile(r"[？?]\s*$")
 
