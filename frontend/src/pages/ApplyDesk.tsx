@@ -218,7 +218,7 @@ export default function ApplyDesk() {
   const enabled = status?.enabled ?? false
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       {error && (
         <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
       )}
@@ -234,7 +234,7 @@ export default function ApplyDesk() {
       )}
 
       {/* 状态与开关 */}
-      <section className="rounded-card border border-ink-1 bg-surface p-4">
+      <section className="shrink-0 rounded-card border border-ink-1 bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold">投递执行台</h2>
@@ -358,6 +358,9 @@ export default function ApplyDesk() {
       </section>
 
       {/* 抓候选 */}
+
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
       <section className="rounded-card border border-ink-1 bg-surface p-4">
         <h2 className="text-sm font-semibold">1. 抓取候选</h2>
         <p className="mt-0.5 text-xs text-ink-6">
@@ -591,6 +594,101 @@ export default function ApplyDesk() {
           </div>
         )}
       </section>
+        </div>
+
+        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+      <section className="rounded-card border border-ink-1 bg-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">2. 待投队列</h2>
+          <div className="text-xs text-ink-6">
+            {snapshot
+              ? `共 ${snapshot.total} · 待确认 ${snapshot.pending} · 已确认 ${snapshot.approved} · 已投 ${snapshot.sent} · 失败 ${snapshot.failed}`
+              : '—'}
+          </div>
+        </div>
+
+        {queue.length === 0 ? (
+          <p className="mt-3 text-xs text-ink-6">队列是空的。先抓一批候选。</p>
+        ) : (
+          <div className="mt-3 space-y-4">
+            {[
+              { title: `已确认待投（${approvedQueue.length}）`, items: approvedQueue },
+              { title: `待确认（${pendingQueue.length}）`, items: pendingQueue },
+              { title: `已处理（${doneQueue.length}）`, items: doneQueue.slice(0, 20) },
+            ].map((group) => (
+              <div key={group.title}>
+                <div className="text-xs font-medium text-ink-6">{group.title}</div>
+                {group.items.length === 0 ? (
+                  <div className="mt-1 text-xs text-ink-4">—</div>
+                ) : (
+                  <table className="mt-1 w-full text-left text-xs">
+                    <tbody>
+                      {group.items.map((item) => (
+                        <tr key={item.id} className="border-t border-ink-1 align-top">
+                          <td className="py-1.5 pr-2 text-ink-6">#{item.id}</td>
+                          <td className="py-1.5 pr-2">
+                            {item.company} · {item.title}
+                          </td>
+                          <td className="py-1.5 pr-2 text-ink-6">{item.salary_range || '—'}</td>
+                          <td className="py-1.5 pr-2">
+                            <span
+                              className={
+                                item.status === 'sent'
+                                  ? 'text-ok'
+                                  : item.status === 'failed'
+                                    ? 'text-ng'
+                                    : 'text-ink-6'
+                              }
+                            >
+                              {statusLabel(item.status)}
+                            </span>
+                            {item.error && <div className="text-ng">{item.error}</div>}
+                          </td>
+                          <td className="py-1.5 pr-2 text-ink-6">{item.say_hi_text.slice(0, 40)}…</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ))}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={busy || approvedQueue.length === 0 || !enabled || status?.broken}
+                onClick={() => void execute()}
+                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
+              >
+                3. 开始投递（最多 10 条）
+              </button>
+              <label className="flex items-center gap-1.5 text-xs text-ink-6">
+                <input type="checkbox" checked={dryRun} onChange={(event) => setDryRun(event.target.checked)} />
+                演练模式（只报告会投什么，不真的发送）
+              </label>
+            </div>
+
+            {outcome && (
+              <div className="rounded-control border border-ink-1 bg-paper p-3 text-xs">
+                <div className="font-medium text-ink-7">
+                  本次：尝试 {outcome.attempted} · 成功 {outcome.sent} · 失败 {outcome.failed}
+                </div>
+                {outcome.stopped_reason && <div className="mt-1 text-ink-6">停止原因：{outcome.stopped_reason}</div>}
+                {outcome.tripped && (
+                  <div className="mt-1 text-warn">熔断：{outcome.breaker_message}</div>
+                )}
+                <ul className="mt-2 space-y-1">
+                  {outcome.items.map((item) => (
+                    <li key={`${item.task_id}-${item.detail}`} className={item.ok ? 'text-ok' : 'text-ng'}>
+                      {item.ok ? '✓' : '✗'} {item.company} · {item.title} —— {item.detail}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* 规则 */}
       <section className="rounded-card border border-ink-1 bg-surface p-4">
@@ -623,6 +721,8 @@ export default function ApplyDesk() {
           </tbody>
         </table>
       </section>
+        </div>
+      </div>
     </div>
   )
 }

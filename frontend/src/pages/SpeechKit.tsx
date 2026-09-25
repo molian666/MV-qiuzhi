@@ -139,18 +139,23 @@ export default function SpeechKit() {
   const sensitiveMeta = meta?.sensitive.find((item) => item.key === sensitiveKind)
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       {error && (
-        <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
+        <div className="shrink-0 rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">
+          {error}
+        </div>
       )}
 
-      {/* 共用上下文 */}
-      <section className="rounded-card border border-ink-1 bg-surface p-4">
-        <h2 className="text-sm font-semibold">素材来源</h2>
-        <p className="mt-0.5 text-xs text-ink-6">
-          故事卡与话术都从你的简历长出来；填上 JD 会让自我介绍和反问更贴这个岗位。
-        </p>
-        <div className="mt-3 grid gap-3 lg:grid-cols-3">
+      {/* 左：素材来源（简历、岗位、JD）——所有产出都从它长出来。
+          右：自我介绍、敏感题、历史草稿。 */}
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
+        {/* 共用上下文 */}
+        <section className="min-h-0 overflow-y-auto rounded-card border border-ink-1 bg-surface p-4 pr-3">
+          <h2 className="text-sm font-semibold">素材来源</h2>
+          <p className="mt-0.5 text-xs text-ink-6">
+            故事卡与话术都从你的简历长出来；填上 JD 会让自我介绍和反问更贴这个岗位。
+          </p>
+          <div className="mt-3 space-y-3">
           <label className="text-xs text-ink-6">
             简历
             <select
@@ -191,10 +196,12 @@ export default function SpeechKit() {
           className="mt-2 rounded-control border border-ink-1 px-2.5 py-1 text-xs text-ink-6 hover:bg-paper"
         >
           填入示例 JD
-        </button>
-      </section>
+          </button>
+        </section>
 
-      {/* 故事卡 */}
+        {/* 右栏：所有产出。只有这一栏滚动。 */}
+        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+          {/* 故事卡 */}
       <section className="rounded-card border border-ink-1 bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -448,7 +455,9 @@ export default function SpeechKit() {
             </div>
           ))}
         </div>
-      </section>
+          </section>
+        </div>
+      </div>
     </div>
   )
 }

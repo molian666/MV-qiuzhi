@@ -207,12 +207,14 @@ export default function OfferDesk() {
   const brief = current?.brief ?? null
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       {error && (
-        <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
+        <div className="shrink-0 rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">
+          {error}
+        </div>
       )}
 
-      <div className="flex flex-wrap gap-1">
+      <div className="flex shrink-0 flex-wrap gap-1">
         {PANELS.map((item) => (
           <button
             key={item.key}
@@ -221,13 +223,16 @@ export default function OfferDesk() {
             className={
               item.key === panel
                 ? 'rounded-control bg-ink-9 px-3 py-1.5 text-sm text-surface'
-                : 'rounded-control px-3 py-1.5 text-sm text-ink-6 hover:bg-sunken'
+                : 'rounded-control px-3 py-1.5 text-sm text-ink-6 transition-colors hover:bg-paper'
             }
           >
             {item.label}
           </button>
         ))}
       </div>
+
+      {/* 页签内容：切页签时高度不变，内容在内部滚动 */}
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
 
       {/* ---------------------------- 对比矩阵 ---------------------------- */}
       {panel === 'matrix' && (
@@ -752,6 +757,7 @@ export default function OfferDesk() {
           )}
         </section>
       )}
+      </div>
     </div>
   )
 }

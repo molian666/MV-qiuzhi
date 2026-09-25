@@ -182,14 +182,20 @@ export default function ResumeHealth() {
   const issues = result ? result.ats : (atsOnly ?? [])
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       {error && (
-        <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
+        <div className="shrink-0 rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">
+          {error}
+        </div>
       )}
 
-      {/* 简历选择与版本 */}
-      <section className="rounded-card border border-ink-1 bg-surface p-4">
-        <h2 className="text-sm font-semibold">简历与版本</h2>
+      {/* 左：选简历、存版本（输入）。
+          右：匹配诊断（贴 JD + 结果）、ATS 体检、匹配度对比三个面板。
+          「贴 JD」和它的结果本就该放一起看，所以它们留在同一个面板里。 */}
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
+        {/* 简历选择与版本 */}
+        <section className="min-h-0 overflow-y-auto rounded-card border border-ink-1 bg-surface p-4 pr-3">
+          <h2 className="text-sm font-semibold">简历与版本</h2>
         <p className="mt-0.5 text-xs text-ink-6">
           多版本是为了投递 A/B：同一个岗位可以投不同侧重点的简历，之后在投递分析里比较回复率。
         </p>
@@ -269,9 +275,11 @@ export default function ResumeHealth() {
         )}
       </section>
 
-      {/* 匹配诊断 */}
-      <section className="rounded-card border border-ink-1 bg-surface p-4">
-        <h2 className="text-sm font-semibold">简历 × JD 匹配诊断</h2>
+        {/* 右栏：三个结果面板。只有这一栏滚动。 */}
+        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+          {/* 匹配诊断 */}
+          <section className="rounded-card border border-ink-1 bg-surface p-4">
+            <h2 className="text-sm font-semibold">简历 × JD 匹配诊断</h2>
         <p className="mt-0.5 text-xs text-ink-6">
           只做文本层面的判断：JD 里「必须精通」算硬性要求，「优先」算加分项，权重不一样。
         </p>
@@ -491,7 +499,9 @@ export default function ResumeHealth() {
             {bands.confidence_note && <div className="text-[11px] text-ink-6">{bands.confidence_note}</div>}
           </div>
         )}
-      </section>
+          </section>
+        </div>
+      </div>
     </div>
   )
 }

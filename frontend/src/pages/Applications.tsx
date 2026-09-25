@@ -122,8 +122,8 @@ export default function Applications() {
   const maxFunnel = stats?.funnel[0]?.count || 1
 
   return (
-    <div className="space-y-4">
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <section className="grid shrink-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: '总投递', value: `${stats?.total ?? 0}`, hint: '导入 + 手动 + 扩展' },
           { label: '回复率', value: percent(stats?.response_rate ?? 0), hint: `有回应 ${stats?.responded ?? 0}` },
@@ -132,16 +132,18 @@ export default function Applications() {
         ].map((card) => (
           <div key={card.label} className="rounded-panel border border-ink-1 bg-surface px-4 py-3">
             <p className="text-xs text-ink-6">{card.label}</p>
-            <p className="mt-1 text-2xl font-semibold text-ink-9">{card.value}</p>
+            <p className="mt-1 font-mono text-2xl font-semibold text-ink-9">{card.value}</p>
             <p className="text-[11px] text-ink-4">{card.hint}</p>
           </div>
         ))}
       </section>
 
-      {error && <p className="rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>}
+      {error && (
+        <p className="shrink-0 rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>
+      )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-4">
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
           {/* 漏斗 */}
           <section className="rounded-panel border border-ink-1 bg-surface p-4">
             <h3 className="mb-3 text-sm font-semibold text-ink-9">投递漏斗</h3>
@@ -222,9 +224,9 @@ export default function Applications() {
                     <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
                     <Tooltip />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Line type="monotone" dataKey="applied" name="投递" stroke="#0284c7" dot />
-                    <Line type="monotone" dataKey="responded" name="有回应" stroke="#059669" dot />
-                    <Line type="monotone" dataKey="interviewed" name="进入面试" stroke="#b45309" dot />
+                    <Line type="monotone" dataKey="applied" name="投递" stroke="var(--color-ink-4)" dot />
+                    <Line type="monotone" dataKey="responded" name="有回应" stroke="var(--color-info)" dot />
+                    <Line type="monotone" dataKey="interviewed" name="进入面试" stroke="var(--color-ok)" dot />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -288,7 +290,7 @@ export default function Applications() {
           </section>
         </div>
 
-        <aside className="space-y-4">
+        <aside className="min-h-0 space-y-4 overflow-y-auto pr-1">
           {/* 导入 */}
           <section className="rounded-panel border border-ink-1 bg-surface p-4">
             <h3 className="mb-2 text-sm font-semibold text-ink-9">导入投递记录</h3>

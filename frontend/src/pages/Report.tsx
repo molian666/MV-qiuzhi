@@ -104,8 +104,8 @@ export default function Report({ sessionId, onSelectSession }: Props) {
   const radarData = report?.dimensions.map((dimension) => ({ label: dimension.label, score: dimension.score })) ?? []
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-panel border border-ink-1 bg-surface p-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <section className="shrink-0 rounded-panel border border-ink-1 bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-ink-9">面试报告</h2>
@@ -140,13 +140,19 @@ export default function Report({ sessionId, onSelectSession }: Props) {
         </div>
       </section>
 
-      {error && <p className="rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>}
-      {loading && <p className="rounded-control bg-paper px-3 py-2 text-sm text-ink-6">正在载入报告…</p>}
+      {error && (
+        <p className="shrink-0 rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>
+      )}
+      {loading && (
+        <p className="shrink-0 rounded-control bg-paper px-3 py-2 text-sm text-ink-6">
+          正在载入报告…
+        </p>
+      )}
 
       {report && (
         <>
-          <section className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-            <div className="rounded-panel border border-ink-1 bg-surface p-4">
+          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+            <div className="min-h-0 overflow-y-auto rounded-panel border border-ink-1 bg-surface p-4 pr-3">
               <div className="mb-1 flex items-baseline gap-2">
                 <span className="text-4xl font-semibold text-ink-9">{Math.round(report.overall)}</span>
                 <span className="text-sm text-ink-6">/ 100</span>
@@ -157,13 +163,18 @@ export default function Report({ sessionId, onSelectSession }: Props) {
                     <PolarGrid />
                     <PolarAngleAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <PolarRadiusAxis domain={[0, 5]} tickCount={6} tick={{ fontSize: 9 }} />
-                    <Radar dataKey="score" stroke="#0284c7" fill="#0ea5e9" fillOpacity={0.35} />
+                    <Radar
+                      dataKey="score"
+                      stroke="var(--color-info)"
+                      fill="var(--color-info)"
+                      fillOpacity={0.3}
+                    />
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
               <div className="rounded-panel border border-ink-1 bg-surface p-4">
                 <h3 className="mb-2 text-sm font-semibold text-ink-9">整体评价</h3>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-7">{report.summary}</p>

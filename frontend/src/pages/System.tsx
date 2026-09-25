@@ -213,7 +213,7 @@ export default function System() {
 
       {/* 左右分栏：模型与密钥是"要填的东西"，提供方状态与用量是"看的东西"。
           竖着堆会一屏放不下，而这两类内容本来就不必抢同一块纵向空间。 */}
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
         <section className="min-h-0 overflow-y-auto rounded-panel border border-ink-1 bg-surface p-4 xl:pr-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-ink-9">模型与密钥</h2>

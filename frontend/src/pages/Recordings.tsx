@@ -150,12 +150,14 @@ export default function Recordings() {
   const inputClass = 'w-full rounded-card border border-ink-2 px-3 py-2 text-sm outline-none focus:border-info'
 
   return (
-    <div className="space-y-4">
-      {error && <p className="rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>}
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      {error && (
+        <p className="shrink-0 rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>
+      )}
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
         {/* 左：录音 */}
-        <div className="space-y-3">
+        <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
           <div className="rounded-panel border border-ink-1 bg-surface p-4">
             <h3 className="mb-3 text-sm font-semibold text-ink-9">① 添加一段真实面试对话</h3>
 
@@ -278,7 +280,7 @@ export default function Recordings() {
         </div>
 
         {/* 右：画像 */}
-        <div className="space-y-3">
+        <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
           <div className="rounded-panel border border-ink-1 bg-surface p-4">
             <h3 className="mb-3 text-sm font-semibold text-ink-9">② 学出面试官画像</h3>
             <div className="flex items-center gap-2">

@@ -189,7 +189,7 @@ export default function Training() {
         <p className="shrink-0 rounded-control bg-ng-soft px-3 py-2 text-xs text-ng">{error}</p>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
         {/* 今日训练：按薄弱点推题，作答后模型批改并更新掌握度 */}
         <section className="flex min-h-0 flex-col">
           <div className="flex shrink-0 items-center justify-between pb-2">
@@ -357,11 +357,11 @@ export default function Training() {
                 <div className="h-36">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={history.points}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e6ea" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-ink-1)" />
                       <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                       <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} width={28} />
                       <Tooltip />
-                      <Line type="monotone" dataKey="mastery" stroke="#1d4ed8" dot />
+                      <Line type="monotone" dataKey="mastery" stroke="var(--color-info)" dot />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>

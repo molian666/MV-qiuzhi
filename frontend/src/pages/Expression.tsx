@@ -122,12 +122,14 @@ export default function Expression() {
     })) ?? []
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       {error && (
-        <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
+        <div className="shrink-0 rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">
+          {error}
+        </div>
       )}
 
-      <section className="rounded-card border border-ink-1 bg-surface p-4">
+      <section className="shrink-0 rounded-card border border-ink-1 bg-surface p-4">
         <h2 className="text-sm font-semibold">选一场面试做体检</h2>
         <p className="mt-0.5 text-xs text-ink-6">
           语音面试才有停顿与音量分析（需要录音）；文字面试只能看填充词与整体语速。
@@ -175,7 +177,7 @@ export default function Expression() {
       )}
 
       {report && (
-        <>
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
           {/* 结论 */}
           <section className="rounded-card border border-ink-1 bg-surface p-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -240,13 +242,20 @@ export default function Expression() {
               <div className="mt-3 h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-ink-1)" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
                     <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
                     <Tooltip />
-                    <Bar yAxisId="right" dataKey="rms" name="音量" fill="#cbd5e1" />
-                    <Line yAxisId="left" type="monotone" dataKey="cpm" name="语速" stroke="#0f172a" dot={false} />
+                    <Bar yAxisId="right" dataKey="rms" name="音量" fill="var(--color-ink-2)" />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="cpm"
+                      name="语速"
+                      stroke="var(--color-ink-9)"
+                      dot={false}
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -370,7 +379,7 @@ export default function Expression() {
               ))}
             </ul>
           </section>
-        </>
+        </div>
       )}
     </div>
   )
