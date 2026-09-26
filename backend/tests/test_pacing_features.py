@@ -183,6 +183,69 @@ def test_policy_summary_is_human_readable() -> None:
     assert summary["silence_ms"] == 1200
 
 
+# --------------------------------------------------------------------------- #
+# 注入 prompt 的素材筛选
+# --------------------------------------------------------------------------- #
+def test_presentable_question_only_applies_to_display_path() -> None:
+    """★「他问过的题」要过滤，但**提问判定不能跟着改**。
+
+    这两件事太容易混，所以在同一个用例里钉死：
+
+    - `_is_presentable_question`（展示 + 注入 prompt）滤掉陈述句与半句，
+      因为这一路要的是**题目**；
+    - `_looks_like_question`（统计提问频率）**不能**滤掉「是吧？」
+      这类短句——那正是用户想学的"话术"，滤掉会让题型配比失真。
+    """
+    from app.analysis.pacing import _is_presentable_question, _looks_like_question
+
+    assert not _is_presentable_question("方向点就是平面看去是多少度。0到360这个角度。")
+    assert not _is_presentable_question("怎么算角度。")
+    assert not _is_presentable_question("是吧？")
+
+    assert _is_presentable_question("那你这边一般做缺陷检测思路是什么呢？")
+    assert _is_presentable_question("怎么标定好的？")
+
+    # 同一个「是吧？」：提问判定**必须**认它是提问，否则话术统计就没了
+    assert _looks_like_question("是吧？"), "短口头语仍然是提问，别在判定层滤掉它"
+
+
+def test_policy_prompt_block_drops_non_questions() -> None:
+    """注入 prompt 的素材里不该出现陈述句。"""
+    policy = build_policy(
+        {
+            "params": {},
+            "title": "t",
+        },
+        profile_name="画像 B",
+    )
+    policy.sample_questions = [
+        "怎么标定好的？",
+        "方向点就是平面看去是多少度。0到360这个角度。",
+        "那你这边一般做缺陷检测思路是什么呢？",
+    ]
+    block = policy_prompt_block(policy)
+
+    assert "怎么标定好的？" in block
+    assert "那你这边一般做缺陷检测思路是什么呢？" in block
+    assert "0到360这个角度" not in block, "陈述句不该作为「他问过的题」摆给模型"
+
+
+def test_policy_prompt_block_says_his_wpm_not_yours() -> None:
+    """语速是**面试官**的特征，措辞不能写成"你的语速"。
+
+    prompt 是给面试官模型看的 system 指令，所以"你"指的是面试官；
+    但 `interviewer_wpm` 是**面试官自己**的语速，写"你的语速"容易被读成
+    候选人的语速，把语气带偏。
+    """
+    policy = build_policy({"params": {}}, profile_name="画像 C")
+    policy.interviewer_wpm = 266
+
+    block = policy_prompt_block(policy)
+
+    assert "他的语速约 266 字/分钟" in block
+    assert "你的语速" not in block
+
+
 @pytest.mark.parametrize("bad_payload", [None, {}, {"pace": "oops"}, {"followup": {"max_depth": None}}])
 def test_policy_tolerates_garbage(bad_payload: object) -> None:
     policy = build_policy(bad_payload if isinstance(bad_payload, dict) else None)

@@ -1060,6 +1060,27 @@ def _closing_of(questions: Sequence[str]) -> str:
     return ""
 
 
+def _is_presentable_question(text: str) -> bool:
+    """这条能不能当"他问过的题"摆出来（展示 + 注入 prompt）。
+
+    **与 `_looks_like_question` 是两件事，别合并**：
+
+    - 提问判定统计的是"这个人提问的频率"，**不能**滤掉「是吧？」这类短句——
+      那正是用户想学的话术，滤掉会让题型配比失真；
+    - 而"他问过什么问题"要的是**题目**：陈述句（"方向点就是平面看去是多少度。
+      0到360这个角度。"）和没有信息量的半句（"怎么算角度。"）摆出来只会
+      干扰模型，让人以为这个面试官问得零碎。
+
+    规则保持很松：只排除"句号结尾的陈述"和"短到没信息量的"。
+    """
+    stripped = text.strip()
+    if len(stripped) < 6:
+        return False
+    if stripped.endswith(("。", "．", "！", "!")):
+        return False
+    return True
+
+
 def policy_prompt_block(policy: PacingPolicy) -> str:
     """把画像转成给面试官模型的行为指令。
 
@@ -1075,9 +1096,14 @@ def policy_prompt_block(policy: PacingPolicy) -> str:
     """
     parts = [f"【面试官画像：{policy.profile_name or '默认'}】"]
 
-    if policy.sample_questions:
+    # 「他问过什么题」这一路要过滤：这里要的是**题目**，不是口头语。
+    # 注意与提问判定（_looks_like_question）分开——判定那边**不能**滤掉
+    # 「是吧？」这类短句，那是用户想学的"话术"；而作为"他问过的题"摆出来，
+    # 陈述句（句号结尾）和没有信息量的半句只会干扰模型。
+    questions = [text for text in policy.sample_questions if _is_presentable_question(text)]
+    if questions:
         # 放在最前面：这是最具体、最能决定"问什么"的信息
-        lines = "\n".join(f"{index}. {text}" for index, text in enumerate(policy.sample_questions[:16], 1))
+        lines = "\n".join(f"{index}. {text}" for index, text in enumerate(questions[:16], 1))
         parts.append(
             "■ 这个面试官在真实面试里问过下面这些问题（请**优先围绕这些题**提问，"
             "结合本次岗位与简历自然改编，不要原样照念、也不要提「你上次说过」）：\n" + lines
@@ -1093,7 +1119,14 @@ def policy_prompt_block(policy: PacingPolicy) -> str:
 
     if policy.style_tags:
         parts.append("风格：" + "、".join(policy.style_tags))
-    parts.append(f"压力水平：{policy.stress_level}；你的语速约 {policy.interviewer_wpm} 字/分钟（说话简短些）")
+    # "他的"而不是"你的"：这一整段都是**面试官**的特征（这是给面试官模型看的
+    # system 指令）。写成"你的语速"容易被读成候选人的语速，进而把语气带偏。
+    if policy.interviewer_wpm:
+        parts.append(
+            f"压力水平：{policy.stress_level}；他的语速约 {policy.interviewer_wpm} 字/分钟（偏快就利落些）"
+        )
+    else:
+        parts.append(f"压力水平：{policy.stress_level}")
     parts.append(
         f"最多追问 {policy.max_followup_depth} 层；遇到这些情况必须追问："
         + "、".join(policy.followup_triggers or ["回答缺少细节"])
