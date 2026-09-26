@@ -23,20 +23,32 @@ const SAMPLE_DIALOG = `[面试官] 先做个自我介绍吧
 /** 支持的文稿扩展名，与后端 `SUPPORTED_SUFFIXES` 保持一致 */
 const DOC_ACCEPT = '.txt,.md,.markdown,.text,.log,.csv,.tsv'
 
-const STATUS_LABEL: Record<string, string> = {
-  uploaded: '待分析',
+const STATUS_LABEL: Record<string, string> = {  uploaded: '待分析',
   transcribing: '转写中',
   analyzing: '分析中',
   done: '已完成',
   failed: '失败',
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+/**
+ * 拆解"生成画像"的目标选择。
+ *
+ * 一个下拉表达三种模式：`new`（新建）/ `append:<id>`（追加到已有）/
+ * `replace:<id>`（重新生成已有）。后两者都要画像 id。
+ */
+function parseTarget(key: string): { mode: 'new' | 'append' | 'replace'; id: number | null } {
+  const [mode, rawId] = key.split(':')
+  if (mode === 'append' || mode === 'replace') {
+    const id = Number(rawId)
+    return { mode, id: Number.isFinite(id) ? id : null }
+  }
+  return { mode: 'new', id: null }
 }
 
-function formatTime(value: string): string {
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+function errorMessage(error: unknown): string {  return error instanceof Error ? error.message : String(error)
+}
+
+function formatTime(value: string): string {  return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
 export default function Recordings() {
@@ -52,6 +64,12 @@ export default function Recordings() {
   const [check, setCheck] = useState<DocCheck | null>(null)
   const [checking, setChecking] = useState(false)
   const [profileName, setProfileName] = useState('')
+  /**
+   * 生成画像的目标。用单个 key 表达三种模式：
+   * `new`（新建）/ `append:<id>`（追加到）/ `replace:<id>`（重新生成）。
+   * 一个下拉就够，比三个单选清爽。
+   */
+  const [target, setTarget] = useState('new')
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -132,10 +150,20 @@ export default function Recordings() {
       setError('先勾选至少一段对话')
       return
     }
+    const { mode, id } = parseTarget(target)
+    if (mode !== 'new' && id === null) {
+      setError('先选要更新哪个画像')
+      return
+    }
     setBusy(true)
     setError('')
     try {
-      const created = await api.createProfile(selectedIds, profileName)
+      const created = await api.createProfile(
+        selectedIds,
+        profileName,
+        mode,
+        mode === 'new' ? undefined : (id ?? undefined),
+      )
       setProfile(created)
       setProfileName('')
       setSelectedIds([])
@@ -435,12 +463,55 @@ export default function Recordings() {
                 disabled={busy || selectedIds.length === 0}
                 className="shrink-0 rounded-control bg-info px-3 py-2 text-xs font-medium text-surface hover:bg-info disabled:opacity-40"
               >
-                生成画像（{selectedIds.length}）
+                {(() => {
+                  const { mode } = parseTarget(target)
+                  const label = mode === 'append' ? '追加' : mode === 'replace' ? '重新生成' : '生成画像'
+                  return `${label}（${selectedIds.length}）`
+                })()}
               </button>
             </div>
             <p className="mt-2 text-[11px] text-ink-6">
               多选几段同一个面试官的对话会合并统计，节奏特征更稳。
             </p>
+
+            {/* 生成目标：新建 / 追加到已有画像 / 重新生成已有画像。
+                追加与重新生成都**更新同一条画像**（保留 id），
+                所以已经选了该画像的模拟面试不会失效。 */}
+            <div className="mt-2 space-y-1">
+              <label className="block text-[11px] text-ink-6">
+                生成到
+                <select
+                  value={target}
+                  onChange={(event) => setTarget(event.target.value)}
+                  disabled={busy}
+                  className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-xs"
+                >
+                  <option value="new">新建一个画像</option>
+                  {profiles.map((item) => (
+                    <option key={`append-${item.id}`} value={`append:${item.id}`}>
+                      追加到：{item.name}
+                    </option>
+                  ))}
+                  {profiles.map((item) => (
+                    <option key={`replace-${item.id}`} value={`replace:${item.id}`}>
+                      重新生成：{item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-[10px] leading-relaxed text-ink-4">
+                {(() => {
+                  const { mode } = parseTarget(target)
+                  if (mode === 'append') {
+                    return '把勾选的对话并进这个画像后重算。旧录音不重复转写（真 ASR 按量计费），只转新加的。'
+                  }
+                  if (mode === 'replace') {
+                    return '用勾选的对话换掉这个画像的全部录音并重算（会重新转写）。画像 id 保留，已选它的面试不受影响。'
+                  }
+                  return '新建一个独立的画像。'
+                })()}
+              </p>
+            </div>
           </div>
 
           <div className="rounded-panel border border-ink-1 bg-surface p-4">

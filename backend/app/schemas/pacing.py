@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -79,6 +79,10 @@ class ProfileCreate(BaseModel):
     recording_ids: list[int] = Field(min_length=1)
     name: str = ""
     notes: str = ""
+    #: new = 新建；append = 追加到已有画像；replace = 重新生成已有画像
+    mode: Literal["new", "append", "replace"] = "new"
+    profile_id: int | None = None
+    """append / replace 时必填：指向要更新的那条画像"""
 
 
 class PacingSampleOut(BaseModel):

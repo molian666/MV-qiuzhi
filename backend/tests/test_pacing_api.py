@@ -51,6 +51,125 @@ def _make_profile(client: TestClient, recording_id: int, name: str) -> dict:
     return response.json()
 
 
+def test_append_merges_recordings_and_keeps_the_same_profile(client: TestClient) -> None:
+    """★ 追加到已有画像：合并录音列表、**保留 id**、名字不被动。
+
+    保留 id 是硬要求：会话是拿 `profile_id` 引用画像的，
+    换一条新记录会让所有已建的模拟面试指向旧画像。
+    """
+    first_rec = _make_recording(client, "某公司一面", DIALOG_CALM)
+    second_rec = _make_recording(client, "某公司二面", DIALOG_PRESSING)
+
+    profile = _make_profile(client, first_rec, "某公司面试官")
+    profile_id = profile["id"]
+    assert profile["recording_ids"] == [first_rec]
+
+    appended = client.post(
+        "/api/interviewer-profiles",
+        json={"recording_ids": [second_rec], "mode": "append", "profile_id": profile_id},
+    ).json()
+
+    assert appended["id"] == profile_id, "追加必须更新同一条记录"
+    assert appended["recording_ids"] == [first_rec, second_rec], "录音列表要合并而不是替换"
+    assert appended["name"] == "某公司面试官", "没传名字就保留原名，不该被悄悄改掉"
+    assert appended["samples"], "追加后样本要重算出来"
+
+
+def test_append_is_idempotent_for_the_same_recording(client: TestClient) -> None:
+    """重复追加同一段录音不该出现两次。"""
+    first_rec = _make_recording(client, "某公司一面", DIALOG_CALM)
+    other = _make_recording(client, "某公司三面", DIALOG_SLOW)
+    profile_id = _make_profile(client, first_rec, "面试官")["id"]
+
+    for _ in range(2):
+        client.post(
+            "/api/interviewer-profiles",
+            json={"recording_ids": [other], "mode": "append", "profile_id": profile_id},
+        )
+    detail = client.get(f"/api/interviewer-profiles/{profile_id}").json()
+
+    assert detail["recording_ids"] == [first_rec, other]
+
+
+def test_replace_swaps_recordings_but_keeps_id(client: TestClient) -> None:
+    """重新生成：换掉录音列表，同样保留 id。"""
+    first_rec = _make_recording(client, "某公司一面", DIALOG_CALM)
+    second_rec = _make_recording(client, "某公司二面", DIALOG_PRESSING)
+    profile_id = _make_profile(client, first_rec, "面试官")["id"]
+
+    replaced = client.post(
+        "/api/interviewer-profiles",
+        json={"recording_ids": [second_rec], "mode": "replace", "profile_id": profile_id},
+    ).json()
+
+    assert replaced["id"] == profile_id
+    assert replaced["recording_ids"] == [second_rec], "重新生成要换掉，不是合并"
+
+
+def test_append_reuses_stored_transcript(client: TestClient, monkeypatch) -> None:
+    """★ 追加时**不重跑旧录音的转写**。
+
+    这不是"顺手优化"而是必需：真 ASR 按量计费，每追加一次就把历史
+    全部重转一遍，成本会随追加次数平方增长。
+    `replace`（重新生成）则故意重转——用户要求重来。
+    """
+    from app import deps
+    from app.providers.asr.mock import MockBatchTranscriber
+
+    calls: list[str] = []
+    real_transcribe = MockBatchTranscriber.transcribe
+
+    async def counting_transcribe(self, *, audio_path=None, fallback_text=""):
+        calls.append(fallback_text or (audio_path or ""))
+        return await real_transcribe(self, audio_path=audio_path, fallback_text=fallback_text)
+
+    monkeypatch.setattr(MockBatchTranscriber, "transcribe", counting_transcribe)
+    monkeypatch.setattr(deps, "build_transcriber", lambda: MockBatchTranscriber())
+
+    first_rec = _make_recording(client, "某公司一面", DIALOG_CALM)
+    second_rec = _make_recording(client, "某公司二面", DIALOG_PRESSING)
+
+    profile_id = _make_profile(client, first_rec, "面试官")["id"]
+    first_round = len(calls)
+    assert first_round == 1, f"建画像该转写一次，实际 {first_round}"
+
+    client.post(
+        "/api/interviewer-profiles",
+        json={"recording_ids": [second_rec], "mode": "append", "profile_id": profile_id},
+    )
+    assert len(calls) - first_round == 1, (
+        f"追加只该转写新录音那一次，实际多转了 {len(calls) - first_round} 次"
+    )
+
+    client.post(
+        "/api/interviewer-profiles",
+        json={"recording_ids": [second_rec], "mode": "replace", "profile_id": profile_id},
+    )
+    assert len(calls) - first_round - 1 == 1, "replace 该重转它保留的那段"
+
+
+def test_append_without_profile_id_is_rejected(client: TestClient) -> None:
+    """缺 profile_id 要给出可读的错误，而不是 500。"""
+    recording_id = _make_recording(client, "某公司一面", DIALOG_CALM)
+
+    response = client.post(
+        "/api/interviewer-profiles",
+        json={"recording_ids": [recording_id], "mode": "append"},
+    )
+    assert response.status_code == 400
+    assert "profile_id" in response.text
+
+
+def test_append_to_unknown_profile_is_404(client: TestClient) -> None:
+    recording_id = _make_recording(client, "某公司一面", DIALOG_CALM)
+
+    response = client.post(
+        "/api/interviewer-profiles",
+        json={"recording_ids": [recording_id], "mode": "append", "profile_id": 999999},
+    )
+    assert response.status_code == 404
+
+
 def test_recording_then_profile_then_segments(client: TestClient) -> None:
     recording_id = _make_recording(client, "某公司一面", DIALOG_CALM)
 

@@ -59,6 +59,8 @@ async def create_profile(
             llm=llm,
             name=payload.name,
             notes=payload.notes,
+            mode=payload.mode,
+            profile_id=payload.profile_id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

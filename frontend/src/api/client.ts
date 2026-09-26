@@ -293,10 +293,26 @@ export const api = {
     return request<DocCheck>('/recordings/inspect', { method: 'POST', body: form })
   },
   listProfiles: () => request<ProfileListItem[]>('/interviewer-profiles'),
-  createProfile: (recordingIds: number[], name: string) =>
+  /**
+   * 学出画像。三种模式：
+   * - `new` 新建；`append` 追加到已有画像；`replace` 重新生成已有画像。
+   * 后两者要带 `profileId`——它们**更新同一条记录**（保留 id），
+   * 否则已经引用该画像的会话会指向旧画像。
+   */
+  createProfile: (
+    recordingIds: number[],
+    name: string,
+    mode: 'new' | 'append' | 'replace' = 'new',
+    profileId?: number,
+  ) =>
     request<ProfileDetail>('/interviewer-profiles', {
       method: 'POST',
-      body: JSON.stringify({ recording_ids: recordingIds, name }),
+      body: JSON.stringify({
+        recording_ids: recordingIds,
+        name,
+        mode,
+        profile_id: profileId ?? null,
+      }),
     }),
   getProfile: (id: number) => request<ProfileDetail>(`/interviewer-profiles/${id}`),
   deleteProfile: (id: number) => request<void>(`/interviewer-profiles/${id}`, { method: 'DELETE' }),

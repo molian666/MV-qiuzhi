@@ -362,6 +362,68 @@ _INTERROGATIVE_TAILS = ("吗", "呢", "吧", "么")
 #: 这些是"被问"的典型开头：候选人回答时常用
 _ANSWER_MARKERS = ("好的", "对的", "是的", "不是", "我觉", "我叫", "我是", "可以")
 
+#: 候选人**自述经历**的典型说法。与 `_ANSWER_MARKERS` 不同：那些是"应答语气词"
+#: （好的/对的），这些明确指向**他自己的经历**——「我用过」「我做过」几乎只有
+#: 候选人会说。面试官也会说「我」（"我是想让你…"），但那是在提要求，
+#: 所以这里只收**指向经历**的说法，不收光秃秃的「我」。
+_CANDIDATE_MARKERS = (
+    "我做过", "我用过", "我负责", "我参与", "我以前", "我原来", "我之前",
+    "我们公司", "我们那边", "我们厂", "我这边做", "我主要", "我实现",
+    "我搞过", "我写过", "我调过", "我接触过",
+)
+
+#: 面试官**提问话术**里最典型的几种。
+#:
+#: 判据是**第二人称**：面试官对候选人说「**你**介绍一下」「**你**用过吗」，
+#: 而候选人对面试官称「**您**」。所以 `你 + 动词` 才是指向面试官的特征。
+#:
+#: ⚠️ **不要收「是不是」「有没有」「对不对」「举个例子」这类**——
+#: 我第一版收了它们，结果把角色判反了：真实样本里候选人命中
+#: 「是不是/有没有/举个例子」三次、面试官只命中一次。因为**技术讨论式面试里
+#: 候选人也在不停反问确认**（"有没有可能…""举个例子，比如…"），
+#: 这些短语根本不专属。收进来只会往反方向投票。
+_INTERVIEWER_PHRASES = (
+    "你介绍一下", "你说一下", "你讲一下", "你聊一下", "你谈谈", "你讲讲", "你说说",
+    "你熟悉", "你了解", "你会不会", "你用过", "你做过", "你负责", "你做",
+    "你觉得", "你怎么看", "你认为", "你看过", "你接触过",
+    "你这边", "你们公司", "你们团队", "你们那边",
+    "请介绍", "请说", "请讲", "麻烦说说",
+)
+
+
+def _role_keyword_score(segments: Sequence[SegmentDraft]) -> tuple[float, list[str], list[str]]:
+    """关键词这一路的打分：命中一个"角色专属说法"记一次。
+
+    返回 `(每条发言的平均净命中数, 命中的面试官话术, 命中的候选人自述)`。
+
+    为什么要单独成一路：**发言长度**会被"话多的面试官"带偏，
+    **提问密度**会被"候选人也在反问确认"带偏（技术讨论式面试里实测两边
+    几乎一样：0.797 vs 0.810）。关键词是第三路，也最贴近人的直觉。
+
+    用**平均净命中数**（除以条数）而不是总数：否则说话多的一方天然占便宜。
+
+    两类的命中词**分开返回**：理由文案要说清"凭哪一句判的"，
+    把"你们公司"（面试官话术）说成"自述经历"会让人看不懂。
+    """
+    if not segments:
+        return 0.0, [], []
+    net = 0
+    asked: list[str] = []
+    told: list[str] = []
+    for segment in segments:
+        text = segment.text
+        for phrase in _INTERVIEWER_PHRASES:
+            if phrase in text:
+                net += 1
+                if phrase not in asked:
+                    asked.append(phrase)
+        for phrase in _CANDIDATE_MARKERS:
+            if phrase in text:
+                net -= 1
+                if phrase not in told:
+                    told.append(phrase)
+    return net / len(segments), asked, told
+
 
 def _question_score(segments: Sequence[SegmentDraft]) -> float:
     """给一组发言打"像面试官在提问"的分。分母是发言条数，便于不同说话量之间比较。"""
@@ -405,12 +467,18 @@ def infer_speaker_roles(drafts: Sequence[SegmentDraft]) -> str:
 
     两路信号，**"谁在答题"优先于"谁在提问"**：
 
-    1. **发言长度**——讲方案的是候选人。出题是几句，解题是几段，
-       这个差别在真实转写里最明显，而且不受提问方式影响。
-    2. **提问密度**——提问多的是面试官。作为补充与交叉验证。
+    **三路信号投票**，每一路都先要求"差异够明显"才投票，避免噪音定角色：
 
-    只看提问会在技术讨论式面试上失效（双方都在用反问确认），所以长度是主判据。
-    一致时采信；**冲突时以长度为准**，因为它是更直接的结构性信号。
+    1. **发言长度**——讲方案的是候选人。出题是几句，解题是几段，
+       这个差别在真实转写里最明显，也不受提问方式影响；
+    2. **角色关键词**——「你介绍一下」「能不能」vs「我用过」「我负责」。
+       这一路最贴近人的直觉，也不怕"话多"或"爱反问"；
+    3. **提问密度**——提问多的是面试官。作为补充：**技术讨论式面试里它会失效**
+       （双方都在用"是吧？""对不对？"确认，实测两边几乎一样），
+       所以它只是第三票，不再当主判据。
+
+    三路多数决定；**票数相同时以"角色关键词"为准**——它最不容易被风格带偏。
+    一路都投不出票（差异都不够）时返回空，让用户自己标，而不是硬猜。
 
     就地改写 `drafts` 里没有角色语义的段落；已经标好
     `interviewer`/`candidate` 的文稿（`[面试官]` / `[我]`）**原样不动**——
@@ -426,39 +494,56 @@ def infer_speaker_roles(drafts: Sequence[SegmentDraft]) -> str:
             return ""
         groups.setdefault(draft.speaker, []).append(draft)
 
-    # 只有 unknown 一种说话人 → 没有任何可用于区分角色的信号
+    # 只有一种说话人 → 没有任何可用于区分角色的信号
     if len(groups) < 2:
         return ""
 
     asked = {name: _question_score(items) for name, items in groups.items()}
     answered = {name: _answer_score(items) for name, items in groups.items()}
+    keyword = {name: _role_keyword_score(items) for name, items in groups.items()}
 
-    # 主判据：平均发言最长的是候选人
-    by_length = sorted(answered.items(), key=lambda item: item[1], reverse=True)
-    candidate, candidate_len = by_length[0]
-    runner_up, runner_up_len = by_length[1]
+    # 每一路各自选出"最像候选人"的那个，并记下证据；差异不够就不投票
+    votes: dict[str, int] = {name: 0 for name in groups}
+    reasons: list[str] = []
 
-    # 两个人的发言长度都差不多（比如一句对一句的快速问答）→ 长度这个信号无效
-    if candidate_len <= 0 or candidate_len < runner_up_len * 1.2:
-        # 退回到提问密度，但仍然要求分差够大
-        by_ask = sorted(asked.items(), key=lambda item: item[1], reverse=True)
-        asker, asker_score = by_ask[0]
-        _, second_score = by_ask[1]
-        if asker_score <= 0 or asker_score - second_score < 0.35:
-            return ""
-        # 分差够大说明两个人都在问问题（比如候选人在反问环节问了半天），
-        # 这时候硬猜会把角色搞反——宁可保持 unknown，让用户自己标。
-        candidate = asker  # 提问少的那个是候选人
-        for name in groups:
-            if name != asker:
-                candidate = name
-                break
-        basis = f"按「谁在提问」推断：{asker} 是面试官（提问密度 {asker_score:.1f}）"
+    # ① 发言长度：最长的是候选人
+    by_len = sorted(answered.items(), key=lambda item: item[1], reverse=True)
+    (len_pick, len_top), (_, len_second) = by_len[0], by_len[1]
+    if len_top > 0 and len_top >= len_second * 1.2:
+        votes[len_pick] += 1
+        reasons.append(f"发言更长（平均 {len_top:.0f} 字 vs {len_second:.0f} 字）")
+
+    # ② 角色关键词：命中"自述经历"多、命中"提问话术"少的是候选人
+    by_kw = sorted(keyword.items(), key=lambda item: item[1][0])
+    (kw_pick, (kw_top, kw_asked, kw_told)), (_, (kw_second, _, _)) = by_kw[0], by_kw[1]
+    if kw_second - kw_top >= 0.05:
+        votes[kw_pick] += 1
+        # 依据只说**这个人自己命中的那一类**："他自称我用过"或"他不问你什么"，
+        # 别把面试官话术说成"自述经历"
+        if kw_told:
+            reasons.append(f"自述经历的说法更多（如 {'、'.join(kw_told[:2])}）")
+        else:
+            reasons.append("提问话术更少（没说「你介绍一下」这类话）")
+
+    # ③ 提问密度：提问少的是候选人
+    by_ask = sorted(asked.items(), key=lambda item: item[1])
+    (ask_pick, ask_low), (_, ask_high) = by_ask[0], by_ask[1]
+    if ask_high - ask_low >= 0.35:
+        votes[ask_pick] += 1
+        reasons.append(f"提问更少（密度 {ask_low:.2f} vs {ask_high:.2f}）")
+
+    if not any(votes.values()):
+        return ""
+
+    best = max(votes.values())
+    winners = [name for name, count in votes.items() if count == best]
+    if len(winners) == 1:
+        candidate = winners[0]
     else:
-        basis = (
-            f"按「谁在讲方案」推断：{candidate} 是候选人"
-            f"（平均每条 {candidate_len:.0f} 字，对方 {runner_up_len:.0f} 字）"
-        )
+        # 票数相同：以**发言长度**为准。它是结构性信号——"谁在解题、谁在讲方案"
+        # 不随说话风格变；关键词会受"候选人也在反问"影响（这一路已经因此翻过车，
+        # 见 `_INTERVIEWER_PHRASES` 的注释）。
+        candidate = len_pick if len_pick in winners else winners[0]
 
     for draft in drafts:
         if draft.speaker == candidate:
@@ -466,9 +551,12 @@ def infer_speaker_roles(drafts: Sequence[SegmentDraft]) -> str:
         elif draft.speaker in groups:
             draft.speaker = "interviewer"
 
+    # 依据要说清**投了几票、每票的理由**——这是猜测，用户得知道它是怎么猜的，
+    # 猜错时才知道该不该改，以及往哪个方向改。
+    detail = "；".join(reasons[:3])
     return (
-        f"{basis}，其余为面试官。"
-        "如果反了，请在文稿里用 `[面试官]` / `[我]` 标出来。"
+        f"判断 {candidate} 是候选人（三路信号里 {best} 路支持：{detail}），"
+        "其余为面试官。如果反了，请在文稿里用 `[面试官]` / `[我]` 标出来。"
     )
 
 

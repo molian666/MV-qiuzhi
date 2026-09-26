@@ -172,12 +172,45 @@ async def build_profile(
     llm: LLMClient,
     name: str = "",
     notes: str = "",
+    mode: str = "new",
+    profile_id: int | None = None,
 ) -> InterviewerProfile:
     """从 1..N 段录音里学出一个面试官画像。
 
     多段录音会**合并统计**（同一个面试官的不同场次），而不是各出一份画像——
     样本越多，节奏特征越稳（尤其是追问深度和打断率这类比例型指标）。
+
+    三种模式：
+
+    - `new`：新建一个画像；
+    - `append`：**追加到已有画像**——把新录音并进它的录音列表后重算。
+      旧录音的转写会**复用已存的段落**，不重跑 ASR（真 ASR 按量计费，
+      追加一次就把历史全转一遍是不可接受的）；
+    - `replace`：**重新生成已有画像**——换掉录音列表重算，并**重跑转写**
+      （"重新生成"就该重来）。画像 id 保留，引用它的会话不会失效。
     """
+    if mode not in ("new", "append", "replace"):
+        raise PacingError(f"不支持的 mode：{mode}")
+
+    target: InterviewerProfile | None = None
+    if mode in ("append", "replace"):
+        if profile_id is None:
+            raise PacingError(f"mode={mode} 需要指定 profile_id")
+        target = db.get(InterviewerProfile, profile_id)
+        if target is None:
+            raise LookupError(f"画像不存在：{profile_id}")
+
+    if mode == "append" and target is not None:
+        # 合并录音：旧的在前、新的补在后面，去重且保持顺序
+        merged = list(target.recording_ids or [])
+        for recording_id in recording_ids:
+            if recording_id not in merged:
+                merged.append(recording_id)
+        recording_ids = merged
+
+    # append 时旧录音已经转写过，复用它们的段落；replace 则全部重转
+    reusable = set(target.recording_ids or []) if mode == "append" and target else set()
+
     if not recording_ids:
         raise PacingError("至少选择一段录音")
 
@@ -191,12 +224,19 @@ async def build_profile(
         if recording is None:
             raise LookupError(f"录音不存在：{recording_id}")
 
-        try:
-            segments, _result = await transcribe_recording(db, recording=recording, transcriber=transcriber)
-        except TranscriptionError as exc:
-            # 转写失败是"用户可修复"的问题（稿子没填/格式不对）→ 归到业务错误，
-            # 让 API 返回 400 + 可读提示，而不是 500
-            raise PacingError(str(exc)) from exc
+        segments: list[SegmentDraft] | None = None
+        if recording_id in reusable:
+            segments = _stored_segments(db, recording_id)
+
+        if segments is None:
+            try:
+                segments, _result = await transcribe_recording(
+                    db, recording=recording, transcriber=transcriber
+                )
+            except TranscriptionError as exc:
+                # 转写失败是"用户可修复"的问题（稿子没填/格式不对）→ 归到业务错误，
+                # 让 API 返回 400 + 可读提示，而不是 500
+                raise PacingError(str(exc)) from exc
 
         units = split_questions(segments)
         labels = await label_questions(db, llm=llm, units=units)
@@ -231,14 +271,29 @@ async def build_profile(
     params = build_params(features, all_units)
     params["source_features"]["tapped_recordings"] = len(recording_ids)
 
-    profile = InterviewerProfile(
-        name=name.strip() or f"画像 {utcnow().strftime('%m-%d %H:%M')}",
-        source="extracted",
-        recording_ids=list(recording_ids),
-        style_tags=[str(tag) for tag in (params.get("style_tags") or [])],
-        params=params,
-        notes=notes,
-    )
+    # append / replace 都**更新同一条记录**（保留 id）：
+    # 会话是拿 profile_id 引用画像的，换一条新记录会让已有会话指向旧画像。
+    if target is not None:
+        profile = target
+        profile.recording_ids = list(recording_ids)
+        profile.style_tags = [str(tag) for tag in (params.get("style_tags") or [])]
+        profile.params = params
+        # 名字：调用方给了就用新的，没给就保留原名（追加时不该悄悄改名）
+        if name.strip():
+            profile.name = name.strip()
+        if notes:
+            profile.notes = notes
+        # 样本要重算，先清掉旧的
+        db.exec(delete(PacingSample).where(PacingSample.profile_id == profile.id))
+    else:
+        profile = InterviewerProfile(
+            name=name.strip() or f"画像 {utcnow().strftime('%m-%d %H:%M')}",
+            source="extracted",
+            recording_ids=list(recording_ids),
+            style_tags=[str(tag) for tag in (params.get("style_tags") or [])],
+            params=params,
+            notes=notes,
+        )
     db.add(profile)
     db.commit()
     db.refresh(profile)
@@ -300,6 +355,35 @@ def load_policy_for_session(
         profile_name=profile.name,
         samples=profile_samples(db, profile.id or 0),
     )
+
+
+def _stored_segments(db: Session, recording_id: int) -> list[SegmentDraft] | None:
+    """把某段录音**已存好的**转写段落读回来；没有就返回 None。
+
+    用于 `append` 模式：追加新录音时，旧录音没必要重跑 ASR——
+    真 ASR 按量计费，每追加一次就把历史全转一遍是不可接受的。
+    这也是 `replace`（"重新生成"）与 `append` 的区别所在：
+    前者故意重转，后者复用。
+    """
+    rows = list(
+        db.exec(
+            select(TranscriptSegment)
+            .where(TranscriptSegment.recording_id == recording_id)
+            .order_by(TranscriptSegment.idx)  # type: ignore[attr-defined]
+        ).all()
+    )
+    if not rows:
+        return None
+    return [
+        SegmentDraft(
+            idx=row.idx,
+            speaker=row.speaker or "unknown",
+            text=row.text,
+            start_ms=row.start_ms,
+            end_ms=row.end_ms,
+        )
+        for row in rows
+    ]
 
 
 def parse_manual_transcript(text: str) -> list[SegmentDraft]:
