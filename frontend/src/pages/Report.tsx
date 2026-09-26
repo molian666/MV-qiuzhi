@@ -119,6 +119,7 @@ export default function Report({ sessionId, onSelectSession }: Props) {
             <select
               value={sessionId ?? ''}
               onChange={(event) => onSelectSession(event.target.value ? Number(event.target.value) : null)}
+              aria-label="选择要查看报告的面试"
               className="rounded-card border border-ink-2 px-2 py-1.5 text-xs outline-none focus:border-info"
             >
               <option value="">选择一场面试</option>

@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import InterviewSetup, { DEFAULT_SETUP, interviewerOf, setupToPayload, type SetupValue } from '../components/InterviewSetup'
-import type { InterviewOptions, JobTarget, ProfileListItem, ResumeItem, SessionDetail } from '../api/types'
+import ProfilePreview from '../components/ProfilePreview'
+import type {
+  InterviewOptions,
+  JobTarget,
+  ProfileListItem,
+  ProfilePolicy,
+  ResumeItem,
+  SessionDetail,
+} from '../api/types'
 
 const SPEAKER_LABEL: Record<string, string> = {
   interviewer: '面试官',
@@ -33,6 +41,8 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
   const [resumes, setResumes] = useState<ResumeItem[]>([])
   const [profiles, setProfiles] = useState<ProfileListItem[]>([])
   const [profileId, setProfileId] = useState('')
+  // 选中画像的完整策略：用来展示"这场会怎么面你"（而不是只显示一个名字）
+  const [profilePolicy, setProfilePolicy] = useState<ProfilePolicy | null>(null)
   const [targetId, setTargetId] = useState('')
   const [resumeId, setResumeId] = useState('')
   const [maxQuestions, setMaxQuestions] = useState(5)
@@ -70,6 +80,31 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
   useEffect(() => {
     void refreshOptions()
   }, [refreshOptions])
+
+  // 选中画像时把它"会怎么面你"读出来展示——否则用户只看到一个名字，
+  // 无法判断节奏学习到底有没有作用到这场模拟上
+  useEffect(() => {
+    if (!profileId) {
+      setProfilePolicy(null)
+      return
+    }
+    let cancelled = false
+    api
+      .getProfile(Number(profileId))
+      .then((detail) => {
+        if (!cancelled) {
+          setProfilePolicy(detail.policy)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProfilePolicy(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profileId])
 
   // 上报会话状态：面试间容器据此决定能否切换文字/语音模式
   useEffect(() => {
@@ -215,7 +250,7 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
     'w-full rounded-card border border-ink-2 px-3 py-2 text-sm outline-none focus:border-info disabled:bg-paper'
 
   return (
-    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
       <section className="flex h-full min-h-0 flex-col rounded-panel border border-ink-1 bg-surface">
         <header className="flex flex-wrap items-center justify-end gap-3 border-b border-ink-1 px-4 py-2.5">
           <div className="flex items-center gap-2">
@@ -342,8 +377,9 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
         <div className="rounded-panel border border-ink-1 bg-surface p-4">
           <h3 className="mb-3 text-sm font-semibold text-ink-9">本场配置</h3>
 
-          <label className="mb-1 block text-xs text-ink-6">目标岗位</label>
+          <label htmlFor="live-target" className="mb-1 block text-xs text-ink-6">目标岗位</label>
           <select
+            id="live-target"
             value={targetId}
             onChange={(event) => setTargetId(event.target.value)}
             className={`${inputClass} mb-3`}
@@ -356,8 +392,9 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
             ))}
           </select>
 
-          <label className="mb-1 block text-xs text-ink-6">简历</label>
+          <label htmlFor="live-resume" className="mb-1 block text-xs text-ink-6">简历</label>
           <select
+            id="live-resume"
             value={resumeId}
             onChange={(event) => setResumeId(event.target.value)}
             className={`${inputClass} mb-3`}
@@ -370,8 +407,9 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
             ))}
           </select>
 
-          <label className="mb-1 block text-xs text-ink-6">题量上限</label>
+          <label htmlFor="live-maxq" className="mb-1 block text-xs text-ink-6">题量上限</label>
           <input
+            id="live-maxq"
             type="number"
             min={1}
             max={20}
@@ -380,15 +418,17 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
             className={`${inputClass} mb-3`}
           />
 
-          <label className="mb-1 block text-xs text-ink-6">面试风格</label>
+          <label htmlFor="live-style" className="mb-1 block text-xs text-ink-6">面试风格</label>
           <input
+            id="live-style"
             value={style}
             onChange={(event) => setStyle(event.target.value)}
             className={`${inputClass} mb-3`}
           />
 
-          <label className="mb-1 block text-xs text-ink-6">面试官画像（可选）</label>
+          <label htmlFor="live-profile" className="mb-1 block text-xs text-ink-6">面试官画像（可选）</label>
           <select
+            id="live-profile"
             value={profileId}
             onChange={(event) => setProfileId(event.target.value)}
             className={`${inputClass} mb-3`}
@@ -400,6 +440,12 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
               </option>
             ))}
           </select>
+
+          {profilePolicy && (
+            <div className="mb-3">
+              <ProfilePreview policy={profilePolicy} />
+            </div>
+          )}
 
           <InterviewSetup options={options} value={setup} onChange={setSetup} disabled={busy} />
 

@@ -235,7 +235,7 @@ export default function QuestionGenerator({
           type="button"
           onClick={() => void run('new')}
           disabled={busy !== 'idle'}
-          className="rounded-control bg-ink-9 px-3 py-1.5 text-[11px] text-surface transition-opacity hover:opacity-90 disabled:bg-ink-2"
+          className="rounded-control bg-ink-9 px-3 py-1.5 text-[11px] text-surface transition-opacity hover:opacity-90 disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
         >
           {busy === 'generating' ? '生成中…' : '生成一批'}
         </button>
@@ -246,7 +246,7 @@ export default function QuestionGenerator({
               type="button"
               onClick={() => void run('append')}
               disabled={busy !== 'idle'}
-              className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-[11px] text-ink-7 transition-colors hover:bg-paper disabled:text-ink-2"
+              className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-[11px] text-ink-7 transition-colors hover:bg-paper disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
               title="在同一批上追加，已出的题干会带给模型要求它别重复"
             >
               继续生成
@@ -255,7 +255,7 @@ export default function QuestionGenerator({
               type="button"
               onClick={() => void run('replace')}
               disabled={busy !== 'idle'}
-              className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-[11px] text-ink-7 transition-colors hover:bg-paper disabled:text-ink-2"
+              className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-[11px] text-ink-7 transition-colors hover:bg-paper disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
               title="丢掉这一批，按同样的参数重新生成"
             >
               重新生成
@@ -264,7 +264,7 @@ export default function QuestionGenerator({
               type="button"
               onClick={() => void discard(current?.batch ?? '')}
               disabled={busy !== 'idle'}
-              className="rounded-control border border-ng bg-surface px-3 py-1.5 text-[11px] text-ng transition-colors hover:bg-ng-soft disabled:text-ink-2"
+              className="rounded-control border border-ng bg-surface px-3 py-1.5 text-[11px] text-ng transition-colors hover:bg-ng-soft disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
             >
               丢弃这批
             </button>
@@ -297,7 +297,7 @@ export default function QuestionGenerator({
               type="button"
               onClick={() => void adopt()}
               disabled={busy !== 'idle' || adoptingId !== null}
-              className="rounded-control bg-ok px-2.5 py-1 text-[11px] text-surface transition-opacity hover:opacity-90 disabled:bg-ink-2"
+              className="rounded-control bg-ok px-2.5 py-1 text-[11px] text-surface transition-opacity hover:opacity-90 disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
               title="这一批全部放进题库，之后模拟面试可能抽到"
             >
               {busy === 'adopting' ? '入库中…' : '全部添加'}
@@ -320,7 +320,7 @@ export default function QuestionGenerator({
                   type="button"
                   onClick={() => void adoptOne(item.id)}
                   disabled={adoptingId !== null || busy !== 'idle'}
-                  className="shrink-0 rounded-control border border-ok px-2 py-0.5 text-[10px] text-ok transition-colors hover:bg-ok-soft disabled:border-ink-1 disabled:text-ink-3"
+                  className="shrink-0 rounded-control border border-ok px-2 py-0.5 text-[10px] text-ok transition-colors hover:bg-ok-soft disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
                 >
                   {adoptingId === item.id ? '…' : '添加'}
                 </button>

@@ -215,7 +215,7 @@ export default function SpeechKit() {
             type="button"
             disabled={busy || resumeId === null}
             onClick={() => void generateStories()}
-            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
+            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
           >
             从简历抽取故事卡
           </button>
@@ -322,7 +322,7 @@ export default function SpeechKit() {
             type="button"
             disabled={busy || resumeId === null}
             onClick={() => void composeIntro()}
-            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
+            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
           >
             生成自我介绍
           </button>
@@ -385,7 +385,7 @@ export default function SpeechKit() {
             type="button"
             disabled={busy || resumeId === null}
             onClick={() => void composeSensitive()}
-            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
+            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
           >
             生成回答
           </button>
@@ -418,7 +418,7 @@ export default function SpeechKit() {
             type="button"
             disabled={busy}
             onClick={() => void composeQuestions()}
-            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
+            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
           >
             生成反问清单
           </button>

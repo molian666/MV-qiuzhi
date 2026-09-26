@@ -23,8 +23,14 @@ router = APIRouter(prefix="/api/interviewer-profiles", tags=["profiles"])
 
 
 def _detail(db: Session, profile: InterviewerProfile) -> ProfileDetail:
-    policy = build_policy(profile.params, profile_id=profile.id, profile_name=profile.name)
     samples = profile_samples(db, profile.id or 0)
+    # 样本一起传：策略里要带上"他真实问过的原题"（前端细节页也直接展示这个）
+    policy = build_policy(
+        profile.params,
+        profile_id=profile.id,
+        profile_name=profile.name,
+        samples=samples,
+    )
     return ProfileDetail(
         id=profile.id or 0,
         name=profile.name,

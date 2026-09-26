@@ -211,7 +211,7 @@ export default function System() {
       <label key={field.key} className="block">
         <span className="flex items-baseline justify-between gap-2">
           <span className="text-xs font-medium text-ink-7">{field.label}</span>
-          <span className="font-mono text-[10px] text-ink-3">{field.key}</span>
+          <span className="font-mono text-[10px] text-ink-4">{field.key}</span>
         </span>
         <input
           type={item.is_secret ? 'password' : 'text'}
@@ -313,7 +313,7 @@ export default function System() {
                     type="button"
                     onClick={() => setDraft({ ...draft, LLM_BASE_URL: item.url })}
                     title={item.url}
-                    className="rounded-control border border-ink-1 bg-paper px-2 py-0.5 text-[10px] text-ink-6 transition-colors hover:border-ink-2 hover:bg-surface"
+                    className="rounded-control border border-ink-1 bg-paper px-2 py-1 text-[10px] text-ink-6 transition-colors hover:border-ink-2 hover:bg-surface"
                   >
                     {item.label}
                   </button>
@@ -343,7 +343,7 @@ export default function System() {
                 type="button"
                 onClick={() => void save()}
                 disabled={saving || !hasChanges}
-                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
+                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
               >
                 {saving ? '保存中…' : '保存'}
               </button>
@@ -351,7 +351,7 @@ export default function System() {
                 type="button"
                 onClick={() => setDraft({})}
                 disabled={!hasChanges}
-                className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-6 disabled:text-ink-2"
+                className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-6 disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
               >
                 撤销改动
               </button>
@@ -363,7 +363,7 @@ export default function System() {
                 onClick={() => void runTest()}
                 disabled={testing || hasChanges}
                 title={hasChanges ? '先保存改动，再测试' : '用当前配置发一次真实请求'}
-                className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-7 transition-colors hover:bg-paper disabled:text-ink-2"
+                className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-7 transition-colors hover:bg-paper disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
               >
                 {testing ? '测试中…' : '测试连接'}
               </button>

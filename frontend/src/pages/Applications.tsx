@@ -263,6 +263,7 @@ export default function Applications() {
                           <select
                             value={item.status}
                             onChange={(event) => void changeStatus(item.id, event.target.value)}
+                            aria-label={`${item.company} ${item.title} 的投递状态`}
                             className="rounded-control border border-ink-2 px-2 py-1 text-xs"
                           >
                             {STATUS_ORDER.map((status) => (

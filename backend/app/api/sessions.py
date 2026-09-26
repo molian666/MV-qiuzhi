@@ -26,7 +26,7 @@ from ..deps import get_llm, get_session
 from ..models.core import JobTarget, Resume
 from ..models.pacing import InterviewerProfile
 from ..models.session import InterviewSession, SessionTurn
-from ..pacing_service import load_policy_for_session
+from ..pacing_service import load_policy_for_session, profile_samples
 from ..providers.llm.base import LLMClient, LLMError
 from ..realtime.interviewer import Interviewer
 from ..repositories import count_turns, ordered_turns
@@ -264,6 +264,9 @@ async def create_session(
             default_silence_ms=settings.speech_silence_ms,
             profile_id=profile.id,
             profile_name=profile.name,
+            # 真实原题在样本表里，必须一起读——否则模型只知道"爱问技术题"，
+            # 不知道这个人具体关心什么
+            samples=profile_samples(db, profile.id or 0),
         )
         if profile is not None
         else None

@@ -298,7 +298,7 @@ export default function OfferDesk() {
               type="button"
               disabled={busy}
               onClick={() => void addOffer()}
-              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
+              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
             >
               添加
             </button>
@@ -500,7 +500,7 @@ export default function OfferDesk() {
               type="button"
               disabled={busy}
               onClick={() => void startNegotiation()}
-              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
+              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
             >
               开始谈判
             </button>
@@ -561,7 +561,7 @@ export default function OfferDesk() {
                   type="button"
                   disabled={busy || !negDraft.trim()}
                   onClick={() => void sendReply()}
-                  className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
+                  className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
                 >
                   说
                 </button>
@@ -639,7 +639,7 @@ export default function OfferDesk() {
             type="button"
             disabled={busy || !riskText.trim()}
             onClick={() => void scanRisk()}
-            className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
+            className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
           >
             扫描
           </button>
@@ -723,7 +723,7 @@ export default function OfferDesk() {
             type="button"
             disabled={busy}
             onClick={() => void scanContract()}
-            className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:bg-ink-2"
+            className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
           >
             生成清单
           </button>

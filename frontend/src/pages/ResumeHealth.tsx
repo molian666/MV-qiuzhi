@@ -267,7 +267,7 @@ export default function ResumeHealth() {
               type="button"
               disabled={busy}
               onClick={() => void createResume()}
-              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
+              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
             >
               创建简历
             </button>
@@ -309,7 +309,7 @@ export default function ResumeHealth() {
               type="button"
               disabled={busy || resumeId === null}
               onClick={() => void diagnose()}
-              className="w-full rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
+              className="w-full rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
             >
               开始诊断
             </button>

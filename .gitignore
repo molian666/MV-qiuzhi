@@ -41,3 +41,6 @@ Thumbs.db
 
 # ---- 工具运行时数据（Reasonix 任务日志等） ----
 .reasonix/
+
+# ---- UI 截图核查产物（本地看界面用，不入库） ----
+.ui-shots/

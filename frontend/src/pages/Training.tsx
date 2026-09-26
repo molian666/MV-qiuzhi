@@ -432,6 +432,7 @@ export default function Training() {
               type="file"
               accept=".json,.csv,.md,.markdown,.txt"
               disabled={importing}
+              aria-label="选择要导入的题库文件"
               onChange={(event) => {
                 void handleImport(event.target.files?.[0])
                 event.target.value = ''

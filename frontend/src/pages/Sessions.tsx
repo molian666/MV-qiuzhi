@@ -115,7 +115,9 @@ export default function Sessions({ onOpenReport }: Props) {
           <p className="px-4 py-6 text-sm text-ink-6">还没有面试记录。去「面试间」跑一场文字面试。</p>
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
-            <table className="w-full text-sm">
+            {/* 中文没有词边界：列一窄就逐字断行（"已结束"竖成三行）。
+                所以固定列一律 nowrap，只让"岗位"这一列自己换行。 */}
+            <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-paper text-left text-xs text-ink-6">
                 <tr>
                   <th className="px-4 py-2 font-medium">#</th>
@@ -152,7 +154,7 @@ export default function Sessions({ onOpenReport }: Props) {
                           event.stopPropagation()
                           void remove(item.id)
                         }}
-                        className="text-xs text-ng hover:underline"
+                        className="-my-1 whitespace-nowrap rounded-control px-1.5 py-1 text-xs text-ng hover:bg-ng-soft hover:underline"
                         title="删除这场面试，连同它的回合、报告与录音文件"
                       >
                         删除

@@ -671,12 +671,37 @@ export interface CreateRecordingPayload {
   raw_text?: string
 }
 
+/** 文稿体检结果：上传前先知道"这份文档能解析出什么" */
+export interface DocCheck {
+  /** 实际用来解码的编码（UTF-8 / GB18030 等）——乱码这件事要可解释 */
+  encoding: string
+  filename: string
+  total_lines: number
+  segments: number
+  labeled: number
+  interviewer: number
+  candidate: number
+  timestamped: number
+  looks_like_questions: number
+  /** 角色是不是推断出来的（原文只标了「发言人1/2」这类无角色语义的说话人） */
+  inferred_roles: boolean
+  /** 推断依据的一句话说明；推断错时用户据此去手工标注 */
+  role_note: string
+  /** 能不能用来学画像（至少要有一段面试官发言） */
+  usable: boolean
+  summary: string
+  warnings: string[]
+  preview: TranscriptSegment[]
+}
+
 export interface TranscriptSegment {
   idx: number
   speaker: string
   text: string
   start_ms: number | null
   end_ms: number | null
+  /** 原文里的原始说话人标签（如「发言人1」）。角色是推断的场合下靠它核对。 */
+  source_label?: string
 }
 
 export interface RecordingDetail extends Recording {
@@ -701,12 +726,21 @@ export interface ProfilePolicy {
   silence_ms: number
   max_followup_depth: number
   followup_triggers: string[]
+  /** 题型配比（技术细节 / 项目深挖 / 反问…）——决定"问什么内容" */
+  type_mix: Record<string, number>
+  /** 问题结构配比（新话题 / 追问 / 开场），旧数据字段 */
   topic_mix: Record<string, number>
   style_tags: string[]
   stress_level: string
   interviewer_wpm: number
   opening_pattern: string
   closing_pattern: string
+  /** 这个面试官真实问过的原题（会作为素材注入面试官 prompt） */
+  sample_questions: string[]
+  /** 真实开场原话 */
+  opening_line: string
+  /** 真实收尾原话 */
+  closing_line: string
 }
 
 export interface InterviewerProfile {

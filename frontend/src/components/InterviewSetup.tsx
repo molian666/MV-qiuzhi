@@ -192,6 +192,7 @@ export default function InterviewSetup({
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <span className="font-medium text-ink-7">题目来源</span>
           <select
+            aria-label="题目来源"
             className="rounded-control border border-ink-2 px-2 py-1 text-xs"
             value={value.questionMode}
             disabled={disabled}
@@ -366,7 +367,9 @@ export default function InterviewSetup({
 
       <div>
         <div className="text-xs font-medium text-ink-7">压力模式（可同时打开）</div>
-        <div className="mt-2 grid gap-2 md:grid-cols-3">
+        {/* 摘要最长 26 字，硬排三列会把每格压到 ~80px 而逐字换行。
+            所以按可用宽度降列：窄了排 2 列、宽了才排 3 列。 */}
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {pressureModes.map((mode) => {
             const on =
               mode.key === 'deep_drill'

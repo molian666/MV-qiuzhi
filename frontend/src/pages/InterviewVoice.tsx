@@ -9,7 +9,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import InterviewSetup, { DEFAULT_SETUP, interviewerOf, setupToPayload, type SetupValue } from '../components/InterviewSetup'
-import type { InterviewOptions, JobTarget, ProfileListItem, ResumeItem, SessionDetail, Turn } from '../api/types'
+import ProfilePreview from '../components/ProfilePreview'
+import type {
+  InterviewOptions,
+  JobTarget,
+  ProfileListItem,
+  ProfilePolicy,
+  ResumeItem,
+  SessionDetail,
+  Turn,
+} from '../api/types'
 import type { ServerEvent } from '../api/ws'
 import { SessionSocket } from '../api/ws'
 import { startMicCapture } from '../audio/mic'
@@ -44,6 +53,8 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
   const [resumes, setResumes] = useState<ResumeItem[]>([])
   const [profiles, setProfiles] = useState<ProfileListItem[]>([])
   const [profileId, setProfileId] = useState('')
+  // 选中画像的策略：展示"这场会怎么面你"，也让"节奏学习真的生效了"看得见
+  const [profilePolicy, setProfilePolicy] = useState<ProfilePolicy | null>(null)
   const [targetId, setTargetId] = useState('')
   const [resumeId, setResumeId] = useState('')
   const [maxQuestions, setMaxQuestions] = useState(4)
@@ -89,6 +100,30 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
       .then(setOptions)
       .catch(() => setOptions(null))
   }, [])
+
+  // 选中画像时读出它的策略：展示"这场会怎么面你"，让学习效果可见
+  useEffect(() => {
+    if (!profileId) {
+      setProfilePolicy(null)
+      return
+    }
+    let cancelled = false
+    api
+      .getProfile(Number(profileId))
+      .then((detail) => {
+        if (!cancelled) {
+          setProfilePolicy(detail.policy)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProfilePolicy(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profileId])
 
   // 上报会话状态：面试间容器据此决定能否切换文字/语音模式
   useEffect(() => {
@@ -587,6 +622,7 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
 
           <label className="mb-1 block text-xs text-ink-6">面试官画像（可选）</label>
           <select
+            aria-label="面试官画像"
             value={profileId}
             onChange={(event) => setProfileId(event.target.value)}
             className={`${inputClass} mb-3`}
@@ -598,6 +634,12 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
               </option>
             ))}
           </select>
+
+          {profilePolicy && (
+            <div className="mb-3">
+              <ProfilePreview policy={profilePolicy} />
+            </div>
+          )}
 
           <InterviewSetup options={options} value={setup} onChange={setSetup} disabled={busy || connected} />
 

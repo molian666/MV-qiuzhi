@@ -155,7 +155,7 @@ export default function Expression() {
             type="button"
             disabled={busy || sessionId === null}
             onClick={() => void generate(true)}
-            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:bg-ink-2"
+            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
           >
             生成表达体检（含录音）
           </button>

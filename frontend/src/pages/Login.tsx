@@ -60,7 +60,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
         <button
           type="submit"
           disabled={busy || !password}
-          className="mt-4 w-full rounded-control bg-ink-9 px-3 py-2 text-sm text-surface disabled:bg-ink-2"
+          className="mt-4 w-full rounded-control bg-ink-9 px-3 py-2 text-sm text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
         >
           {busy ? '登录中…' : '登录'}
         </button>

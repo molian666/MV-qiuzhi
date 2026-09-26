@@ -23,6 +23,7 @@ import type {
   CreateSessionPayload,
   CreateTargetPayload,
   DecisionOptions,
+  DocCheck,
   ExpressionReport,
   Health,
   InterviewOptions,
@@ -275,6 +276,21 @@ export const api = {
     form.append('title', title)
     form.append('raw_text', rawText)
     return request<Recording>('/recordings/upload', { method: 'POST', body: form })
+  },
+  /** 上传对话文稿文件（.txt/.md）：后端自动识别编码，并当场落库段落 */
+  uploadDocument: (file: File, title = '', company = '', role = '') => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('title', title)
+    form.append('company', company)
+    form.append('role', role)
+    return request<Recording>('/recordings/document', { method: 'POST', body: form })
+  },
+  /** 只体检不落库：上传前先告诉用户能切出多少问答、缺什么 */
+  inspectDocument: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request<DocCheck>('/recordings/inspect', { method: 'POST', body: form })
   },
   listProfiles: () => request<ProfileListItem[]>('/interviewer-profiles'),
   createProfile: (recordingIds: number[], name: string) =>

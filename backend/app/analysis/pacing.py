@@ -42,6 +42,14 @@ TOPIC_LABELS: dict[str, str] = {
     "followup": "追问",
 }
 
+#: 真正的**题型**键（模型给每道题打的 `type`）。
+#: 与"问题结构"键（`new_topic` / `opening` / `closing`，来自 `QuestionUnit.kind`）
+#: 区分开：结构键没有中文标签，混进"题型配比"会以英文漏进 prompt，
+#: 而且它描述的是"这是新话题还是追问"，跟"问什么内容"不是一回事。
+QUESTION_TYPE_KEYS: frozenset[str] = frozenset(
+    {"self_intro", "project_deep", "tech", "behavior", "algorithm", "scenario", "salary", "reverse", "general"}
+)
+
 QUESTION_MARKERS = (
     "？",
     "?",
@@ -68,9 +76,68 @@ CLOSING_MARKERS = ("你有什么想问", "反问", "薪资", "期望薪资", "�
 
 _TIMESTAMP = re.compile(r"^\s*[\[\(]?(\d{1,2}):(\d{2})(?:[.:](\d{1,2}))?[\]\)]?\s*")
 
-_SPEAKER_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"^\s*[\[\(【]?(面试官|面试官A|面试官B|hr|HR|Hr|q|Q)[\]\)】]?\s*[:：]?\s*(.+)$"), "interviewer"),
-    (re.compile(r"^\s*[\[\(【]?(我|候选人|本人|求职者|a|A|答)[\]\)】]?\s*[:：]?\s*(.+)$"), "candidate"),
+#: 说话人标记。分两类，区别在**要不要强制分隔符**——
+#: 中文没有词边界，宽松匹配会把普通句子吃成"标记 + 内容"：
+#: 「我是 5 年视觉工程师」曾被判成说话人 `我` + 内容 `是 5 年视觉工程师`，
+#: 于是没标说话人的文稿被**静默错切**（比丢掉更糟：错的东西看起来是对的）。
+#: 所以单字/单字母的标记（我 / 答 / q / A）后面**必须有** `:`、`：` 或成对括号；
+#: 而「面试官」「候选人」这类多字词本身够独特，冒号可以省。
+_SPEAKER_STRICT: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"^\s*[\[\(【]\s*(我|答|a|A|q|Q)\s*[\]\)】]\s*[:：]?\s*(.+)$"), "candidate"),
+    (re.compile(r"^\s*(我|答|a|A)\s*[:：]\s*(.+)$"), "candidate"),
+    (re.compile(r"^\s*[\[\(【]\s*(面试官\d*|hr|HR|Hr|q|Q)\s*[\]\)】]\s*[:：]?\s*(.+)$"), "interviewer"),
+    (re.compile(r"^\s*(面试官\d*|hr|HR|Hr|q|Q)\s*[:：]\s*(.+)$"), "interviewer"),
+)
+
+_SPEAKER_LOOSE: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"^\s*[\[\(【]?\s*(面试官\d*)\s*[\]\)】]?\s*[:：]?\s*(.+)$"), "interviewer"),
+    (re.compile(r"^\s*[\[\(【]?\s*(候选人|本人|求职者)\s*[\]\)】]?\s*[:：]?\s*(.+)$"), "candidate"),
+)
+
+#: 「发言人1 / 说话人2 / Speaker A」这类**只标编号、不含角色**的说话人。
+#: 关键点：这里**保留编号原样**（不映射成 interviewer/candidate）——
+#: 谁是面试官要靠 `infer_speaker_roles` 按内容判断，此时还不能下结论。
+#: 如果这里就草率地把"发言人1"当成面试官，遇到反过来的录音就会全盘搞反。
+#:
+#: 时间戳在**冒号之前**：`_merge_speaker_headers` 产出的是
+#: `00:10 发言人1：正文`（时间戳放行首，才会被 `_parse_timestamp` 吃掉）。
+_GENERIC_SPEAKER = re.compile(
+    r"^\s*(发言人\s*\d+|说话人\s*\d+|讲话人\s*\d+|Speaker\s*[A-Za-z0-9]+)\s*[:：]\s*(.+)$",
+    re.IGNORECASE,
+)
+
+_SPEAKER_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = _SPEAKER_STRICT + _SPEAKER_LOOSE
+
+#: 转写软件导出时前面那几行：日期（几年前的都算）与"…面试_原文"这类标题
+_DATE_LINE = re.compile(
+    r"^\s*\d{4}\s*[年\-/.]\s*\d{1,2}\s*[月\-/.]\s*\d{1,2}\s*日?\s*(\d{1,2}:\d{2}(:\d{2})?)?\s*$"
+)
+_HEADER_MARKERS = ("面试_原文", "面试原文", "转写", "录音原文", "对话原文", "字幕")
+
+#: 「<名称>_原文」这种**会议软件导出标题**。
+#:
+#: 腾讯会议、飞书妙记等导出的是「方亿荣 华海达面试_原文」这种，
+#: 但只写公司名/人名时是「深圳杰美康_原文」——**不含"面试"二字**，
+#: 于是 `_HEADER_MARKERS` 漏掉了它。而这行漏掉之后，后面所有头部检查
+#: 都会因为 `not drafts` 失效（见 `parse_transcript` 里的注释）。
+_HEADER_TITLE_LINE = re.compile(r"^.{0,28}[_\-—]?\s*原文\s*$")
+
+#: 「只有说话人标签（+可选时间戳）、没有正文」的独立一行。
+#: 转写软件（腾讯会议 / 飞书妙记等）复制出来就是这种：
+#:
+#:     发言人1   00:10
+#:     是做视觉工程师是吧？那你先介绍一下工作经历。
+#:
+#: 这类标签**不含角色语义**（发言人1/2 谁都有可能是面试官），
+#: 所以先由 `_merge_speaker_headers` 与下一行合并，再交给 `infer_speaker_roles`
+#: 按"谁在提问"判断角色。
+_SPEAKER_ONLY = re.compile(
+    r"^\s*(发言人\s*\d+|说话人\s*\d+|讲话人\s*\d+|Speaker\s*[A-Za-z0-9]+|"
+    r"受访者\s*\d*|面试官\s*\d*|候选人\s*\d*|客户\s*\d*|客服\s*\d*)"
+    r"\s*[:：]?\s*"
+    r"(\d{1,2}:\d{2}(?:[.:]\d{1,2})?)?"
+    r"\s*$",
+    re.IGNORECASE,
 )
 
 
@@ -84,6 +151,9 @@ class SegmentDraft:
     text: str
     start_ms: int | None = None
     end_ms: int | None = None
+    #: 原文里的原始说话人标签（如「发言人1」）。角色是推断出来的时候，
+    #: 必须把这个一起给用户看——否则他无法验证"面试官到底是不是发言人1"。
+    source_label: str = ""
 
 
 def _parse_timestamp(line: str) -> tuple[int | None, str]:
@@ -101,7 +171,34 @@ def _estimate_ms(text: str, *, chars_per_second: float = CHARS_PER_SECOND) -> in
     return max(MIN_SEGMENT_MS, int(len(text) / max(0.5, chars_per_second) * 1000))
 
 
-def parse_transcript(text: str, *, chars_per_second: float = CHARS_PER_SECOND) -> list[SegmentDraft]:
+def _looks_like_header(line: str) -> bool:
+    """判断一行是不是"文件头"（标题 / 导出时间），而不是对话内容。
+
+    只在**还没有任何段落**时才会被调用，所以误判的代价很小；
+    但判错的后果不小（会吃掉第一句话），因此规则写得很紧：
+    必须形如日期，或"很短 + 含面试/原文/转写"这类标题特征。
+    """
+    text = line.strip()
+    if not text:
+        return False
+    # 日期行：2026年09月24日 / 2026-09-24 / 2026/09/24 / 2026.09.24
+    if _DATE_LINE.match(text):
+        return True
+    # 会议软件导出的标题行：「深圳杰美康_原文」「华海达面试_原文」
+    if _HEADER_TITLE_LINE.match(text):
+        return True
+    # 标题行：短，且带明显的"这是份记录"的痕迹
+    if len(text) <= 30 and any(marker in text for marker in _HEADER_MARKERS):
+        return True
+    return False
+
+
+def parse_transcript(
+    text: str,
+    *,
+    chars_per_second: float = CHARS_PER_SECOND,
+    roles_info: list[str] | None = None,
+) -> list[SegmentDraft]:
     """解析对话文稿。支持这些写法（可以混用）：
 
         [面试官] 先做个自我介绍吧
@@ -109,12 +206,37 @@ def parse_transcript(text: str, *, chars_per_second: float = CHARS_PER_SECOND) -
         我：我做的是订单系统
         Q: 为什么离职
         A: 因为想换方向
-    """
-    drafts: list[SegmentDraft] = []
 
-    for raw_line in (text or "").splitlines():
-        line = raw_line.strip()
-        if not line:
+    也支持**转写软件导出的"发言人 + 独立时间行"格式**（腾讯会议/飞书妙记等
+    直接复制出来就是这种）：
+
+        发言人1   00:10
+        是做视觉工程师是吧？那你先介绍一下工作经历。
+
+        发言人2   00:21
+        可以看到吗？
+
+    这种格式里说话人叫「发言人1/2」，**不带任何角色语义**，所以解析完还要靠
+    `infer_speaker_roles` 按"谁在提问"判断谁是面试官——否则整份文稿切不出问答。
+
+    `roles_info`：传入一个 list 时，会把"角色是推断出来的"说明追加进去
+    （调用方负责展示，让用户知道这是猜测、猜错时怎么改）。
+
+    头部行：转写软件导出时前面会带文件标题与导出时间，它们不是对话。
+    头部典型是 1–2 行，所以只在**最前面几行**里做这个判断；用行数上限而不是
+    "必须是第一行"，是因为后者太脆——真实的「深圳杰美康_原文」漏过一次，
+    连带日期行一起放进了正文（`_HEADER_TITLE_LINE` 就是为此补的）。
+    """
+    lines = _merge_speaker_headers((text or "").splitlines())
+
+    drafts: list[SegmentDraft] = []
+    HEADER_SCAN_LINES = 3
+
+    for line_index, line in enumerate(lines):
+        # 转写软件导出时前面会带文件标题与导出时间（`方亿荣 华海达面试_原文` /
+        # `2026年09月24日 09:11`）。它们不是对话，留着会被算进第一个人的发言，
+        # 还会把时间轴起点拉到 0（于是第一题的"等待时长"凭空变成 10 秒）。
+        if line_index < HEADER_SCAN_LINES and _looks_like_header(line):
             continue
 
         start_ms, line = _parse_timestamp(line)
@@ -123,20 +245,231 @@ def parse_transcript(text: str, *, chars_per_second: float = CHARS_PER_SECOND) -
 
         speaker = "unknown"
         content = line
+        source_label = ""
         for pattern, name in _SPEAKER_PATTERNS:
             match = pattern.match(line)
             if match:
                 speaker = name
                 content = match.group(2).strip()
                 break
+        else:
+            # 只标编号的说话人（发言人1/2…）：保留编号，交给 infer_speaker_roles 判角色
+            generic = _GENERIC_SPEAKER.match(line)
+            if generic:
+                source_label = re.sub(r"\s+", "", generic.group(1))
+                speaker = source_label
+                content = generic.group(2).strip()
 
         if not content:
             continue
 
-        drafts.append(SegmentDraft(idx=len(drafts), speaker=speaker, text=content, start_ms=start_ms))
+        drafts.append(
+            SegmentDraft(
+                idx=len(drafts),
+                speaker=speaker,
+                text=content,
+                start_ms=start_ms,
+                source_label=source_label,
+            )
+        )
 
     _fill_timestamps(drafts, chars_per_second=chars_per_second)
+    note = infer_speaker_roles(drafts)
+    if note and roles_info is not None:
+        roles_info.append(note)
     return drafts
+
+
+def _merge_speaker_headers(lines: Sequence[str]) -> list[str]:
+    """把「说话人一行 + 正文一行」合并成 `说话人：正文`。
+
+    转写软件常把说话人和时间单独占一行，正文在下一行：
+
+        发言人1   00:10
+        是做视觉工程师是吧？
+
+    不合并的话，`发言人1   00:10` 会被当成一句正文（而且时间戳也吃不到），
+    整份文稿就废了。只在"这一行**只有**说话人标签与时间、且下一行不是新的说话人"
+    时才合并，避免把正常对话误吞掉。
+    """
+    merged: list[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index].strip()
+        if not line:
+            index += 1
+            continue
+
+        match = _SPEAKER_ONLY.match(line)
+        if match:
+            label = re.sub(r"\s+", "", match.group(1))
+            stamp = match.group(2) or ""
+            # 找下一行非空内容
+            nxt = index + 1
+            while nxt < len(lines) and not lines[nxt].strip():
+                nxt += 1
+            body = lines[nxt].strip() if nxt < len(lines) else ""
+            if body and not _SPEAKER_ONLY.match(body) and not _looks_like_speaker_body(body):
+                # 时间戳必须留在**行首**才会被 `_parse_timestamp` 吃掉。
+                # 不能写成 `发言人1 00:10：正文`——那样 `00:10` 不在行首，
+                # 整份文稿的时间轴会全部退化成"按字数估算"，等待时长也算不出来。
+                merged.append(f"{stamp + ' ' if stamp else ''}{label}：{body}")
+                index = nxt + 1
+                continue
+
+        merged.append(line)
+        index += 1
+    return merged
+
+
+def _looks_like_speaker_body(line: str) -> bool:
+    """下一行本身是不是又一条「说话人：内容」？（是的话就不该被当成正文吞掉）"""
+    for pattern, _name in _SPEAKER_PATTERNS:
+        if pattern.match(line):
+            return True
+    return False
+
+
+# --------------------------------------------------------------------------- #
+# 角色推断：给"只标了编号"的文稿判断谁是面试官
+# --------------------------------------------------------------------------- #
+#: 提问特征词：出现这些，这句多半是面试官在问
+_INTERVIEWER_MARKERS = (
+    "介绍一下",
+    "说说",
+    "说一下",
+    "讲讲",
+    "聊一聊",
+    "谈一谈",
+    "举个例子",
+    "你觉得",
+    "你认为",
+    "你怎么",
+    "你们公司",
+    "有没有",
+    "是不是",
+    "能不能",
+    "什么",
+    "怎么",
+    "为什么",
+    "哪个",
+    "哪些",
+    "多少",
+    "多久",
+)
+#: 提问句的疑问语气词（放句尾）
+_INTERROGATIVE_TAILS = ("吗", "呢", "吧", "么")
+#: 这些是"被问"的典型开头：候选人回答时常用
+_ANSWER_MARKERS = ("好的", "对的", "是的", "不是", "我觉", "我叫", "我是", "可以")
+
+
+def _question_score(segments: Sequence[SegmentDraft]) -> float:
+    """给一组发言打"像面试官在提问"的分。分母是发言条数，便于不同说话量之间比较。"""
+    if not segments:
+        return 0.0
+    score = 0.0
+    for segment in segments:
+        text = segment.text.strip()
+        if not text:
+            continue
+        if text.endswith(("？", "?")):
+            score += 2.0
+        if any(marker in text for marker in _INTERVIEWER_MARKERS):
+            score += 1.0
+        if text.endswith(_INTERROGATIVE_TAILS):
+            score += 1.0
+        # 面试官也会说"可以/好的"这种收尾话，但那不是提问；候选人则大量用
+        if text.startswith(_ANSWER_MARKERS) and not text.endswith(("？", "?")):
+            score -= 0.5
+    return score / len(segments)
+
+
+def _answer_score(segments: Sequence[SegmentDraft]) -> float:
+    """给一组发言打"像候选人在答题"的分＝平均发言长度。
+
+    **为什么光看提问不够**：技术讨论式的面试里，面试官会用大量短促的确认
+    （"是吧？""对不对？""这个角度。"）来推动候选人往下讲，候选人也会反问确认。
+    这时"谁在提问"两边差不多，判定就该失灵——真实样本上正是这样。
+
+    而无论什么面试，**讲方案的都是候选人**，所以发言长度是个更稳的信号：
+    出题是几句，解题是几段。
+    """
+    texts = [segment.text.strip() for segment in segments if segment.text.strip()]
+    if not texts:
+        return 0.0
+    return sum(len(text) for text in texts) / len(texts)
+
+
+def infer_speaker_roles(drafts: Sequence[SegmentDraft]) -> str:
+    """给没有角色语义的说话人（发言人1/2、Speaker A/B）判断谁是面试官。
+
+    两路信号，**"谁在答题"优先于"谁在提问"**：
+
+    1. **发言长度**——讲方案的是候选人。出题是几句，解题是几段，
+       这个差别在真实转写里最明显，而且不受提问方式影响。
+    2. **提问密度**——提问多的是面试官。作为补充与交叉验证。
+
+    只看提问会在技术讨论式面试上失效（双方都在用反问确认），所以长度是主判据。
+    一致时采信；**冲突时以长度为准**，因为它是更直接的结构性信号。
+
+    就地改写 `drafts` 里没有角色语义的段落；已经标好
+    `interviewer`/`candidate` 的文稿（`[面试官]` / `[我]`）**原样不动**——
+    用户明确标了就不该被我们的猜测覆盖。
+
+    返回推断依据（"" 表示没有改动）。**调用方应当把它展示给用户**：
+    这是猜测，猜错时用户得知道去哪里改（用 `[面试官]` / `[我]` 显式标注）。
+    """
+    groups: dict[str, list[SegmentDraft]] = {}
+    for draft in drafts:
+        if draft.speaker in ("interviewer", "candidate"):
+            # 已经有明确标记：这份文稿不需要推断
+            return ""
+        groups.setdefault(draft.speaker, []).append(draft)
+
+    # 只有 unknown 一种说话人 → 没有任何可用于区分角色的信号
+    if len(groups) < 2:
+        return ""
+
+    asked = {name: _question_score(items) for name, items in groups.items()}
+    answered = {name: _answer_score(items) for name, items in groups.items()}
+
+    # 主判据：平均发言最长的是候选人
+    by_length = sorted(answered.items(), key=lambda item: item[1], reverse=True)
+    candidate, candidate_len = by_length[0]
+    runner_up, runner_up_len = by_length[1]
+
+    # 两个人的发言长度都差不多（比如一句对一句的快速问答）→ 长度这个信号无效
+    if candidate_len <= 0 or candidate_len < runner_up_len * 1.2:
+        # 退回到提问密度，但仍然要求分差够大
+        by_ask = sorted(asked.items(), key=lambda item: item[1], reverse=True)
+        asker, asker_score = by_ask[0]
+        _, second_score = by_ask[1]
+        if asker_score <= 0 or asker_score - second_score < 0.35:
+            return ""
+        # 分差够大说明两个人都在问问题（比如候选人在反问环节问了半天），
+        # 这时候硬猜会把角色搞反——宁可保持 unknown，让用户自己标。
+        candidate = asker  # 提问少的那个是候选人
+        for name in groups:
+            if name != asker:
+                candidate = name
+                break
+        basis = f"按「谁在提问」推断：{asker} 是面试官（提问密度 {asker_score:.1f}）"
+    else:
+        basis = (
+            f"按「谁在讲方案」推断：{candidate} 是候选人"
+            f"（平均每条 {candidate_len:.0f} 字，对方 {runner_up_len:.0f} 字）"
+        )
+
+    for draft in drafts:
+        if draft.speaker == candidate:
+            draft.speaker = "candidate"
+        elif draft.speaker in groups:
+            draft.speaker = "interviewer"
+
+    return (
+        f"{basis}，其余为面试官。"
+        "如果反了，请在文稿里用 `[面试官]` / `[我]` 标出来。"
+    )
 
 
 def _fill_timestamps(drafts: list[SegmentDraft], *, chars_per_second: float) -> None:
@@ -510,6 +843,44 @@ class PacingPolicy:
     closing_pattern: str
     profile_id: int | None = None
     profile_name: str = ""
+    #: 这个面试官**真实问过的原题**。
+    #:
+    #: 这是"让模拟更像那个面试官"最关键的一项：只给模型题型比例（"技术细节 50%"），
+    #: 它只能泛泛地问；把原题给它，它才会问出这个人真正关心的点
+    #: （比如他反复追问「你和机械臂那边怎么对接」）。
+    sample_questions: list[str] = field(default_factory=list)
+    #: 真实的题型配比（自我介绍 / 项目深挖 / 技术细节 / 反问…），**按题型**统计。
+    #: 与 `topic_mix` 的区别很重要：`topic_mix` 是"问题结构"比例
+    #: （新话题/追问/开场），对"问什么内容"几乎没有指导意义。
+    type_mix: dict[str, float] = field(default_factory=dict)
+    #: 真实开场原话（取自第一道题），比"直接进入项目/技术"这种概括有用得多
+    opening_line: str = ""
+    #: 真实收尾原话（取自有反问/薪资环节的那道题）
+    closing_line: str = ""
+
+    def effective_type_mix(self) -> dict[str, float]:
+        """真正用来告诉模型"该问哪一类题"的配比。
+
+        按**题型**统计（技术细节 / 项目深挖 / 反问…）。
+
+        `topic_mix` 只在**没有真实题型时**兜底，且要用 `QUESTION_TYPE_KEYS`
+        滤掉结构键。两个理由：
+
+        1. 结构比例（新话题/追问/开场）与题型不是一个维度，混着显示会出现
+           「new_topic 86% + 技术细节 62%」这种加起来超过 100%、互相矛盾的东西；
+        2. 结构键没有中文标签（`TOPIC_LABELS` 里没有 `new_topic`），
+           会以英文原样漏进 prompt。
+
+        保留兜底是为了**旧画像不失效**：历史数据没有样本表，只剩 `params["mix"]`
+        （那里面装的是真实题型，例如 `{"tech": 0.6}`）。
+        """
+        if self.type_mix:
+            return {key: value for key, value in self.type_mix.items() if value > 0}
+        return {
+            key: value
+            for key, value in self.topic_mix.items()
+            if value > 0 and key in QUESTION_TYPE_KEYS
+        }
 
 
 def build_policy(
@@ -518,11 +889,16 @@ def build_policy(
     default_silence_ms: int = 900,
     profile_id: int | None = None,
     profile_name: str = "",
+    samples: Sequence[Any] | None = None,
 ) -> PacingPolicy:
     """把画像 params 转成运行时策略。
 
     这是"画像在模拟中生效"的唯一入口：语音链路用它覆盖 VAD 静音阈值，
     编排链路用它生成面试官行为指令。
+
+    `samples`：这段画像的节奏样本（`PacingSample`）。传进来是为了取**真实原题**——
+    `params["sample_questions"]` 只存了前 8 道，而且可能是旧版数据没有这个字段；
+    样本表里才有完整、可靠的原题。
     """
     # 不信任输入：params 可能来自模型输出或历史数据，字段类型都可能是错的
     data = params if isinstance(params, dict) else {}
@@ -557,6 +933,9 @@ def build_policy(
     except (TypeError, ValueError):
         interviewer_wpm = 240
 
+    # 真实原题：优先用样本表（完整、可靠），退回到 params 里存的那 8 道。
+    questions = _pick_representative_questions(samples, data.get("sample_questions"))
+
     return PacingPolicy(
         # 面试官问完等得越久，我们的 VAD 也应该给用户更多沉默时间再判定"说完了"
         silence_ms=max(300, min(6000, wait_ms)),
@@ -570,30 +949,162 @@ def build_policy(
         closing_pattern=str(patterns.get("closing") or ""),
         profile_id=profile_id,
         profile_name=profile_name,
+        sample_questions=questions,
+        type_mix=_type_mix(samples),
+        opening_line=_opening_line(samples, questions),
+        closing_line=_closing_of(questions),
     )
+
+
+def _type_mix(samples: Sequence[Any] | None) -> dict[str, float]:
+    """按**题型**统计配比（自我介绍 / 项目深挖 / 技术细节 / 反问…）。
+
+    与 params["mix"]（问题结构：新话题/追问/开场）不是一回事：
+    告诉模型"86% 是新话题"几乎没有指导意义，而"一半的题都在问技术细节"很具体。
+    """
+    counts: dict[str, int] = {}
+    for item in samples or []:
+        key = str(getattr(item, "question_type", "") or "").strip()
+        if not key:
+            continue
+        counts[key] = counts.get(key, 0) + 1
+    total = sum(counts.values()) or 1
+    return {
+        key: round(value / total, 3)
+        for key, value in sorted(counts.items(), key=lambda pair: -pair[1])
+    }
+
+
+def _pick_representative_questions(    samples: Sequence[Any] | None,
+    fallback: Sequence[Any] | None,
+    *,
+    limit: int = 16,
+) -> list[str]:
+    """从真实原题里挑**有代表性**的一批，而不是简单取前 N 条。
+
+    为什么不能取前 N：转写稿的开头往往是寒暄与时间确认（「哪个21年？」「这是啊21年.？」），
+    直接截前 24 条会让 prompt 里塞满噪音，真正有信息量的技术题一条都进不去。
+
+    策略：**按题型分组轮转**（每类先取一条，再取第二条…），
+    组内优先"像一道完整问题"的（长度适中、以问号结尾）。
+    这样自我介绍、项目深挖、技术细节、反问都能被代表性覆盖。
+    """
+    buckets: dict[str, list[str]] = {}
+    seen: set[str] = set()
+
+    def add(key: str, raw: object) -> None:
+        text = str(raw or "").strip()
+        if len(text) < 6 or text in seen:
+            return
+        seen.add(text)
+        buckets.setdefault(key or "general", []).append(text)
+
+    for item in samples or []:
+        add(str(getattr(item, "question_type", "") or "general"), getattr(item, "question", ""))
+    for raw in fallback or []:
+        # params 里的旧数据没有题型，统一放一桶
+        add("general", raw)
+
+    # 组内排序：更像"完整问题"的排前面（长度适中 + 有问号）
+    def quality(text: str) -> tuple[int, int]:
+        return (1 if text.endswith(("？", "?")) else 0, -abs(len(text) - 24))
+
+    for items in buckets.values():
+        items.sort(key=quality, reverse=True)
+
+    picked: list[str] = []
+    round_index = 0
+    while len(picked) < limit:
+        added = False
+        for key in sorted(buckets, key=lambda k: -len(buckets[k])):
+            items = buckets[key]
+            if round_index < len(items):
+                picked.append(items[round_index])
+                added = True
+                if len(picked) >= limit:
+                    break
+        if not added:
+            break
+        round_index += 1
+    return picked
+
+
+def _first_of(questions: Sequence[str], *, max_len: int = 60) -> str:
+    """取第一道题当"开场原话"。太长的（转写里常有一大段连说）截断。"""
+    for question in questions:
+        if len(question) <= max_len:
+            return question
+    return ""
+
+
+def _opening_line(samples: Sequence[Any] | None, questions: Sequence[str]) -> str:
+    """真实开场：取**时间上最早**的那道题。
+
+    不能从"代表性原题"里挑——那是按题型轮转出来的，可能取到面试中段的题，
+    当开场话术就完全不对了（实测会把「不是mas系统跟max跟现在什么关系？」
+    当成开场语）。所以这里按样本顺序找第一道像样的题。
+    """
+    for item in samples or []:
+        text = str(getattr(item, "question", "") or "").strip()
+        # 太短的（「是。」「吧。」）当不了开场词
+        if 6 <= len(text) <= 60:
+            return text
+    return _first_of(questions)
+
+
+def _closing_of(questions: Sequence[str]) -> str:
+    """找出"收尾那类问题"的原话（反问 / 薪资 / 还有什么想问）。"""
+    for question in questions:
+        if any(marker in question for marker in CLOSING_MARKERS):
+            return question[:80]
+    return ""
 
 
 def policy_prompt_block(policy: PacingPolicy) -> str:
     """把画像转成给面试官模型的行为指令。
 
-    这是"按学到的节奏面试"最直接的落地：题型配比、追问深度、压力水平都写进 prompt，
-    所以同一套题库在不同画像下会问出不同的面试。
+    这是"按学到的节奏面试"最直接的落地。三层信息，从粗到细：
+
+    1. **节奏**：追问深度、压力水平、语速、等待时长；
+    2. **题型配比**：这个面试官爱问哪一类（技术细节 / 项目深挖 / 反问…）；
+    3. **真实原题**：他上次到底问了什么。只给比例时模型只能泛泛地问；
+       把原题摆出来，它才会问出这个人真正关心的点。
+
+    第 3 层是"像不像那个面试官"的关键——所以原题要**当作素材**给模型，
+    同时明确要求它结合本次岗位/简历改编，而不是原样背出来（那会变成背题）。
     """
-    mix_lines = [
-        f"- {TOPIC_LABELS.get(key, key)}：{round(ratio * 100)}%"
-        for key, ratio in sorted(policy.topic_mix.items(), key=lambda pair: -pair[1])
-        if ratio > 0
-    ]
     parts = [f"【面试官画像：{policy.profile_name or '默认'}】"]
+
+    if policy.sample_questions:
+        # 放在最前面：这是最具体、最能决定"问什么"的信息
+        lines = "\n".join(f"{index}. {text}" for index, text in enumerate(policy.sample_questions[:16], 1))
+        parts.append(
+            "■ 这个面试官在真实面试里问过下面这些问题（请**优先围绕这些题**提问，"
+            "结合本次岗位与简历自然改编，不要原样照念、也不要提「你上次说过」）：\n" + lines
+        )
+
+    # 题型配比：合并 type_mix 与旧数据的 topic_mix（见 effective_type_mix）
+    type_lines = [
+        f"- {TOPIC_LABELS.get(key, key)}：{round(ratio * 100)}%"
+        for key, ratio in sorted(policy.effective_type_mix().items(), key=lambda pair: -pair[1])
+    ]
+    if type_lines:
+        parts.append("■ 他的题型配比（整场尽量贴近）：\n" + "\n".join(type_lines))
+
     if policy.style_tags:
         parts.append("风格：" + "、".join(policy.style_tags))
     parts.append(f"压力水平：{policy.stress_level}；你的语速约 {policy.interviewer_wpm} 字/分钟（说话简短些）")
-    parts.append(f"最多追问 {policy.max_followup_depth} 层；遇到这些情况必须追问：" + "、".join(policy.followup_triggers or ["回答缺少细节"]))
-    if mix_lines:
-        parts.append("整场题型配比（尽量贴近）：\n" + "\n".join(mix_lines))
-    if policy.opening_pattern:
+    parts.append(
+        f"最多追问 {policy.max_followup_depth} 层；遇到这些情况必须追问："
+        + "、".join(policy.followup_triggers or ["回答缺少细节"])
+    )
+    if policy.opening_line:
+        parts.append(f"开场用类似这样的话术：{policy.opening_line}")
+    elif policy.opening_pattern:
         parts.append(f"开场方式：{policy.opening_pattern}")
-    if policy.closing_pattern:
+    if policy.closing_line:
+        parts.append(f"收尾用类似这样的话术：{policy.closing_line}")
+    elif policy.closing_pattern:
         parts.append(f"收尾方式：{policy.closing_pattern}")
     return "\n".join(parts)
 
@@ -606,10 +1117,18 @@ def policy_summary(policy: PacingPolicy) -> dict[str, Any]:
         "silence_ms": policy.silence_ms,
         "max_followup_depth": policy.max_followup_depth,
         "followup_triggers": policy.followup_triggers,
+        # 题型配比（这个面试官爱问哪一类）——这是"问什么"的依据
+        # 用合并视图：新画像按题型、旧画像退回 params 里的 mix，两边都翻成中文标签
+        "type_mix": {TOPIC_LABELS.get(key, key): ratio for key, ratio in policy.effective_type_mix().items()},
+        # 问题结构配比（新话题/追问/开场），保留给旧前端与旧数据
         "topic_mix": {TOPIC_LABELS.get(key, key): ratio for key, ratio in policy.topic_mix.items()},
         "style_tags": policy.style_tags,
         "stress_level": policy.stress_level,
         "interviewer_wpm": policy.interviewer_wpm,
         "opening_pattern": policy.opening_pattern,
         "closing_pattern": policy.closing_pattern,
+        # 真实原题：前端可以直接展示"他会问这些"，让"学到了什么"可见
+        "sample_questions": policy.sample_questions,
+        "opening_line": policy.opening_line,
+        "closing_line": policy.closing_line,
     }

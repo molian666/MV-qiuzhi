@@ -51,7 +51,6 @@ function errorMessage(error: unknown): string {
 
 export default function VisionBank() {
   const [meta, setMeta] = useState<VisionMeta | null>(null)
-  const [role, setRole] = useState('development')
   const [category, setCategory] = useState('')
   const [maxDifficulty, setMaxDifficulty] = useState(0)
   const [keyword, setKeyword] = useState('')
@@ -73,9 +72,9 @@ export default function VisionBank() {
     setLoading(true)
     setError('')
     try {
+      // 不按岗位方向筛：题量本来就不大，一份列表按「主题 + 难度 + 关键词」查更直接
       setItems(
         await api.visionQuestions({
-          role: role || undefined,
           category: category || undefined,
           maxDifficulty: maxDifficulty || undefined,
           keyword: keyword.trim() || undefined,
@@ -86,7 +85,7 @@ export default function VisionBank() {
     } finally {
       setLoading(false)
     }
-  }, [role, category, maxDifficulty, keyword])
+  }, [category, maxDifficulty, keyword])
 
   useEffect(() => {
     void loadList()
@@ -119,8 +118,6 @@ export default function VisionBank() {
     }
   }
 
-  const currentRole = useMemo(() => meta?.roles.find((item) => item.key === role), [meta, role])
-
   // 岗位切换后旧的选中项可能不在列表里了
   useEffect(() => {
     if (selectedId !== null && items.length > 0 && !items.some((item) => item.id === selectedId)) {
@@ -139,43 +136,15 @@ export default function VisionBank() {
   }, [items])
 
   return (
-    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[208px_minmax(240px,320px)_1fr]">
+    /* 左列从 208px 放宽到 248px：去掉岗位切换后，筛选（尤其 13 个主题标签）
+       成了唯一的缩小范围手段，208px 会把「深度学习与缺陷检测」这类标签折断 */
+    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[248px_minmax(240px,320px)_1fr]">
       <aside className="flex min-h-0 flex-col gap-3">
-        {/* 岗位方向：机器视觉的三类岗位面试重点差别很大，这是第一级分类 */}
-        <div className="space-y-1">
-          {(meta?.roles ?? []).map((item) => {
-            const active = item.key === role
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => {
-                  setRole(item.key)
-                  setSelectedId(null)
-                  setCategory('')
-                }}
-                className={`w-full rounded-card border px-2.5 py-2 text-left transition-colors ${
-                  active
-                    ? 'border-ink-9 bg-ink-9 text-surface'
-                    : 'border-ink-1 bg-surface text-ink-7 hover:bg-paper'
-                }`}
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs font-medium">{item.label}</span>
-                  <span className={`font-mono text-[10px] ${active ? 'text-ink-3' : 'text-ink-4'}`}>
-                    {item.count}
-                  </span>
-                </div>
-                <p
-                  className={`mt-1 text-[10px] leading-relaxed ${
-                    active ? 'text-ink-3' : 'text-ink-4'
-                  }`}
-                >
-                  {item.description}
-                </p>
-              </button>
-            )
-          })}
+        {/* 一句话说明这里是什么，替代原来的岗位方向切换 */}
+        <div className="rounded-card border border-ink-1 bg-surface p-2.5">
+          <p className="text-[10px] leading-relaxed text-ink-4">
+            全部内置题在一起查。用下面的「主题 / 难度 / 关键词」缩小范围。
+          </p>
         </div>
 
         {/* 筛选 */}
@@ -193,7 +162,7 @@ export default function VisionBank() {
               <button
                 type="button"
                 onClick={() => setCategory('')}
-                className={`rounded-control px-1.5 py-0.5 text-[10px] ${
+                className={`-my-0.5 rounded-control px-1.5 py-1 text-[10px] ${
                   category === '' ? 'bg-ink-9 text-surface' : 'bg-sunken text-ink-6'
                 }`}
               >
@@ -204,7 +173,7 @@ export default function VisionBank() {
                   key={item}
                   type="button"
                   onClick={() => setCategory(item === category ? '' : item)}
-                  className={`rounded-control px-1.5 py-0.5 text-[10px] ${
+                  className={`-my-0.5 whitespace-nowrap rounded-control px-1.5 py-1 text-[10px] ${
                     item === category ? 'bg-ink-9 text-surface' : 'bg-sunken text-ink-6'
                   }`}
                 >
@@ -220,7 +189,7 @@ export default function VisionBank() {
                 key={level}
                 type="button"
                 onClick={() => setMaxDifficulty(level)}
-                className={`rounded-control px-1.5 py-0.5 font-mono text-[10px] ${
+                className={`-my-0.5 rounded-control px-1.5 py-1 font-mono text-[10px] ${
                   maxDifficulty === level ? 'bg-ink-9 text-surface' : 'bg-sunken text-ink-6'
                 }`}
               >
@@ -351,7 +320,7 @@ export default function VisionBank() {
 
         {!detail && !error && (
           <div className="rounded-panel border border-ink-1 bg-surface p-5 text-xs leading-relaxed text-ink-4">
-            <p>{currentRole?.description ?? '从左边选一道题开始。'}</p>
+            <p>从左边选一道题开始。题目按「主题」和「难度」筛，也可以用关键词搜。</p>
             <p className="mt-2">
               建议的用法：先自己把答案说一遍（或写下来），再点「看答案」对照要点。
             </p>

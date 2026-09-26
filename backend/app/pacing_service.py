@@ -283,7 +283,11 @@ def load_policy_for_session(
     *,
     default_silence_ms: int = 900,
 ):
-    """取这场会话该用的面试官策略（没选画像就返回 None，走默认行为）。"""
+    """取这场会话该用的面试官策略（没选画像就返回 None，走默认行为）。
+
+    这里要把**节奏样本一起读出来**：真实原题存在样本表里，
+    只传 params 的话模型拿不到"这个人上次到底问了什么"。
+    """
     if not session_row.interviewer_profile_id:
         return None
     profile = db.get(InterviewerProfile, session_row.interviewer_profile_id)
@@ -294,6 +298,7 @@ def load_policy_for_session(
         default_silence_ms=default_silence_ms,
         profile_id=profile.id,
         profile_name=profile.name,
+        samples=profile_samples(db, profile.id or 0),
     )
 
 
