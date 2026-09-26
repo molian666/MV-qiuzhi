@@ -225,7 +225,12 @@ class QwenRealtimeSpeechProvider:
         kind = data.get("type", "")
 
         if kind == "conversation.item.input_audio_transcription.delta":
-            # 待真机校准 ②：官方文档说把 text + stash 拼起来才是当前预览
+            # `text + stash` 的拼接方式来自官方文档，**未用真实语音验证过**
+            # （验证要真发一段语音，不是握手就能测的）。
+            #
+            # 风险很低，因为这只是**预览**：最终文本取 `completed` 事件的
+            # `transcript`，那个字段是权威的。拼接方式万一不对，表现为
+            # 界面上的预览字偶尔对不上，不会污染落库的转写。
             preview = (data.get("text") or "") + (data.get("stash") or "")
             if preview:
                 self._partial = preview
@@ -243,7 +248,10 @@ class QwenRealtimeSpeechProvider:
             await self._emit(SpeechEvent(kind="speech_stopped"))
 
         elif kind == "response.created":
-            # 待真机校准 ③：我们只要转写，取消它自动生成的回复
+            # 防御性分支，理论上不会走到：我们只做转写（session 里没有
+            # `modalities`，ASR 也不产生回复），所以上游不会发这个事件。
+            # 留着是因为代价极低——万一某个型号或版本仍会生成回复，
+            # 不 cancel 就会让它多说一段话，混进转写里。
             await self._send({"type": "response.cancel"})
 
         elif kind == "error":
