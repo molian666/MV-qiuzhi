@@ -2,17 +2,49 @@
 
 from __future__ import annotations
 
+import os
+import sys
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+def _is_frozen() -> bool:
+    """PyInstaller 打包后 sys.frozen 为 True。"""
+    return bool(getattr(sys, "frozen", False))
+
+
+def _app_root() -> Path:
+    """代码所在目录：frozen 时是 PyInstaller 解压目录（onefile 每次启动的临时目录）。"""
+    if _is_frozen():
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    return Path(__file__).resolve().parent.parent
+
+
+def _user_root() -> Path:
+    """用户可写目录（.env 与 data 都放这里，跟随 exe 走，不会被清掉）：
+    frozen 时是 exe 所在目录；开发/测试时是 backend/ 目录。
+    """
+    if _is_frozen():
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
+BACKEND_DIR = _app_root()
+
+
+def _env_file() -> Path:
+    """配置文件位置：frozen 时在 exe 旁（密钥不打包，用户自己放）；否则 backend/.env。"""
+    if _is_frozen():
+        return _user_root() / ".env"
+    return BACKEND_DIR / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=BACKEND_DIR / ".env",
+        env_file=_env_file(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -23,8 +55,10 @@ class Settings(BaseSettings):
     port: int = 8000
     cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
 
-    # 数据
-    data_dir: Path = BACKEND_DIR / "data"
+    # 数据：frozen 时在 exe 旁（可写、持久）；开发/测试时在 backend/data
+    data_dir: Path = Field(
+        default_factory=lambda: (_user_root() / "data" if _is_frozen() else BACKEND_DIR / "data")
+    )
 
     # LLM（通用 OpenAI 兼容：任何提供 /chat/completions 的平台都能用）
     # provider: mock 不联网、返回固定示例；openai 走真实模型。
@@ -63,6 +97,11 @@ class Settings(BaseSettings):
     # 是否让 httpx / websockets 读取系统代理（HTTP_PROXY 等）。
     # 默认 False：国内厂商（DeepSeek、百炼等）多数直连，跟着墙外代理走通常直接失败。
     trust_env_proxy: bool = False
+
+    # 定时投递的后台循环。**测试里必须关掉**：它会随应用启动跑在 TestClient 自己的
+    # 事件循环里，于是"到点没到点"取决于真实时间，测试结果会随跑的时间不同而变
+    # （实测它会让 tick 计数与"同一天不跑两次"这类断言随机失败）。
+    apply_scheduler_enabled: bool = True
 
     # 导出接口的访问令牌（M15）。为空时 /api/export/* 一律 401 并提示如何配置——
     # 本地也不能裸奔：同网段的任何进程都能读你的全量求职数据。
@@ -155,11 +194,22 @@ class Settings(BaseSettings):
 
     @property
     def resolved_static_dir(self) -> Path | None:
-        """前端构建产物目录：配了就按配的，没配就找 frontend/dist。"""
+        """前端构建产物目录：配了就按配的，没配就找 frontend/dist。
+
+        frozen 时 dist 被打包进 exe（解压目录），不依赖外置目录；
+        开发/测试时找 backend 旁边的 frontend/dist。
+        """
         if self.static_dir.strip():
             path = Path(self.static_dir).expanduser()
             return path if path.is_dir() else None
-        default = BACKEND_DIR.parent / "frontend" / "dist"
+        if _is_frozen():
+            default = (
+                Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+                / "frontend"
+                / "dist"
+            )
+        else:
+            default = BACKEND_DIR.parent / "frontend" / "dist"
         return default if default.is_dir() else None
 
     @property

@@ -35,6 +35,18 @@ class SessionCreate(BaseModel):
     question_max_difficulty: int | None = Field(default=None, ge=1, le=5)
     #: 抽几道题；不填则按 max_questions 取
     question_count: int | None = Field(default=None, ge=1, le=30)
+    # M18：薄弱点面试。true 时抽题优先命中掌握度低的技能点（需配合 question_mix 从题库抽）
+    weak_questions: bool = False
+
+    # M14：拟真与反馈（四个独立开关，可叠加）
+    #: 教练模式：每题答完，面试官先用一两句点评（要点 / 漏点 / 更优说法），再进下一题
+    coach: bool = False
+    #: 沉默施压：答完后面试官不急着接话，用"还有要补充的吗？"逼候选人补全
+    silence_pressure: bool = False
+    #: 现场突发：面试中途插入一道"现在在现场，设备突然…"的情境题，练临场排查
+    scene: bool = False
+    #: 简历深挖：开场后像真拿着简历逐行追问（角色 / 选型 / 数字 / 坑）
+    resume_dive: bool = False
 
 
 class AnswerIn(BaseModel):

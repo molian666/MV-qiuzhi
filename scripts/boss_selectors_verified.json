@@ -1,0 +1,46 @@
+{
+  "_note": "Boss 选择器：列表页 7 个来自 2026-09-28 真机采集 + 离线复核；详情页 5 个来自同一天详情页探测的原始证据（report.detail）。greet_input / greet_send 与详情页 JD 仍需一次聊天框采集。",
+  "_evidence": {
+    "job_card": "JS 计数 15 张、每张都含 /job_detail/ 链接；祖先链 ul.rec-job-list > div.card-area > div.job-card-wrap > li.job-card-box。限定在 ul.rec-job-list 内（对齐 get_jobs 的写法），避免匹配到右侧详情预览面板",
+    "search_input": "1 个可见 input.input，placeholder='搜索职位、公司'",
+    "card_title / card_link": "a.job-name：离线把 first_card_html 灌进本地页面复核 2/2，真机抓取 5 条岗位全部取到正确标题与绝对链接",
+    "card_company": "span.boss-name（真机 first_card_html 里公司名在这里）。⚠️ 不能用 span.company-location：那是地点，它的 class 里带 'company' 很有迷惑性，探针第一版就被骗过",
+    "card_salary": "span.job-salary（值是字体反爬的私用区码点，适配器识别+清理并带 salary_obfuscated 标记）",
+    "card_city": "span.company-location（真机离线复核 2/2）",
+    "hr_name": "div.boss-info-attr，真机文本『迁移科技 · HR』",
+    "hr_active": "span.boss-online-tag, [class*='active-time'] —— 真机见过 span.boss-online-tag（文本『在线』）；[class*='active-time'] 是跨项目参考值（get_jobs 的 boss-active-time）。**判据已改成读状态文本**（见 browser.py 的 hr_active_from_status）：『在线/刚刚活跃/本周活跃』→ 活跃，『半年前活跃』→ 不活跃，**什么都没匹配到 → 未知（不拦）**。之前的实现是『存在即活跃』，于是当前不在线的 HR 全被判成『长期不活跃』，几乎每个岗位都被拦",
+    "detail_experience": "span.text-desc.text-experiece，真机文本『3-5年』",
+    "detail_degree": "span.text-desc.text-degree，真机文本『大专』",
+    "greet_button": "a.btn.btn-startchat 在详情页命中 2 个（主按钮 + 相似岗位卡片各一个），加 >> nth=0 固定点主按钮——browser.py 是直接 page.click(选择器)，多命中时点到哪个不确定",
+    "greet_input": "div#chat-input —— **跨项目参考值**（get_jobs 用 XPath //div[@id='chat-input']），**尚未在真机验证**。若取错：send_greeting 的异常路径会返回 page_changed 信号（只停本轮、不停当天），岗位标记为失败并带原始报错，可以放心试 1 条",
+    "greet_send": "button[type='send'] —— **跨项目参考值**（get_jobs 用 XPath //button[@type='send']），**尚未在真机验证**。风险同上",
+    "detail_salary": "div.info-primary span.salary —— **跨项目参考值**（get_jobs 用 XPath //div[@class='info-primary']//span[@class='salary']），尚未在本页验证。为什么必须校准它：列表页薪资数字被字体反爬（实测 \\ue032\\ue033-\\ue032\\ue039K·\\ue032\\ue034薪），而**详情页同一字段是正常文本**（实测 body 里是 12-18K·13薪），所以抓详情才能让『薪资区间』规则真正生效。取错不会崩：字段读取包了 try/except，读不到就沿用列表页那份并保留『未解析』标记",
+    "detail_jd": "div.job-sec-text（修正启发式后在真机上验证：按『岗位职责/任职要求』关键词 + 排除页脚/登录框 + 同长度取更深，第一版误选到页脚 div.copyright）",
+    "card_company": "⚠️ 探针未提出（候选发现只找 class 含 'company' 的元素，而真机公司名在 span.boss-name 上）；配置里的 span.boss-name 来自 first_card_html 实证 + 一次真机抓取（5 条岗位公司名全对）"
+  },
+  "proposed": {
+    "search_input": "input.input",
+    "job_card": "ul.rec-job-list li.job-card-box",
+    "card_title": "a.job-name",
+    "card_company": "span.boss-name",
+    "card_salary": "span.job-salary",
+    "card_city": "span.company-location",
+    "card_link": "a.job-name",
+    "detail_jd": "div.job-sec-text",
+    "detail_salary": "div.info-primary span.salary",
+    "greet_input": "div#chat-input",
+    "greet_send": "button[type=\"send\"]",
+    "hr_name": "div.boss-info-attr",
+    "hr_active": "span.boss-online-tag, [class*='active-time']",
+    "detail_experience": "span.text-desc.text-experiece",
+    "detail_degree": "span.text-desc.text-degree",
+    "greet_button": "a.btn.btn-startchat >> nth=0"
+  },
+  "_still_missing": [
+    "greet_input / greet_send（开始投递必填；需要一次「立即沟通」把聊天框打开）"
+  ],
+  "_known_issues": [
+    "span.job-salary 的文本是字体反爬后的私用区码点，parse_salary 解析不出 → 『薪资区间』规则对这类岗位不生效（notes 里会提示）",
+    "login_marker / captcha_marker / headhunter_marker 仍未校准：风控跳转现在由 URL 规则兜底，但『登录失效』与『猎头岗位』两类判断还不完整"
+  ]
+}

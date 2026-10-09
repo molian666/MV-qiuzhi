@@ -102,6 +102,12 @@ class DimensionScore:
     score: int
     comment: str = ""
     evidence_turn_ids: list[int] = field(default_factory=list)
+    #: 模型**真的给了**这一项的分数吗？
+    #:
+    #: 以前缺项会被填成 3 分（"中间值"）并**计入总分**，于是每一处遗漏都在把总分
+    #: 往 60 分拽——这是"过度宽容"的一个确定来源。现在缺项单独标出来，
+    #: 既不参与总分，也能在界面上如实显示"这项没评"（而不是给个看起来确定的 3）。
+    scored: bool = True
 
 
 @dataclass(slots=True)
@@ -126,9 +132,15 @@ class NormalizedReport:
 
     @property
     def weakest(self) -> DimensionScore | None:
-        if not self.dimensions:
+        """最薄弱的维度。**只在真的评过的维度里挑。**
+
+        未评分的维度 `score` 是 0（占位），如果把它算进来，"最弱"永远是那个没评的，
+        改进建议会被挂到一个跟候选人表现无关的维度上。
+        """
+        scored = [item for item in self.dimensions if item.scored]
+        if not scored:
             return None
-        return min(self.dimensions, key=lambda item: item.score)
+        return min(scored, key=lambda item: item.score)
 
     def dimensions_payload(self) -> dict[str, Any]:
         """落库形状（`score_report.dimension_scores`）。
@@ -141,6 +153,9 @@ class NormalizedReport:
                 "score": dimension.score,
                 "comment": dimension.comment,
                 "evidence_turn_ids": dimension.evidence_turn_ids,
+                # 未评分的维度也照常落库（否则维度会凭空消失），但带上这个标记，
+                # 界面才能显示"这项没评"而不是把占位的 0 当成"考了 0 分"
+                "scored": dimension.scored,
             }
             for dimension in self.dimensions
         }
@@ -171,6 +186,22 @@ def build_exchanges(turns: Sequence[SessionTurn]) -> list[Exchange]:
             )
             exchanges.append(pending)
         elif turn.speaker == "candidate":
+            if turn.kind == "question":
+                # 收尾阶段他是在**提问**，不是回答。以前它会被算成"上一个问题的答案"，
+                # 于是评分时要么把它当成回答（莫名其妙），要么和收尾一起被丢掉。
+                # 单独成条，评分才有依据判断"他问得怎么样"——主动性维度的证据。
+                pending = None
+                exchanges.append(
+                    Exchange(
+                        question_turn_id=turn.id or 0,
+                        question="（候选人提问）",
+                        question_kind="candidate_question",
+                        answer_turn_id=turn.id,
+                        answer=turn.text,
+                    )
+                )
+                continue
+
             if pending is None:
                 pending = Exchange(question_turn_id=0, question="（没有对应问题的回答）", question_kind="orphan")
                 exchanges.append(pending)
@@ -190,14 +221,39 @@ def build_scoring_messages(
     duration_ms: int | None,
     max_questions: int,
     exchanges: Sequence[Exchange],
+    expected_points: Sequence[dict[str, Any]] | None = None,
 ) -> list[LLMMessage]:
-    payload = {
+    """构造评分消息。
+
+    `expected_points` 是题库里这套题的**期望要点**（每项含题面与"希望候选人谈到"）。
+    以前它没有进评分——于是"他答到要点了没有"这件事**没有任何依据**，
+    模型只能凭自己的印象打分，同一份回答两次评分可能天差地别。
+    带上它之后，评分有了一把固定的尺子。
+    """
+    payload: dict[str, Any] = {
         "target": target_label,
         "resume_excerpt": (resume_text or "")[:2000],
         "duration_ms": duration_ms,
         "planned_question_count": max_questions,
         "exchanges": [exchange.to_payload() for exchange in exchanges],
     }
+    if expected_points:
+        payload["expected_points"] = [
+            {
+                "question": str(item.get("text") or ""),
+                "points": [str(point) for point in (item.get("points") or [])],
+            }
+            for item in expected_points
+            if str(item.get("text") or "").strip()
+        ]
+
+    hint = ""
+    if payload.get("expected_points"):
+        hint = (
+            "\n\n注意：上面 `expected_points` 是这套题**提前定好的期望要点**。"
+            "判断「技术深度与正确性」与「相关性」时，要以**要点覆盖情况**为主要依据："
+            "答到了哪些、漏了哪些，都要在 comment 里点名。**不要**因为回答流畅就给高分。"
+        )
 
     user_content = (
         "请给下面这场面试打分。\n\n"
@@ -205,6 +261,7 @@ def build_scoring_messages(
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n"
         f"{RECORD_MARKER_END}\n\n"
         f"{build_rubric_prompt()}"
+        f"{hint}"
     )
     return [
         LLMMessage(role="system", content=SCORING_SYSTEM_PROMPT),
@@ -221,6 +278,21 @@ def _clamp_int(value: Any, low: int, high: int, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return max(low, min(high, number))
+
+
+def _optional_score(value: Any) -> int | None:
+    """把维度分夹到 1–5；**拿不到有效值时返回 None**（而不是塞个中间值）。
+
+    与 `_clamp_int(..., default=3)` 的区别很重要：模型给了 `"score": "abc"` 或干脆没给
+    的时候，"3 分"是我们编的。编出来的中间分会被算进总分，把结果往 60 分拽。
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    return max(1, min(5, number))
 
 
 def _clean_ids(value: Any, valid_turn_ids: set[int]) -> list[int]:
@@ -266,13 +338,18 @@ def normalize_report(raw: Any, *, valid_turn_ids: set[int]) -> NormalizedReport:
     dimensions: list[DimensionScore] = []
     for definition in DIMENSIONS:
         entry = lookup.get(definition.key)
-        if entry is None:
+        raw_score = entry.get("score") if isinstance(entry, dict) else None
+        parsed = _optional_score(raw_score)
+        if entry is None or parsed is None:
+            # 没评就是没评：**不给中间分、也不计入总分**。
+            # 填 3 分看起来"温和"，实际是把总分往 60 拽，而且是编出来的。
             dimensions.append(
                 DimensionScore(
                     key=definition.key,
                     label=definition.label,
-                    score=3,
-                    comment="（模型未给出该项评分，按 3 分占位）",
+                    score=0,
+                    comment="（模型未给出该项评分：这一项没有计入总分）",
+                    scored=False,
                 )
             )
             continue
@@ -280,19 +357,33 @@ def normalize_report(raw: Any, *, valid_turn_ids: set[int]) -> NormalizedReport:
             DimensionScore(
                 key=definition.key,
                 label=definition.label,
-                score=_clamp_int(entry.get("score"), 1, 5, 3),
+                score=parsed,
                 comment=_as_text(entry.get("comment")),
                 evidence_turn_ids=_clean_ids(entry.get("evidence_turn_ids"), valid_turn_ids),
+                scored=True,
             )
         )
 
-    scores = [dimension.score for dimension in dimensions]
-    computed_overall = round(sum(scores) / len(scores) * 20) if scores else 0
-    overall = _clamp_int(data.get("overall"), 0, 100, computed_overall)
+    # 总分只按**真的评过**的维度平均。一个都没评出来时退回模型给的总分，
+    # 而不是算出一个基于占位值的假分数。
+    scored_dimensions = [item for item in dimensions if item.scored]
+    computed_overall = (
+        round(sum(item.score for item in scored_dimensions) / len(scored_dimensions) * 20)
+        if scored_dimensions
+        else 0
+    )
+    fallback = computed_overall if scored_dimensions else _clamp_int(data.get("overall"), 0, 100, 0)
+    overall = _clamp_int(data.get("overall"), 0, 100, fallback)
+    if not scored_dimensions and overall == 0:
+        # 什么都拿不到时留一个明确的说明，而不是显示 0 分让人以为考砸了
+        summary_note = "（这次评分没能拿到有效结果，建议重新生成报告）"
+    else:
+        summary_note = ""
 
-    summary = _as_text(data.get("summary")) or "（模型未给出整体评价）"
+    summary = _as_text(data.get("summary")) or summary_note or "（模型未给出整体评价）"
 
-    weakest = min(dimensions, key=lambda item: item.score) if dimensions else None
+    # 最薄弱的维度只在**评过**的里面挑：拿一个没评的（score=0）当"最弱"会把建议挂错地方
+    weakest = min(scored_dimensions, key=lambda item: item.score) if scored_dimensions else None
     items: list[ImprovementItemOut] = []
     raw_items = data.get("items")
     for item in raw_items if isinstance(raw_items, list) else []:

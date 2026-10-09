@@ -9,6 +9,7 @@ from . import (
     applications,
     apply,
     auth,
+    client_info,
     decision,
     export,
     expression,
@@ -43,6 +44,7 @@ def health() -> dict[str, str]:
 
 api_router.include_router(sessions.router)
 api_router.include_router(auth.router)
+api_router.include_router(client_info.router)
 api_router.include_router(targets.router)
 api_router.include_router(resumes.router)
 api_router.include_router(questions.router)

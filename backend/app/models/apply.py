@@ -127,7 +127,10 @@ class ApplyRule(SQLModel, table=True):
 
 
 class ApplyTask(SQLModel, table=True):
-    """M10 的待投队列（现在只建表）。status: pending|approved|sent|skipped|failed|blocked"""
+    """M10 的待投队列。status: pending|approved|greeted|sent|skipped|failed|blocked
+
+    greeted = 已打招呼、尚未投简历（M17 拆两个动作：打招呼 / 投递简历）。
+    """
 
     __tablename__ = "apply_task"
 
@@ -138,9 +141,13 @@ class ApplyTask(SQLModel, table=True):
     resume_image_path: str = ""
     created_at: datetime = Field(default_factory=utcnow, index=True)
     approved_at: datetime | None = Field(default=None)
+    greeted_at: datetime | None = Field(default=None)
     sent_at: datetime | None = Field(default=None)
     attempts: int = 0
     error: str = Field(default="", sa_column=Column(Text))
+    #: M18：这条任务由哪个账号投出去。空 = 用平台默认账号。
+    #: 记录它是为了回答"这条是哪個号投的"——多账号出问题时第一个要查的就是这个。
+    profile_id: int | None = Field(default=None, foreign_key="platform_profile.id", index=True)
 
 
 class PlatformAccount(SQLModel, table=True):
@@ -157,6 +164,39 @@ class PlatformAccount(SQLModel, table=True):
     #: 熔断到什么时候为止（检测到风控/验证码就停到当天结束）
     circuit_broken_until: datetime | None = Field(default=None)
     note: str = ""
+
+
+class PlatformProfile(SQLModel, table=True):
+    """M18：一个**招聘平台账号**（多账号轮换的基本单位）。
+
+    与 `PlatformAccount` 的关系：`PlatformAccount` 是**平台级**的汇总（按 platform 唯一，
+    记录熔断与每日额度）；这个表是**账号级**的，一行一个账号，各自有浏览器 profile 目录、
+    自己的每日额度与熔断状态。
+
+    **为什么额度与熔断要按账号算**：A 号被风控了不该让 B 号也停——那正是多账号的意义。
+    但也因此，多账号并不能提高"平台整体的安全上限"，只是把风险摊到多个账号上；
+    所以单账号的限额仍要保守。
+
+    代理与指纹存在 `AppSetting` 的 JSON 里（按 profile id 分组），
+    这样加字段不用改表结构（PLAN §9.1 的预留设计）。
+    """
+
+    __tablename__ = "platform_profile"
+
+    id: int | None = Field(default=None, primary_key=True)
+    platform: str = Field(default="boss", index=True)
+    #: 给用户看的名字（"主号"/"小号"），空则回落到 "账号 N"
+    label: str = ""
+    #: 浏览器用户数据目录。**每个账号必须独立**：共用目录等于共用一个登录态，
+    #: 那样"多账号"是假的，而且两个账号的 cookie 会互相覆盖。
+    user_data_dir: str = ""
+    enabled: bool = True
+    daily_limit: int = 30
+    #: 熔断到什么时候（按账号独立）
+    circuit_broken_until: datetime | None = Field(default=None)
+    last_used_at: datetime | None = Field(default=None)
+    note: str = ""
+    created_at: datetime = Field(default_factory=utcnow, index=True)
 
 
 class Blacklist(SQLModel, table=True):

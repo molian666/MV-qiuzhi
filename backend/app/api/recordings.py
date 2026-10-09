@@ -22,7 +22,7 @@ from ..analysis.transcript_doc import (
     SUPPORTED_SUFFIXES,
     TranscriptDocError,
     check_document,
-    decode_document,
+    extract_document_text,
 )
 from ..clock import utcnow
 from ..config import get_settings
@@ -126,7 +126,7 @@ async def upload_recording(
     return _to_out(recording)
 
 
-@router.post("/document", response_model=RecordingOut, status_code=201, summary="上传对话文稿文件（.txt/.md）")
+@router.post("/document", response_model=RecordingOut, status_code=201, summary="上传对话文稿文件（.txt/.md/.docx）")
 async def upload_document(
     file: UploadFile = File(...),
     title: str = Form(default=""),
@@ -147,14 +147,14 @@ async def upload_document(
             status_code=400,
             detail=(
                 f"不支持的文件类型 `{suffix}`。"
-                f"请上传纯文本文稿（{'、'.join(SUPPORTED_SUFFIXES)}），"
+                f"请上传对话文稿（{'、'.join(SUPPORTED_SUFFIXES)}），"
                 "或把内容直接粘贴进文本框。"
             ),
         )
 
     data = await file.read()
     try:
-        text, encoding = decode_document(data)
+        text, encoding = extract_document_text(safe_name, data)
     except TranscriptDocError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -194,7 +194,7 @@ async def inspect_document(file: UploadFile = File(...)) -> DocCheckOut:
     safe_name = Path(file.filename or "transcript.txt").name
     data = await file.read()
     try:
-        text, encoding = decode_document(data)
+        text, encoding = extract_document_text(safe_name, data)
     except TranscriptDocError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

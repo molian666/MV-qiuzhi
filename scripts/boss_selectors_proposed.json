@@ -1,0 +1,1525 @@
+{
+  "keyword": "机器视觉",
+  "profile": "D:\\VibeCoding\\mianshi\\backend\\data\\browser\\boss",
+  "listing_raw": {
+    "url": "https://www.zhipin.com/web/geek/jobs?query=%E6%9C%BA%E5%99%A8%E8%A7%86%E8%A7%89&city=101010100",
+    "page_title": "「北京招聘」-2026年北京人才招聘信息 - BOSS直聘",
+    "jobs_count": 17,
+    "titled_links": 17,
+    "security_check": false,
+    "header_text": "首页 职位 公司 校园 海归 APP 有了 海外 无障碍专区 消息 简历 汪玉浩 推荐 图像算法(广州) 添加求职期望 地图 搜索 北京 工作区域 职位类型 求职类型 薪资待遇 工作经验 学历要求 公司行业 公司规模 融资阶段 清空 视觉工程师 -K·薪 3-5年 大专 迁移科技 北京·昌平区·北七家 华北区域销售【机器视觉头部 可homebase -K·薪 3-5年 本科",
+    "avatar_html": "<li class=\"nav-figure\">\n                        <a href=\"https://www.zhipin.com/web/geek/recommend\" ka=\"header-username\">\n                            <span class=\"label-text\">汪玉浩</span><img src=\"https",
+    "on_job_list": true,
+    "logged_in": true,
+    "has_login_text": false,
+    "card_candidates": [
+      {
+        "selector": "div.job-title.clearfix",
+        "matches": 15,
+        "with_link": 15,
+        "level": 1
+      },
+      {
+        "selector": "div.job-info",
+        "matches": 15,
+        "with_link": 15,
+        "level": 2
+      },
+      {
+        "selector": "li.job-card-box",
+        "matches": 15,
+        "with_link": 15,
+        "level": 3
+      }
+    ],
+    "card_evidence": {
+      "div.job-title.clearfix": {
+        "count": 15,
+        "hits": {
+          "card_title": [
+            {
+              "selector": "a.job-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "视觉工程师",
+                "华北区域销售【机器视觉头部 可homebase",
+                "北京-计算机视觉算法工程师-中-外包车企"
+              ]
+            },
+            {
+              "selector": "div.job-title.clearfix",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            },
+            {
+              "selector": "a.job-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "视觉工程师",
+                "华北区域销售【机器视觉头部 可homebase",
+                "北京-计算机视觉算法工程师-中-外包车企"
+              ]
+            },
+            {
+              "selector": "span.job-salary",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "-K·薪",
+                "-K·薪",
+                "-K"
+              ]
+            },
+            {
+              "selector": "span.boss-name",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            },
+            {
+              "selector": "span.company-location",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            }
+          ],
+          "card_company": [
+            {
+              "selector": "span.company-location",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            }
+          ],
+          "card_salary": [
+            {
+              "selector": "span.job-salary",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "-K·薪",
+                "-K·薪",
+                "-K"
+              ]
+            }
+          ],
+          "card_city": [
+            {
+              "selector": "span.company-location",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            },
+            {
+              "selector": "span.company-location",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            }
+          ],
+          "card_link": [
+            {
+              "selector": "a.job-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "/job_detail/61945b12a104c2d1031_2Ni0FFNU.html",
+                "/job_detail/16006f01583a98b20nBz2dW-FVVW.html",
+                "/job_detail/bc84b056338a26f40nV60960GVZZ.html"
+              ]
+            }
+          ]
+        },
+        "per_card": [
+          {
+            "card_title": {
+              "a.job-name": "视觉工程师",
+              "span.job-salary": "-K·薪"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/61945b12a104c2d1031_2Ni0FFNU.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "华北区域销售【机器视觉头部 可homebase",
+              "span.job-salary": "-K·薪"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/16006f01583a98b20nBz2dW-FVVW.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "北京-计算机视觉算法工程师-中-外包车企",
+              "span.job-salary": "-K"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/bc84b056338a26f40nV60960GVZZ.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "机器人开发工程师（宇树具身智能）",
+              "span.job-salary": "-K"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/f5c052d4752c06500nN83dW6GVJQ.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "视觉工程师",
+              "span.job-salary": "-K·薪"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/753c89c293bfc5e00nJ93N2_EVdY.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "AI机器视觉算法工程师",
+              "span.job-salary": "-K·薪"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/3c8d964b29e0b72a0nZ63NS4E1NQ.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "机器视觉工程师",
+              "span.job-salary": "-K"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/6163d775a3e1152803Fz2dy6EVBU.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "3d视觉算法工程师",
+              "span.job-salary": "-K"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/2e951d3590e49dcf0nN8392-FVZQ.html"
+            }
+          }
+        ]
+      },
+      "div.job-info": {
+        "count": 15,
+        "hits": {
+          "card_title": [
+            {
+              "selector": "a.job-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "视觉工程师",
+                "华北区域销售【机器视觉头部 可homebase",
+                "北京-计算机视觉算法工程师-中-外包车企"
+              ]
+            },
+            {
+              "selector": "div.job-title.clearfix",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "视觉工程师\n-K·薪",
+                "华北区域销售【机器视觉头部 可homebase\n-K·薪",
+                "北京-计算机视觉算法工程师-中-外包车企\n-K"
+              ]
+            },
+            {
+              "selector": "a.job-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "视觉工程师",
+                "华北区域销售【机器视觉头部 可homebase",
+                "北京-计算机视觉算法工程师-中-外包车企"
+              ]
+            },
+            {
+              "selector": "span.job-salary",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "-K·薪",
+                "-K·薪",
+                "-K"
+              ]
+            },
+            {
+              "selector": "span.boss-name",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            },
+            {
+              "selector": "span.company-location",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            }
+          ],
+          "card_company": [
+            {
+              "selector": "span.company-location",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            }
+          ],
+          "card_salary": [
+            {
+              "selector": "span.job-salary",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "-K·薪",
+                "-K·薪",
+                "-K"
+              ]
+            }
+          ],
+          "card_city": [
+            {
+              "selector": "span.company-location",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            },
+            {
+              "selector": "span.company-location",
+              "hit_cards": 0,
+              "of_cards": 8,
+              "samples": []
+            }
+          ],
+          "card_link": [
+            {
+              "selector": "a.job-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "/job_detail/61945b12a104c2d1031_2Ni0FFNU.html",
+                "/job_detail/16006f01583a98b20nBz2dW-FVVW.html",
+                "/job_detail/bc84b056338a26f40nV60960GVZZ.html"
+              ]
+            }
+          ]
+        },
+        "per_card": [
+          {
+            "card_title": {
+              "a.job-name": "视觉工程师",
+              "div.job-title.clearfix": "视觉工程师\n-K·薪",
+              "span.job-salary": "-K·薪"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/61945b12a104c2d1031_2Ni0FFNU.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "华北区域销售【机器视觉头部 可homebase",
+              "div.job-title.clearfix": "华北区域销售【机器视觉头部 可homebase\n-K·薪",
+              "span.job-salary": "-K·薪"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/16006f01583a98b20nBz2dW-FVVW.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "北京-计算机视觉算法工程师-中-外包车企",
+              "div.job-title.clearfix": "北京-计算机视觉算法工程师-中-外包车企\n-K",
+              "span.job-salary": "-K"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/bc84b056338a26f40nV60960GVZZ.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "机器人开发工程师（宇树具身智能）",
+              "div.job-title.clearfix": "机器人开发工程师（宇树具身智能）\n-K",
+              "span.job-salary": "-K"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/f5c052d4752c06500nN83dW6GVJQ.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "视觉工程师",
+              "div.job-title.clearfix": "视觉工程师\n-K·薪",
+              "span.job-salary": "-K·薪"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/753c89c293bfc5e00nJ93N2_EVdY.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "AI机器视觉算法工程师",
+              "div.job-title.clearfix": "AI机器视觉算法工程师\n-K·薪",
+              "span.job-salary": "-K·薪"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/3c8d964b29e0b72a0nZ63NS4E1NQ.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "机器视觉工程师",
+              "div.job-title.clearfix": "机器视觉工程师\n-K",
+              "span.job-salary": "-K"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/6163d775a3e1152803Fz2dy6EVBU.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "3d视觉算法工程师",
+              "div.job-title.clearfix": "3d视觉算法工程师\n-K",
+              "span.job-salary": "-K"
+            },
+            "card_company": {},
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {},
+            "card_link": {
+              "a.job-name": "/job_detail/2e951d3590e49dcf0nN8392-FVZQ.html"
+            }
+          }
+        ]
+      },
+      "li.job-card-box": {
+        "count": 15,
+        "hits": {
+          "card_title": [
+            {
+              "selector": "a.job-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "视觉工程师",
+                "华北区域销售【机器视觉头部 可homebase",
+                "北京-计算机视觉算法工程师-中-外包车企"
+              ]
+            },
+            {
+              "selector": "div.job-title.clearfix",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "视觉工程师\n-K·薪",
+                "华北区域销售【机器视觉头部 可homebase\n-K·薪",
+                "北京-计算机视觉算法工程师-中-外包车企\n-K"
+              ]
+            },
+            {
+              "selector": "a.job-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "视觉工程师",
+                "华北区域销售【机器视觉头部 可homebase",
+                "北京-计算机视觉算法工程师-中-外包车企"
+              ]
+            },
+            {
+              "selector": "span.job-salary",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "-K·薪",
+                "-K·薪",
+                "-K"
+              ]
+            },
+            {
+              "selector": "span.boss-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "迁移科技",
+                "某中型人工智能机器人公司",
+                "极豆车联网"
+              ]
+            },
+            {
+              "selector": "span.company-location",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "北京·昌平区·北七家",
+                "北京",
+                "北京·海淀区·西北旺"
+              ]
+            }
+          ],
+          "card_company": [
+            {
+              "selector": "span.company-location",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "北京·昌平区·北七家",
+                "北京",
+                "北京·海淀区·西北旺"
+              ]
+            }
+          ],
+          "card_salary": [
+            {
+              "selector": "span.job-salary",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "-K·薪",
+                "-K·薪",
+                "-K"
+              ]
+            }
+          ],
+          "card_city": [
+            {
+              "selector": "span.company-location",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "北京·昌平区·北七家",
+                "北京",
+                "北京·海淀区·西北旺"
+              ]
+            },
+            {
+              "selector": "span.company-location",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "北京·昌平区·北七家",
+                "北京",
+                "北京·海淀区·西北旺"
+              ]
+            }
+          ],
+          "card_link": [
+            {
+              "selector": "a.job-name",
+              "hit_cards": 8,
+              "of_cards": 8,
+              "samples": [
+                "/job_detail/61945b12a104c2d1031_2Ni0FFNU.html",
+                "/job_detail/16006f01583a98b20nBz2dW-FVVW.html",
+                "/job_detail/bc84b056338a26f40nV60960GVZZ.html"
+              ]
+            }
+          ]
+        },
+        "per_card": [
+          {
+            "card_title": {
+              "a.job-name": "视觉工程师",
+              "div.job-title.clearfix": "视觉工程师\n-K·薪",
+              "span.job-salary": "-K·薪",
+              "span.boss-name": "迁移科技",
+              "span.company-location": "北京·昌平区·北七家"
+            },
+            "card_company": {
+              "span.company-location": "北京·昌平区·北七家"
+            },
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {
+              "span.company-location": "北京·昌平区·北七家"
+            },
+            "card_link": {
+              "a.job-name": "/job_detail/61945b12a104c2d1031_2Ni0FFNU.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "华北区域销售【机器视觉头部 可homebase",
+              "div.job-title.clearfix": "华北区域销售【机器视觉头部 可homebase\n-K·薪",
+              "span.job-salary": "-K·薪",
+              "span.boss-name": "某中型人工智能机器人公司",
+              "span.company-location": "北京"
+            },
+            "card_company": {
+              "span.company-location": "北京"
+            },
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {
+              "span.company-location": "北京"
+            },
+            "card_link": {
+              "a.job-name": "/job_detail/16006f01583a98b20nBz2dW-FVVW.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "北京-计算机视觉算法工程师-中-外包车企",
+              "div.job-title.clearfix": "北京-计算机视觉算法工程师-中-外包车企\n-K",
+              "span.job-salary": "-K",
+              "span.boss-name": "极豆车联网",
+              "span.company-location": "北京·海淀区·西北旺"
+            },
+            "card_company": {
+              "span.company-location": "北京·海淀区·西北旺"
+            },
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {
+              "span.company-location": "北京·海淀区·西北旺"
+            },
+            "card_link": {
+              "a.job-name": "/job_detail/bc84b056338a26f40nV60960GVZZ.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "机器人开发工程师（宇树具身智能）",
+              "div.job-title.clearfix": "机器人开发工程师（宇树具身智能）\n-K",
+              "span.job-salary": "-K",
+              "span.boss-name": "北京某小型人工智能公司",
+              "span.company-location": "北京"
+            },
+            "card_company": {
+              "span.company-location": "北京"
+            },
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {
+              "span.company-location": "北京"
+            },
+            "card_link": {
+              "a.job-name": "/job_detail/f5c052d4752c06500nN83dW6GVJQ.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "视觉工程师",
+              "div.job-title.clearfix": "视觉工程师\n-K·薪",
+              "span.job-salary": "-K·薪",
+              "span.boss-name": "正时精控科技",
+              "span.company-location": "北京·顺义区·石园"
+            },
+            "card_company": {
+              "span.company-location": "北京·顺义区·石园"
+            },
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {
+              "span.company-location": "北京·顺义区·石园"
+            },
+            "card_link": {
+              "a.job-name": "/job_detail/753c89c293bfc5e00nJ93N2_EVdY.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "AI机器视觉算法工程师",
+              "div.job-title.clearfix": "AI机器视觉算法工程师\n-K·薪",
+              "span.job-salary": "-K·薪",
+              "span.boss-name": "外企德科数字",
+              "span.company-location": "北京·海淀区·西北旺"
+            },
+            "card_company": {
+              "span.company-location": "北京·海淀区·西北旺"
+            },
+            "card_salary": {
+              "span.job-salary": "-K·薪"
+            },
+            "card_city": {
+              "span.company-location": "北京·海淀区·西北旺"
+            },
+            "card_link": {
+              "a.job-name": "/job_detail/3c8d964b29e0b72a0nZ63NS4E1NQ.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "机器视觉工程师",
+              "div.job-title.clearfix": "机器视觉工程师\n-K",
+              "span.job-salary": "-K",
+              "span.boss-name": "微链道爱",
+              "span.company-location": "北京·大兴区·黄村"
+            },
+            "card_company": {
+              "span.company-location": "北京·大兴区·黄村"
+            },
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {
+              "span.company-location": "北京·大兴区·黄村"
+            },
+            "card_link": {
+              "a.job-name": "/job_detail/6163d775a3e1152803Fz2dy6EVBU.html"
+            }
+          },
+          {
+            "card_title": {
+              "a.job-name": "3d视觉算法工程师",
+              "div.job-title.clearfix": "3d视觉算法工程师\n-K",
+              "span.job-salary": "-K",
+              "span.boss-name": "北京星图海洋智能科技",
+              "span.company-location": "北京·顺义区·天竺"
+            },
+            "card_company": {
+              "span.company-location": "北京·顺义区·天竺"
+            },
+            "card_salary": {
+              "span.job-salary": "-K"
+            },
+            "card_city": {
+              "span.company-location": "北京·顺义区·天竺"
+            },
+            "card_link": {
+              "a.job-name": "/job_detail/2e951d3590e49dcf0nN8392-FVZQ.html"
+            }
+          }
+        ]
+      }
+    },
+    "fields": {
+      "card_title": [
+        "a.job-name",
+        "div.job-title.clearfix",
+        "span.job-salary",
+        "span.boss-name",
+        "span.company-location"
+      ],
+      "card_company": [
+        "span.company-location"
+      ],
+      "card_salary": [
+        "span.job-salary"
+      ],
+      "card_city": [
+        "span.company-location"
+      ],
+      "card_link": [
+        "a.job-name"
+      ]
+    },
+    "search_inputs": [
+      {
+        "selector": "input.input",
+        "matches": 1,
+        "placeholder": "搜索职位、公司",
+        "visible": true
+      }
+    ],
+    "captcha_candidates": [
+      {
+        "selector": "#captcha",
+        "matches": 0
+      },
+      {
+        "selector": ".geetest_panel",
+        "matches": 0
+      },
+      {
+        "selector": ".geetest_holder",
+        "matches": 0
+      },
+      {
+        "selector": ".geetest_box",
+        "matches": 0
+      },
+      {
+        "selector": "iframe[src*=\"captcha\"]",
+        "matches": 0
+      },
+      {
+        "selector": "[class*=\"captcha\"]",
+        "matches": 0
+      },
+      {
+        "selector": "[class*=\"verify\"]",
+        "matches": 0
+      },
+      {
+        "selector": ".dialog-wrap[class*=\"verify\"]",
+        "matches": 0
+      },
+      {
+        "selector": "[id*=\"captcha\"]",
+        "matches": 0
+      }
+    ],
+    "login_candidates": [
+      {
+        "selector": "a[href*=\"login\"]",
+        "matches": 0,
+        "sample": ""
+      },
+      {
+        "selector": "[class*=\"sign-in\"]",
+        "matches": 0,
+        "sample": ""
+      },
+      {
+        "selector": "[class*=\"login-btn\"]",
+        "matches": 0,
+        "sample": ""
+      },
+      {
+        "selector": "[class*=\"login\"]",
+        "matches": 0,
+        "sample": ""
+      },
+      {
+        "selector": ".header-login",
+        "matches": 0,
+        "sample": ""
+      },
+      {
+        "selector": "[class*=\"user-nav\"]",
+        "matches": 1,
+        "sample": "消息 简历 汪玉浩"
+      },
+      {
+        "selector": "[class*=\"avatar\"]",
+        "matches": 1,
+        "sample": ""
+      },
+      {
+        "selector": "[class*=\"user-info\"]",
+        "matches": 0,
+        "sample": ""
+      }
+    ],
+    "body_head": "首页 职位 公司 校园 海归 APP 有了 海外 无障碍专区 消息 简历 汪玉浩 推荐 图像算法(广州) 添加求职期望 地图 搜索 北京 工作区域 职位类型 求职类型 薪资待遇 工作经验 学历要求 公司行业 公司规模 融资阶段 清空 视觉工程师 -K·薪 3-5年 大专 迁移科技 北京·昌平区·北七家 华北区域销售【机器视觉头部 可homebase -K·薪 3-5年 本科 某中型人工智能机器人公司 北京 北京-计算机视觉算法工程师-中-外包车企 -K 5-10年 本科 极豆车联网 北京·海淀区·西北旺 机器人开发工程师（宇树具身智能） -K 1-3年 ",
+    "first_card_html": "<li data-v-6460f456=\"\" class=\"job-card-box\"><!----><div data-v-6460f456=\"\" class=\"job-info\"><div data-v-6460f456=\"\" class=\"job-title clearfix\"><a data-v-6460f456=\"\" href=\"/job_detail/61945b12a104c2d1031_2Ni0FFNU.html\" class=\"job-name\">视觉工程师</a><span data-v-6460f456=\"\" class=\"job-salary\">-K·薪</span></div><ul data-v-6460f456=\"\" class=\"tag-list\"><li data-v-6460f456=\"\">3-5年</li><li data-v-6460f456=\"\">大专</li></ul></div><div data-v-6460f456=\"\" class=\"job-card-footer\"><a data-v-6460f456=\"\" href=\"/gongsi/d48ac3f2d784f72b1nB53ty_Fg~~.html?from=top-card\" ka=\"company_logo_click_d48ac3f2d784f72b1nB53ty_Fg~~\" target=\"_blank\" class=\"boss-info\"><div data-v-6460f456=\"\" class=\"boss-logo\"><img data-v-6460f456=\"\" vload_1790573071349=\"\" src=\"https://img.bosszhipin.com/beijin/upload/com/workfeel/20220428/7bf6f160950405e9be6bb7c2b6b72044699788d29dcadd51d22a919cb2b5c00f82958ca43c767f5b.jpg?x-oss-process=image/resize,w_100,limit_0\"><span data-v-6460f456=\"\" class=\"boss-online-icon\"></span></div><span data-v-6460f456=\"\" class=\"boss-name\">迁移科技</span></a><span data-v-6460f456=\"\" class=\"company-location\"> 北京·昌平区·北七家 </span></div></li>",
+    "link_ancestors": [
+      "a.job-name",
+      "div.job-title.clearfix",
+      "div.job-info",
+      "li.job-card-box",
+      "div.job-card-wrap.active",
+      "div.card-area.is-seen",
+      "ul.rec-job-list"
+    ],
+    "status": "ok_logged_in",
+    "dom_stable": true
+  },
+  "cards": {
+    "candidates": {
+      "job_card": [
+        {
+          "selector": "div.job-title.clearfix",
+          "matches": 15,
+          "with_link": 15,
+          "level": 1
+        },
+        {
+          "selector": "div.job-info",
+          "matches": 15,
+          "with_link": 15,
+          "level": 2
+        },
+        {
+          "selector": "li.job-card-box",
+          "matches": 15,
+          "with_link": 15,
+          "level": 3
+        }
+      ],
+      "card_city": [
+        {
+          "selector": "span.company-location",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "北京·昌平区·北七家",
+            "北京",
+            "北京·海淀区·西北旺"
+          ]
+        },
+        {
+          "selector": "span.company-location",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "北京·昌平区·北七家",
+            "北京",
+            "北京·海淀区·西北旺"
+          ]
+        }
+      ],
+      "card_company": [
+        {
+          "selector": "span.company-location",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "北京·昌平区·北七家",
+            "北京",
+            "北京·海淀区·西北旺"
+          ]
+        }
+      ],
+      "card_link": [
+        {
+          "selector": "a.job-name",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "/job_detail/61945b12a104c2d1031_2Ni0FFNU.html",
+            "/job_detail/16006f01583a98b20nBz2dW-FVVW.html",
+            "/job_detail/bc84b056338a26f40nV60960GVZZ.html"
+          ]
+        }
+      ],
+      "card_title": [
+        {
+          "selector": "a.job-name",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "视觉工程师",
+            "华北区域销售【机器视觉头部 可homebase",
+            "北京-计算机视觉算法工程师-中-外包车企"
+          ]
+        },
+        {
+          "selector": "a.job-name",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "视觉工程师",
+            "华北区域销售【机器视觉头部 可homebase",
+            "北京-计算机视觉算法工程师-中-外包车企"
+          ]
+        },
+        {
+          "selector": "div.job-title.clearfix",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "视觉工程师\n-K·薪",
+            "华北区域销售【机器视觉头部 可homebase\n-K·薪",
+            "北京-计算机视觉算法工程师-中-外包车企\n-K"
+          ]
+        },
+        {
+          "selector": "span.boss-name",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "迁移科技",
+            "某中型人工智能机器人公司",
+            "极豆车联网"
+          ]
+        },
+        {
+          "selector": "span.job-salary",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "-K·薪",
+            "-K·薪",
+            "-K"
+          ]
+        },
+        {
+          "selector": "span.company-location",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "北京·昌平区·北七家",
+            "北京",
+            "北京·海淀区·西北旺"
+          ]
+        }
+      ],
+      "card_salary": [
+        {
+          "selector": "span.job-salary",
+          "hit_cards": 8,
+          "of_cards": 8,
+          "samples": [
+            "-K·薪",
+            "-K·薪",
+            "-K"
+          ]
+        }
+      ]
+    },
+    "verified": {
+      "card_city": "span.company-location",
+      "card_link": "a.job-name",
+      "card_title": "a.job-name",
+      "card_salary": "span.job-salary"
+    },
+    "per_card": [
+      {
+        "index": 0,
+        "card_city": "北京·昌平区·北七家",
+        "card_title": "视觉工程师",
+        "card_salary": "-K·薪",
+        "link": "/job_detail/61945b12a104c2d1031_2Ni0FFNU.html"
+      },
+      {
+        "index": 1,
+        "card_city": "北京",
+        "card_title": "华北区域销售【机器视觉头部 可homebase",
+        "card_salary": "-K·薪",
+        "link": "/job_detail/16006f01583a98b20nBz2dW-FVVW.html"
+      },
+      {
+        "index": 2,
+        "card_city": "北京·海淀区·西北旺",
+        "card_title": "北京-计算机视觉算法工程师-中-外包车企",
+        "card_salary": "-K",
+        "link": "/job_detail/bc84b056338a26f40nV60960GVZZ.html"
+      },
+      {
+        "index": 3,
+        "card_city": "北京",
+        "card_title": "机器人开发工程师（宇树具身智能）",
+        "card_salary": "-K",
+        "link": "/job_detail/f5c052d4752c06500nN83dW6GVJQ.html"
+      },
+      {
+        "index": 4,
+        "card_city": "北京·顺义区·石园",
+        "card_title": "视觉工程师",
+        "card_salary": "-K·薪",
+        "link": "/job_detail/753c89c293bfc5e00nJ93N2_EVdY.html"
+      },
+      {
+        "index": 5,
+        "card_city": "北京·海淀区·西北旺",
+        "card_title": "AI机器视觉算法工程师",
+        "card_salary": "-K·薪",
+        "link": "/job_detail/3c8d964b29e0b72a0nZ63NS4E1NQ.html"
+      },
+      {
+        "index": 6,
+        "card_city": "北京·大兴区·黄村",
+        "card_title": "机器视觉工程师",
+        "card_salary": "-K",
+        "link": "/job_detail/6163d775a3e1152803Fz2dy6EVBU.html"
+      },
+      {
+        "index": 7,
+        "card_city": "北京·顺义区·天竺",
+        "card_title": "3d视觉算法工程师",
+        "card_salary": "-K",
+        "link": "/job_detail/2e951d3590e49dcf0nN8392-FVZQ.html"
+      }
+    ],
+    "container_attempts": [
+      {
+        "container": {
+          "selector": "li.job-card-box",
+          "matches": 15,
+          "with_link": 15,
+          "level": 3
+        },
+        "verified": [
+          "card_city",
+          "card_link",
+          "card_salary",
+          "card_title"
+        ],
+        "card_count": 15
+      },
+      {
+        "container": {
+          "selector": "div.job-info",
+          "matches": 15,
+          "with_link": 15,
+          "level": 2
+        },
+        "verified": [
+          "card_link",
+          "card_salary",
+          "card_title"
+        ],
+        "card_count": 15
+      },
+      {
+        "container": {
+          "selector": "div.job-title.clearfix",
+          "matches": 15,
+          "with_link": 15,
+          "level": 1
+        },
+        "verified": [
+          "card_link",
+          "card_salary",
+          "card_title"
+        ],
+        "card_count": 15
+      }
+    ],
+    "chosen_container": {
+      "selector": "li.job-card-box",
+      "matches": 15,
+      "with_link": 15,
+      "level": 3
+    }
+  },
+  "detail": {
+    "url": "https://www.zhipin.com/job_detail/61945b12a104c2d1031_2Ni0FFNU.html",
+    "page_title": "「视觉工程师招聘」_迁移科技招聘-BOSS直聘",
+    "jd": [
+      {
+        "selector": "div.job-sec-text",
+        "length": 393,
+        "depth": 8,
+        "jd_like": true,
+        "head": "【岗位职责】​ 1.负责视觉系统的部署与调试，解答客户疑问并培训客户使用公司产品软件；​ 2.及时准确反馈项目信息和现场"
+      },
+      {
+        "selector": "div.job-detail-section",
+        "length": 425,
+        "depth": 7,
+        "jd_like": true,
+        "head": "微信扫码分享 举报 职位描述 【岗位职责】​ 1.负责视觉系统的部署与调试，解答客户疑问并培训客户使用公司产品软件；​ "
+      },
+      {
+        "selector": "div.job-detail",
+        "length": 1938,
+        "depth": 6,
+        "jd_like": true,
+        "head": "微信扫码分享 举报 职位描述 【岗位职责】​ 1.负责视觉系统的部署与调试，解答客户疑问并培训客户使用公司产品软件；​ "
+      },
+      {
+        "selector": "div.inner.home-inner",
+        "length": 1975,
+        "depth": 5,
+        "jd_like": true,
+        "head": "公司基本信息 迁移科技 C轮 100-499人 计算机软件 查看全部职位 微信扫码分享 举报 职位描述 【岗位职责】​ "
+      },
+      {
+        "selector": "div.job-box",
+        "length": 1975,
+        "depth": 4,
+        "jd_like": true,
+        "head": "公司基本信息 迁移科技 C轮 100-499人 计算机软件 查看全部职位 微信扫码分享 举报 职位描述 【岗位职责】​ "
+      },
+      {
+        "selector": "div",
+        "length": 2095,
+        "depth": 3,
+        "jd_like": true,
+        "head": "招聘中 视觉工程师 12-18K·13薪 北京 3-5年 大专 感兴趣 立即沟通 完善在线简历 上传附件简历 ... 项"
+      },
+      {
+        "selector": "div",
+        "length": 2139,
+        "depth": 2,
+        "jd_like": true,
+        "head": "首页 职位 公司 校园 海归 APP 有了 海外 无障碍专区 搜索 消息 简历 汪玉浩 招聘中 视觉工程师 12-18K"
+      },
+      {
+        "selector": "div.inner-box",
+        "length": 122,
+        "depth": 5,
+        "jd_like": false,
+        "head": "短信登录扫码登录 使用 BOSS直聘 APP 扫码登录扫码帮助 请重新刷新二维码 点击刷新 知道了Boss现在也可以使用"
+      }
+    ],
+    "meta": [
+      {
+        "selector": "span.text-desc.text-experiece",
+        "nth_selector": "span.text-desc.text-experiece >> nth=0",
+        "text": "3-5年"
+      },
+      {
+        "selector": "span.text-desc.text-degree",
+        "nth_selector": "span.text-desc.text-degree >> nth=0",
+        "text": "大专"
+      },
+      {
+        "selector": "div.name",
+        "nth_selector": "div.name >> nth=10",
+        "text": "博士后（清华大学联合培养）"
+      }
+    ],
+    "hr": [
+      {
+        "selector": "a.link-recruit",
+        "nth_selector": "a.link-recruit >> nth=0",
+        "text": "切换为招聘者",
+        "cls": "link-recruit",
+        "tag": "a"
+      },
+      {
+        "selector": "span.similar-job-name",
+        "nth_selector": "span.similar-job-name >> nth=0",
+        "text": "图像算法工程师",
+        "cls": "similar-job-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.company-name",
+        "nth_selector": "span.company-name >> nth=0",
+        "text": "领识舜动",
+        "cls": "company-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.similar-job-name",
+        "nth_selector": "span.similar-job-name >> nth=1",
+        "text": "机器视觉工程师",
+        "cls": "similar-job-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.company-name",
+        "nth_selector": "span.company-name >> nth=1",
+        "text": "青岛青橙智联科技",
+        "cls": "company-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.similar-job-name",
+        "nth_selector": "span.similar-job-name >> nth=2",
+        "text": "无人机算法工程师",
+        "cls": "similar-job-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.company-name",
+        "nth_selector": "span.company-name >> nth=2",
+        "text": "柏松技术",
+        "cls": "company-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.similar-job-name",
+        "nth_selector": "span.similar-job-name >> nth=3",
+        "text": "图像算法（CV NPL）",
+        "cls": "similar-job-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.company-name",
+        "nth_selector": "span.company-name >> nth=3",
+        "text": "上海思芮",
+        "cls": "company-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.similar-job-name",
+        "nth_selector": "span.similar-job-name >> nth=4",
+        "text": "多模态数据交付工程师",
+        "cls": "similar-job-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.company-name",
+        "nth_selector": "span.company-name >> nth=4",
+        "text": "悦智人工智能",
+        "cls": "company-name",
+        "tag": "span"
+      },
+      {
+        "selector": "span.boss-online-tag",
+        "nth_selector": "span.boss-online-tag >> nth=0",
+        "text": "在线",
+        "cls": "boss-online-tag",
+        "tag": "span"
+      },
+      {
+        "selector": "div.boss-info-attr",
+        "nth_selector": "div.boss-info-attr >> nth=0",
+        "text": "迁移科技 · HR",
+        "cls": "boss-info-attr",
+        "tag": "div"
+      },
+      {
+        "selector": "div.name",
+        "nth_selector": "div.name >> nth=2",
+        "text": "图像算法",
+        "cls": "name",
+        "tag": "div"
+      },
+      {
+        "selector": "span.company-logo-name",
+        "nth_selector": "span.company-logo-name >> nth=0",
+        "text": "某通信/网络设备公司",
+        "cls": "company-logo-name",
+        "tag": "span"
+      },
+      {
+        "selector": "div.name",
+        "nth_selector": "div.name >> nth=3",
+        "text": "图像算法（算法交付）工程师-全额五险一金",
+        "cls": "name",
+        "tag": "div"
+      },
+      {
+        "selector": "span.company-logo-name",
+        "nth_selector": "span.company-logo-name >> nth=1",
+        "text": "柯莱特集团",
+        "cls": "company-logo-name",
+        "tag": "span"
+      },
+      {
+        "selector": "div.name",
+        "nth_selector": "div.name >> nth=4",
+        "text": "AI视效生成师",
+        "cls": "name",
+        "tag": "div"
+      },
+      {
+        "selector": "span.company-logo-name",
+        "nth_selector": "span.company-logo-name >> nth=2",
+        "text": "九州鼎合",
+        "cls": "company-logo-name",
+        "tag": "span"
+      },
+      {
+        "selector": "div.name",
+        "nth_selector": "div.name >> nth=5",
+        "text": "图像算法工程师",
+        "cls": "name",
+        "tag": "div"
+      },
+      {
+        "selector": "span.company-logo-name",
+        "nth_selector": "span.company-logo-name >> nth=3",
+        "text": "同方威视",
+        "cls": "company-logo-name",
+        "tag": "span"
+      },
+      {
+        "selector": "div.name",
+        "nth_selector": "div.name >> nth=6",
+        "text": "图像算法工程师",
+        "cls": "name",
+        "tag": "div"
+      },
+      {
+        "selector": "span.company-logo-name",
+        "nth_selector": "span.company-logo-name >> nth=4",
+        "text": "理工雷科",
+        "cls": "company-logo-name",
+        "tag": "span"
+      },
+      {
+        "selector": "div.name",
+        "nth_selector": "div.name >> nth=7",
+        "text": "图像算法",
+        "cls": "name",
+        "tag": "div"
+      },
+      {
+        "selector": "span.company-logo-name",
+        "nth_selector": "span.company-logo-name >> nth=5",
+        "text": "甲板智慧",
+        "cls": "company-logo-name",
+        "tag": "span"
+      }
+    ],
+    "greet": [
+      {
+        "selector": "a.btn.btn-startchat",
+        "text": "立即沟通",
+        "tag": "a",
+        "matches": 2
+      },
+      {
+        "selector": "a.btn.btn-startchat",
+        "text": "立即沟通",
+        "tag": "a",
+        "matches": 2
+      },
+      {
+        "selector": "span.side-popper",
+        "text": "沟通过",
+        "tag": "span",
+        "matches": 5
+      },
+      {
+        "selector": "span",
+        "text": "沟通",
+        "tag": "span",
+        "matches": 316
+      },
+      {
+        "selector": "span",
+        "text": "在线职位及时沟通",
+        "tag": "span",
+        "matches": 316
+      },
+      {
+        "selector": "span",
+        "text": "沟通",
+        "tag": "span",
+        "matches": 316
+      },
+      {
+        "selector": "span",
+        "text": "在线职位及时沟通",
+        "tag": "span",
+        "matches": 316
+      },
+      {
+        "selector": "span",
+        "text": "沟通",
+        "tag": "span",
+        "matches": 316
+      },
+      {
+        "selector": "span",
+        "text": "在线职位及时沟通",
+        "tag": "span",
+        "matches": 316
+      },
+      {
+        "selector": "span",
+        "text": "沟通",
+        "tag": "span",
+        "matches": 316
+      },
+      {
+        "selector": "span",
+        "text": "在线职位及时沟通",
+        "tag": "span",
+        "matches": 316
+      },
+      {
+        "selector": "div.app-icon-des-v62",
+        "text": "一键扫码 随时沟通",
+        "tag": "div",
+        "matches": 2
+      },
+      {
+        "selector": "div.side-entry2-inner.side-entry2-inner-contact",
+        "text": "沟通过",
+        "tag": "div",
+        "matches": 1
+      }
+    ],
+    "body_head": "首页 职位 公司 校园 海归 APP 有了 海外 无障碍专区 搜索 消息 简历 汪玉浩 招聘中 视觉工程师 12-18K·13薪 北京 3-5年 大专 感兴趣 立即沟通 完善在线简历 上传附件简历 ... 项目奖金交通补助节日福利有无线网宿舍有空调团建聚餐餐补带薪年假夜班补助加班补助股票期权底薪加提成年终奖五险一金人体工学椅 公司基本信息 迁移科技 C轮 100-499人 计算机软件 查看全部职位 微信扫码分享 举报 职位描述 【岗位职责】​ 1.负责视觉系统的部署与调试，解答客户疑问并培训客户使用公司产品软件；​ 2.及时准确反馈项目信息和现场情况，快速定位和解决产品使用问题，沉淀标准化解决"
+  },
+  "chat": {
+    "inputs": [],
+    "sends": [],
+    "timeout": true,
+    "page_count": 1
+  },
+  "proposed": {
+    "job_card": "li.job-card-box",
+    "card_city": "span.company-location",
+    "card_title": "a.job-name",
+    "card_salary": "span.job-salary",
+    "card_link": "a.job-name",
+    "search_input": "input.input",
+    "detail_jd": "div.job-sec-text",
+    "greet_button": "a.btn.btn-startchat >> nth=0",
+    "detail_experience": "span.text-desc.text-experiece",
+    "detail_degree": "span.text-desc.text-degree",
+    "hr_name": "div.boss-info-attr",
+    "hr_active": "span.boss-online-tag"
+  },
+  "missing_for_search": [
+    "card_company"
+  ],
+  "missing_for_send": [
+    "greet_input",
+    "greet_send"
+  ],
+  "collisions": [],
+  "not_covered": {
+    "headhunter_marker": "页面上『猎头/中介』标记。不填 → is_headhunter 一直是未知，『排除猎头岗』规则不会拦下任何岗位（README 承诺的过滤会静默失效）",
+    "login_marker": "只在未登录时存在的元素。不填 → ensure_login() 无法判断登录态，也不会识别『登录失效』这个熔断信号"
+  }
+}

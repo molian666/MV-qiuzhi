@@ -35,9 +35,44 @@ class VisionSourceStatOut(BaseModel):
     count: int
 
 
+class VisionTopicChildOut(BaseModel):
+    name: str
+    count: int
+    #: 完整分类串（`父 / 子`），直接拿它去筛题
+    full: str
+
+
+class VisionMarkTagOut(BaseModel):
+    """一道题可以带多个标记标签（高频 / 易错 / 自定义），筛选器用。
+
+    与 `VisionTopicOut` 的区别：主题是一道题一个，标签是一道题多个——
+    所以筛选标签时是多选（同时带「高频」和「易错」的题才算命中）。
+    """
+
+    name: str
+    count: int
+
+
+class VisionTopicOut(BaseModel):
+    """两级主题：父主题 + 它的子主题。
+
+    为什么要两级：整理过的面经文档里，分类是"章节 + 题目括号"拼出来的
+    （如「相机与图像基础 / 相机二开」），平铺出来是 80 多个标签、其中 40 多个只有 1 道题，
+    根本没法用。界面上只平铺父主题，选中后再出子主题。
+    """
+
+    name: str
+    count: int
+    children: list[VisionTopicChildOut] = Field(default_factory=list)
+
+
 class VisionMetaOut(BaseModel):
     roles: list[RoleOptionOut]
     categories: list[str]
+    #: 两级主题（界面用这个筛；`categories` 保留给导出等旧调用方）
+    topics: list[VisionTopicOut] = Field(default_factory=list)
+    #: 题库里出现过的标记标签（高频 / 易错 / 自定义）及各自题数，筛选器用
+    mark_tags: list[VisionMarkTagOut] = Field(default_factory=list)
     total: int
     sources: list[VisionSourceStatOut] = Field(default_factory=list)
     #: 待采纳的草稿题数。它们不在 sources 统计里（还没进抽题池）
@@ -61,6 +96,32 @@ class VisionAdoptIn(BaseModel):
 
     question_ids: list[int] = Field(min_length=1, max_length=200)
     """补充要求，如「多出一些打光相关的」"""
+
+
+class VisionDeleteIn(BaseModel):
+    """批量删除。用 POST 传 id 列表而不是 `DELETE` 带 body——后者在部分代理与
+    客户端上会被丢掉 body，而且 FastAPI 的 body-in-DELETE 支持一直是绕路走的。
+
+    下限 1：空列表是调用方搞错了（前端在没有选中时不会发这个请求），
+    宁可直接拒掉，也别返回一个"删了 0 条"的成功。
+    """
+
+    question_ids: list[int] = Field(min_length=1, max_length=500)
+
+
+class VisionTagsIn(BaseModel):
+    """给一道题添加 / 移除「标记」标签（高频、易错等题目性质，也可自定义）。
+
+    一次请求可以同时加和删（先加后删）；移除一个不存在的标签是静默的，
+    重复点击不会报错。只影响 `标记:` 那一类——分类与「上传:」来源
+    是题目自身的属性，不归这个接口管。
+
+    `add` / `remove` 里的取值在服务端会做清洗与保留字校验
+    （空串、超过长度的、以「上传: / 标记:」开头的、系统保留的「已删除 / 草稿」都会被忽略）。
+    """
+
+    add: list[str] = Field(default_factory=list, max_length=20)
+    remove: list[str] = Field(default_factory=list, max_length=20)
 
 
 class VisionGenerateOut(BaseModel):

@@ -27,12 +27,38 @@ BASE_SYSTEM_PROMPT = """你是一位经验丰富、风格专业的技术面试�
    这个尺寸的卷积核，换成别的会有什么影响」。把问题锚在具体的取舍、边界和判断上——
    这是区分「背过」和「做过」的关键。
 6. 像真人面试官一样说话：简洁、专业；不评价、不夸奖、不替候选人总结。
-7. 候选人跑题时，用一句话拉回来，然后重新提问。
-8. 不要暴露你是 AI，不要提到"规则"，也不要提到 JSON。
+7. **可以先接一句很短的话再提问**，让它听起来像对话而不是问卷：例如「嗯」「好，我大致了解了」
+   「明白」「这个点我想多问一句」。**最多 12 个字**，并且必须紧贴候选人刚说的内容——
+   不要变成客套、不要重复他已经说过的话、也不要每轮都用同一句。
+   候选人答得很短或明显没答到点时，**不要**接这句，直接追问。
+8. 候选人跑题时，用一句话拉回来，然后重新提问。
+9. 不要暴露你是 AI，不要提到"规则"，也不要提到 JSON。
 
 只输出一个 JSON 对象，不要输出任何其他内容：
 {"kind": "opening|followup|new_topic|closing", "topic": "本题主题（不超过 8 个字）", "question": "你要问的话"}
+（当本场指令要求输出 coach 字段时，在同一个 JSON 对象里带上它即可。）
 """
+
+
+#: 收尾时用的话术：**只是把话筒交给候选人**，不宣布面试结束。
+#:
+#: 以前的写法是「用一两句话收束整场面试」——模型于是说「面试到此结束」，
+#: 而运行时紧接着就把会话标记成 finished，候选人**根本没有机会提问**。
+#: 结果是评分 rubric 里的「主动性 / 反问质量」维度结构性拿不到数据。
+CLOSING_PROMPT = (
+    "（面试环节已经问完。请用一两句话感谢候选人，然后**邀请他提问**——"
+    "问他有没有想了解的（团队、技术栈、业务、节奏都可以）。"
+    "kind 固定为 closing。**不要说「面试结束」这类话**：接下来还有他提问的环节。）"
+)
+
+#: 回答候选人的提问。
+REVERSE_QUESTION_PROMPT = (
+    "（现在轮到候选人提问，他刚问了一个关于这份工作/团队/公司的问题。"
+    "请**以面试官的身份直接回答**：具体、诚实、不夸大。"
+    "可以提到你作为面试官能看到的信息（团队在做什么、技术栈、协作方式、面试流程与后续安排）；"
+    "**不要编造**你不该知道的东西（比如具体薪资数字、公司内部机密），"
+    "拿不准就说「这块 HR 会更清楚」。回答控制在三四句话，kind 固定为 closing。）"
+)
 
 
 @dataclass(slots=True)
@@ -43,6 +69,9 @@ class QuestionPlan:
     kind: str = "new_topic"
     topic: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
+    #: M14 教练模式：上一题的即时点评（{"points","missed","better"}），无则 None。
+    #: 随回合 meta 落库，前端展示"教练点评"卡。
+    coach: dict[str, str] | None = None
 
     @property
     def is_followup(self) -> bool:
@@ -77,6 +106,9 @@ def build_messages(
     turns: Sequence[SessionTurn],
     context: str,
     closing: bool = False,
+    interrupted: bool = False,
+    force_scene: bool = False,
+    prompt: str = "",
 ) -> list[LLMMessage]:
     """把已有回合转成对话消息：面试官→assistant，候选人→user。"""
     messages = [LLMMessage(role="system", content=BASE_SYSTEM_PROMPT + "\n\n【本场信息】\n" + context)]
@@ -87,11 +119,37 @@ def build_messages(
         elif turn.speaker == "candidate":
             messages.append(LLMMessage(role="user", content=turn.text))
 
-    if closing:
+    if prompt.strip():
+        # 显式指令优先：调用方知道这一轮该做什么（收尾 / 回答候选人的提问）
+        messages.append(LLMMessage(role="user", content=prompt.strip()))
+    elif closing:
         messages.append(
             LLMMessage(
                 role="user",
                 content="（本轮是面试收尾：用一两句话收束整场面试，并询问候选人是否有想问的。kind 固定为 closing）",
+            )
+        )
+    elif force_scene:
+        # M14 现场突发：候选人数轮数不可靠（实测会被追问带跑），
+        # 这里在编排层精确卡住"第 3 题之后"的时机，用末尾 user 指令强制执行。
+        messages.append(
+            LLMMessage(
+                role="user",
+                content="（本场启用了现场突发：候选人已经回答了 3 道题，**这一问必须**是一道"
+                "现场突发情境题——设备突然故障 / 客户现场发难 / 节拍不够 / 环境干扰等，"
+                "用「假设现在在现场，…」这类假设开头，kind 固定为 scene，"
+                "要求候选人当场给出排查步骤与取舍。不要追问上一题，也不要继续深挖。）",
+            )
+        )
+    elif interrupted:
+        # M14 打断续问：上一轮被面试官插话打断，回答只到一半。
+        # 下一问必须紧贴最后一句继续追，而不是换个话题重新问。
+        messages.append(
+            LLMMessage(
+                role="user",
+                content="（上一轮面试官插话打断了候选人。请**紧贴候选人上一条回答的最后一句**"
+                "继续追问同一个话题——就像真人面试官插话打断后，回头接着他说的半句话往下问。"
+                "不要跳到别的话题，也不要从头把问题再念一遍。）",
             )
         )
     elif not turns:
@@ -110,11 +168,23 @@ def parse_plan(result: LLMResult) -> QuestionPlan:
 
     question = str(data.get("question") or "").strip() or result.text.strip()
     kind = str(data.get("kind") or "").strip() or "new_topic"
+    raw_coach = data.get("coach")
+    coach: dict[str, str] | None = None
+    if isinstance(raw_coach, dict):
+        # 教练点评是纯文本三件套；值不是字符串的条目直接丢弃
+        coach = {
+            key: str(value).strip()
+            for key, value in raw_coach.items()
+            if key in ("points", "missed", "better") and str(value).strip()
+        }
+        if not coach:
+            coach = None
     return QuestionPlan(
         question=question,
         kind=kind,
         topic=str(data.get("topic") or "").strip(),
         raw=data,
+        coach=coach,
     )
 
 
@@ -136,6 +206,9 @@ class Interviewer:
         policy_block: str = "",
         story_block: str = "",
         bank_block: str = "",
+        interrupted: bool = False,
+        force_scene: bool = False,
+        prompt: str = "",
     ) -> tuple[QuestionPlan, LLMResult]:
         context = build_context(target, resume, max_questions=max_questions, style=style)
         if story_block.strip():
@@ -148,7 +221,14 @@ class Interviewer:
         if policy_block.strip():
             # 画像指令放最后：越靠近末尾的指令越容易被遵守（题型配比、追问深度都在这）
             context = f"{context}\n\n{policy_block.strip()}"
-        messages = build_messages(turns=turns, context=context, closing=closing)
+        messages = build_messages(
+            turns=turns,
+            context=context,
+            closing=closing,
+            interrupted=interrupted,
+            force_scene=force_scene,
+            prompt=prompt,
+        )
         result = await self.llm.complete(
             task="interview_turn",
             messages=messages,

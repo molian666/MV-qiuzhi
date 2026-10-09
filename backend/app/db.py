@@ -54,6 +54,75 @@ def reset_engine() -> None:
     _engine = None
 
 
+def _add_missing_columns(engine: Engine, table: str, expected: dict[str, str]) -> None:
+    """给已存在的表补缺列（幂等）。表不存在时什么都不做。
+
+    **为什么不直接 ALTER**：`PRAGMA table_info(<不存在的表>)` 返回空集而不是报错，
+    于是后续的 `ALTER TABLE` 会抛 `no such table`。原来那两处迁移就是这么写的，
+    只要调用顺序稍有变化（比如在 `create_all` 之前跑），应用就起不来。
+    迁移代码**出问题不该让应用启动失败**——这是"能启动"比"迁移完美"更重要的地方，
+    所以这里既查表存在性，又把每个 ALTER 单独兜住。
+    """
+    from sqlalchemy.exc import SQLAlchemyError
+    from sqlmodel import Session, text
+
+    with Session(engine) as session:
+        exists = session.exec(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name=:name"),  # type: ignore[call-arg]
+            params={"name": table},
+        ).first()
+        if exists is None:
+            return
+
+        existing = {row[1] for row in session.exec(text(f"PRAGMA table_info({table})")).all()}
+        for column, ddl in expected.items():
+            if column in existing:
+                continue
+            try:
+                session.exec(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+            except SQLAlchemyError:
+                # 单个列补不上（例如 SQLite 不允许的 REFERENCES 列）不该拖垮启动；
+                # 缺这一列的后果是那个功能不可用，而不是整个应用不可用。
+                session.rollback()
+                continue
+        session.commit()
+
+
+def _ensure_resume_columns(engine: Engine) -> None:
+    """create_all 只建新表，不会给已存在的表加列。
+
+    现有用户库的 resume 表建于 source/file_name/file_path 字段加入之前，
+    这里查缺列并 ALTER 补上（SQLite 的 ADD COLUMN 幂等、不丢数据）。
+    """
+    _add_missing_columns(
+        engine,
+        "resume",
+        {
+            "source": "VARCHAR NOT NULL DEFAULT 'manual'",
+            "file_name": "VARCHAR NOT NULL DEFAULT ''",
+            "file_path": "VARCHAR NOT NULL DEFAULT ''",
+        },
+    )
+
+
+def _ensure_apply_columns(engine: Engine) -> None:
+    """给 apply_task 补 M17/M18 新增的列（旧库建于这些列之前）。
+
+    `profile_id` 带外键：SQLite 的 `ADD COLUMN` **不允许**加带 REFERENCES 的列
+    （"Cannot add a REFERENCES column with non-NULL default value"）。
+    所以这里只加普通整数列。代价是失去数据库层的引用完整性，但多账号是可选能力，
+    而"让旧库能平滑升级"更重要——SQLModel 建的新库仍然带外键约束。
+    """
+    _add_missing_columns(
+        engine,
+        "apply_task",
+        {
+            "greeted_at": "DATETIME",
+            "profile_id": "INTEGER",
+        },
+    )
+
+
 def init_db() -> None:
     """建表 + 准备数据目录（M0 用 create_all，M2 起换 Alembic）。"""
     from . import models  # noqa: F401  导入以注册全部模型
@@ -62,7 +131,10 @@ def init_db() -> None:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.audio_dir.mkdir(parents=True, exist_ok=True)
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
-    SQLModel.metadata.create_all(get_engine())
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine)
+    _ensure_resume_columns(engine)
+    _ensure_apply_columns(engine)
 
 
 @contextmanager

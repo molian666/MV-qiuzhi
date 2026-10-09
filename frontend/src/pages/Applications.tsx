@@ -307,7 +307,7 @@ export default function Applications() {
                 type="button"
                 onClick={() => void runImport()}
                 disabled={busy}
-                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs font-medium text-surface hover:bg-ink-9 disabled:opacity-40"
+                className="btn-primary rounded-control px-3 py-1.5 text-xs font-medium"
               >
                 {busy ? '导入中…' : '导入'}
               </button>

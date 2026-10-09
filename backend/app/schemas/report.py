@@ -13,6 +13,10 @@ class DimensionScoreOut(BaseModel):
     score: int
     comment: str = ""
     evidence_turn_ids: list[int] = Field(default_factory=list)
+    #: 模型**真的给了**这一项的分数吗？
+    #: `False` 时 `score` 是占位的 0，界面必须显示"未评分"——
+    #: 直接显示 0 分会让用户以为这项考砸了，而实际是模型没评。
+    scored: bool = True
 
 
 class EvidenceTurnOut(BaseModel):

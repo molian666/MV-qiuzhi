@@ -63,8 +63,18 @@ def test_full_text_interview_lifecycle(client: TestClient) -> None:
         assert body["question"]["speaker"] == "interviewer"
         assert body["question"]["text"].strip()
 
-    # 第三轮达到 max_questions → 自动收尾
-    final = client.post(f"/api/sessions/{session_id}/answer", json={"text": "第三轮回答"}).json()
+    # 第三轮达到 max_questions → 进入**收尾阶段**（不是直接结束）
+    #
+    # **这是有意的行为变更**：以前收尾题一发出就 finished，候选人根本没机会提问，
+    # 于是 rubric 里的「主动性 / 反问质量」维度结构性拿不到数据。
+    closing_phase = client.post(f"/api/sessions/{session_id}/answer", json={"text": "第三轮回答"}).json()
+    assert closing_phase["finished"] is False, "收尾阶段还没结束"
+    assert closing_phase["session"]["status"] == "live", "会话要保持 live，他还要提问"
+    assert closing_phase["question"]["kind"] == "closing"
+    assert "轮到你提问" in closing_phase["message"]
+
+    # 候选人提了一个问题 → 面试官作答 → 这才真正结束
+    final = client.post(f"/api/sessions/{session_id}/answer", json={"text": "请问团队现在主要做什么方向？"}).json()
     assert final["finished"] is True
     assert final["session"]["status"] == "finished"
     assert final["session"]["duration_ms"] is not None
@@ -79,7 +89,11 @@ def test_full_text_interview_lifecycle(client: TestClient) -> None:
         "interviewer",
         "candidate",
         "interviewer",
+        "candidate",
+        "interviewer",
     ]
+    # 倒数第二条是候选人的**提问**（kind=question），评分靠它判断主动性
+    assert final["session"]["turns"][-2]["kind"] == "question"
     assert final["session"]["answer_count"] == 3
 
     # 结束后不允许继续作答

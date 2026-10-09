@@ -107,6 +107,9 @@ async def generate_report(
         duration_ms=session_row.duration_ms,
         max_questions=int(session_row.plan.get("max_questions") or 0),
         exchanges=exchanges,
+        # 题库里这套题的期望要点：**"他答到要点了没有"要有依据**，
+        # 否则模型只能凭印象打分，同一份回答两次评分可能差别很大。
+        expected_points=session_row.plan.get("questions") or [],
     )
 
     try:

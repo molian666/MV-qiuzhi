@@ -1,4 +1,4 @@
-"""机器视觉题库的编排（M13）：播种、查询、自测记录。
+"""机器视觉题库的编排（M13）：播种、查询、自测记录、删除。
 
 **为什么要把内置题库播种进数据库**，而不是每次直接读代码里的常量：
 
@@ -9,6 +9,9 @@
 
 表结构完全复用 M0 就预留好的 `QuestionBank`（`sample_answer` / `reference_points`
 正是为题库准备的），所以这一步不需要新表、也不需要迁移。
+
+**删除是打墓碑而不是删行**（`DELETED_TAG`，见下）：播种的幂等性反过来要求
+"删过的内置题"必须留个记号，否则重启就会被重新加回来。
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import random
 import time
+from collections.abc import Iterable
 from typing import Sequence
 
 from sqlmodel import Session, select
@@ -27,7 +31,7 @@ from .analysis.question_generate import (
     generate_questions,
     parse_generated,
 )
-from .models.core import QuestionAttempt, QuestionBank
+from .models.core import DELETED_TAG, QuestionAttempt, QuestionBank
 from .providers.llm.base import LLMClient
 from .vision.import_doc import ImportedQuestion
 from .vision.question import ROLE_DESCRIPTIONS, ROLE_LABELS, VisionQuestion, all_questions
@@ -40,17 +44,33 @@ BUILTIN_SOURCE = "builtin:vision"
 #: 这样「是否添加到提问的题库」就等价于「是否采纳」，语义直接对应得上。
 DRAFT_TAG = "草稿"
 
+# 删除标记（墓碑）的常量定义在 `models/core.py`——训练抽题（M5）与导出也要用
+# 同一个值，它们本来就依赖模型模块。删一道题**不是把行删掉**，而是打上这个 tag
+# 藏起来：内置题是按题干幂等播种的（见 `ensure_seeded`），硬删之后下一次播种
+# （重启、或清掉进程内标记）会把它原样加回来——「删了又自己回来」比删不掉更让人
+# 困惑。所以行留着（外键与播种去重都还看得见它），但凡是要展示给人看、或要拿去
+# 抽题的地方都跳过它。
+
 #: tags 那一列存了三类信息，靠前缀区分（见 `_row_to_brief`）：
 #: 「上传:文件名」是来源、「标记:高频」是题目性质、其余的当分类。
 #: 前缀不是装饰——没有它，一道"有标记但没分类"的题会被显示成分类是「高频」。
 _TAG_MARK_PREFIX = "标记:"
 
+#: 用户自定义的标记标签长度上限。标签是给人扫一眼用的短词，
+#: 超过这个长度基本就是想把一段话塞进标签里——那该写进答案或笔记。
+MARK_TAG_MAX_LEN = 20
+
 #: 模型出题时带上多少条已有题干（防止重复出题）。太多会把 prompt 撑爆，
 #: 太少又挡不住重复——60 条是个折中。
 EXISTING_HINT_LIMIT = 60
 
-#: 进程内标记：播种是幂等的，没必要每次请求都查一遍去重
-_seeded = False
+#: 已播种过的数据库身份（`id(engine)`）：播种是幂等的，没必要每次请求都查一遍去重。
+#:
+#: **为什么记"是哪个库"而不是一个简单的布尔值**：进程内的标记 + "每个测试一个全新数据库"
+#: 会互相矛盾——库是新的、标记却还是 True，于是这个库从头到尾一道内置题都没有。
+#: 表现出来就是一条与实现无关的偶发失败：同一个测试单独跑通过、在全量里失败。
+#: 记库身份之后，"换了库就重新播种"是自动成立的。
+_seeded_engine: int | None = None
 
 
 class VisionError(RuntimeError):
@@ -77,10 +97,13 @@ def render_answer(question: VisionQuestion) -> str:
 
 def ensure_seeded(db: Session) -> int:
     """把内置题库写进 `question_bank`（按题干去重）。返回本次新增的条数。"""
-    global _seeded
-    if _seeded:
+    global _seeded_engine
+    engine_key = id(db.get_bind())
+    if _seeded_engine == engine_key:
         return 0
 
+    # 这里**故意不筛掉墓碑**（已删除的内置题）：删掉的内置题必须继续算「已存在」，
+    # 否则下一次播种就会把它原样加回来——用户会看到"删了又回来"。
     existing = {
         row.text
         for row in db.exec(
@@ -107,14 +130,14 @@ def ensure_seeded(db: Session) -> int:
 
     if added:
         db.commit()
-    _seeded = True
+    _seeded_engine = engine_key
     return added
 
 
 def reset_seed_flag() -> None:
-    """测试用：清掉进程内标记，让下一次调用重新走一遍去重逻辑。"""
-    global _seeded
-    _seeded = False
+    """清掉"已播种"标记，让下一次调用重新走一遍去重逻辑（测试用）。"""
+    global _seeded_engine
+    _seeded_engine = None
 
 
 def import_questions(
@@ -134,7 +157,7 @@ def import_questions(
     """
     batch = hashlib.sha1(f"{filename}|{time.time()}".encode()).hexdigest()[:8]
     source = f"upload:{batch}"
-    existing = {row.text for row in db.exec(select(QuestionBank)).all()}
+    existing = _live_texts(db)
 
     added = 0
     skipped = 0
@@ -178,12 +201,18 @@ def import_questions(
 
 
 def list_uploads(db: Session) -> list[dict[str, object]]:
-    """已上传的批次（从库里聚合出来，不额外维护表）。"""
-    rows = list(
-        db.exec(
+    """已上传的批次（从库里聚合出来，不额外维护表）。
+
+    已删除的题不计入批次数量：用户删掉了这批里的一道题，批次上还显示原来的题数
+    会让人以为删除没生效。
+    """
+    rows = [
+        row
+        for row in db.exec(
             select(QuestionBank).where(QuestionBank.source.startswith("upload:"))  # type: ignore[attr-defined]
         ).all()
-    )
+        if not is_deleted(row)
+    ]
     batches: dict[str, dict[str, object]] = {}
     for row in rows:
         entry = batches.setdefault(
@@ -210,6 +239,89 @@ def delete_upload(db: Session, batch: str) -> int:
     直接删题会被数据库拦下来（`PRAGMA foreign_keys=ON`）。
     """
     return _delete_batch_rows(db, prefix="upload", batch=batch)
+
+
+# --------------------------------------------------------------------------- #
+# 删除单题 / 批量删除
+# --------------------------------------------------------------------------- #
+
+
+def is_deleted(row: QuestionBank) -> bool:
+    """这行是不是已经被删除（墓碑）。"""
+    return DELETED_TAG in (row.tags or [])
+
+
+def _visible_rows(rows: Iterable[QuestionBank]) -> list[QuestionBank]:
+    """筛出「还在题库里」的题：草稿与已删除的都不算。
+
+    展示（列表 / 统计 / 上传批次）、抽题、给模型当「别重复」的素材，都该走这个筛选，
+    否则删掉的题总会在某个角落里冒出来。
+    """
+    return [
+        row for row in rows if DRAFT_TAG not in (row.tags or []) and not is_deleted(row)
+    ]
+
+
+def _live_texts(db: Session) -> set[str]:
+    """库里「还在用」的题干（墓碑不算）。
+
+    去重要用这个而不是全表题干：用户删掉一道题之后，重新导入同一份文档、或让模型
+    再出一次，应该能把它加回来——否则删一次就等于永久拉黑这个题干，
+    而且界面上没有任何提示，只有"导入说成功、列表里却没有"。
+    """
+    return {row.text for row in db.exec(select(QuestionBank)).all() if not is_deleted(row)}
+
+
+def delete_question(db: Session, question_id: int) -> bool:
+    """删除一道**已入库**的题，连带它的自测记录。返回是否真删到了。
+
+    草稿不算「已入库」：它们还没进题库页、也没进抽题池，该走
+    `DELETE /api/vision/drafts/{batch}`，这里对它返回 False。
+    已经删过的再删也返回 False——重复点不会得到"删掉了两次"的错觉。
+    """
+    row = db.get(QuestionBank, question_id)
+    if row is None or DRAFT_TAG in (row.tags or []) or is_deleted(row):
+        return False
+    _mark_deleted(db, row)
+    db.commit()
+    return True
+
+
+def delete_questions(db: Session, question_ids: Sequence[int]) -> int:
+    """批量删除（多选删除用）。返回真正删掉的条数。
+
+    不存在、是草稿、已经删过的都不计入——所以前端可以把整批 id 再传一次，
+    结果是 0 而不是报错。
+    """
+    if not question_ids:
+        return 0
+
+    rows = db.exec(select(QuestionBank).where(QuestionBank.id.in_(list(question_ids)))).all()  # type: ignore[attr-defined]
+
+    removed = 0
+    for row in rows:
+        if DRAFT_TAG in (row.tags or []) or is_deleted(row):
+            continue
+        _mark_deleted(db, row)
+        removed += 1
+    if removed:
+        db.commit()
+    return removed
+
+
+def _mark_deleted(db: Session, row: QuestionBank) -> None:
+    """打上墓碑，并把这道题的自测记录一起删掉。
+
+    自测记录留着就是**悬挂引用**：题已经从列表里消失了，那些记录再也没有入口，
+    却还会被 `_attempt_stats` 统计到一个取不到的 question_id 上；
+    `question_attempt.question_id` 本来就有外键约束，清掉才是干净的做法。
+    """
+    attempts = db.exec(select(QuestionAttempt).where(QuestionAttempt.question_id == row.id)).all()
+    for attempt in attempts:
+        db.delete(attempt)
+    # 赋新列表而不是 append：JSON 列的原地修改 SQLAlchemy 检测不到
+    row.tags = [*(row.tags or []), DELETED_TAG]
+    db.add(row)
 
 
 # --------------------------------------------------------------------------- #
@@ -263,6 +375,9 @@ def _existing_hints(db: Session, *, exclude_batch: str | None, own: list[Questio
     for row in others:
         if len(hints) >= EXISTING_HINT_LIMIT:
             break
+        # 已删除的题不再当素材：它既不会被抽到，也没必要占"别重复"的名额
+        if is_deleted(row):
+            continue
         if exclude_batch and row.source == f"{GENERATE_SOURCE_PREFIX}:{exclude_batch}":
             continue
         add(row)
@@ -329,7 +444,7 @@ async def generate_draft(
         }
 
     source = f"{GENERATE_SOURCE_PREFIX}:{batch}"
-    existing_texts = {row.text for row in db.exec(select(QuestionBank)).all()}
+    existing_texts = _live_texts(db)
     added = 0
     skipped = 0
     for item in questions:
@@ -448,6 +563,7 @@ def pick_questions(
     max_difficulty: int | None = None,
     count: int = 6,
     rng: random.Random | None = None,
+    weak: bool = False,
 ) -> list[BankQuestion]:
     """按**题源占比**抽题，用于「按题库组一套面试」。
 
@@ -457,6 +573,9 @@ def pick_questions(
 
     某个来源的题不够时，用其他来源补足：宁可比例不准，也不能少给题。
     抽出来就固定下来（存进会话的 plan），面试过程中不再变。
+
+    M18：`weak=True`（薄弱点面试）时忽略来源占比，**优先抽标签命中薄弱能力点的题**——
+    掌握度最低的技能点排最前，先从命中这些点的题里抽满，不足再从其余题补足。
     """
     ensure_seeded(db)
     rng = rng or random.Random()
@@ -474,6 +593,9 @@ def pick_questions(
     if category:
         for key, rows in pools.items():
             pools[key] = [row for row in rows if category in (row.tags or [])]
+
+    if weak:
+        return _pick_weak_questions(db, pools, count=count, rng=rng)
 
     weights = {key: max(0.0, float(value)) for key, value in (mix or {}).items() if value}
     if not weights:
@@ -507,6 +629,56 @@ def pick_questions(
     ]
 
 
+def _pick_weak_questions(
+    db: Session,
+    pools: dict[str, list[QuestionBank]],
+    *,
+    count: int,
+    rng: random.Random,
+) -> list[BankQuestion]:
+    """M18：薄弱点面试的抽题核心。
+
+    1. 取掌握度最低的 `count` 个技能点（无任何掌握度记录时用默认薄弱方向）；
+    2. 从所有池子里筛「标签命中薄弱技能点」的题（互相包含即命中）；
+    3. 从命中题里随机抽满 count；命中不足再用其余题补足，绝不因抽题让面试开不起来。
+    """
+    from .learning_service import mastery_overview
+    from .training_service import DEFAULT_WEAK_TOPICS
+
+    overview = mastery_overview(db)
+    weak_names = [str(item["name"]) for item in overview[: max(1, count)]] or list(DEFAULT_WEAK_TOPICS)
+
+    def hits_topic(tags: list[str]) -> bool:
+        for tag in tags:
+            a = (tag or "").strip().lower()
+            for name in weak_names:
+                b = (name or "").strip().lower()
+                if a and b and (a in b or b in a):
+                    return True
+        return False
+
+    all_rows: list[QuestionBank] = [row for rows in pools.values() for row in rows]
+    matched = [row for row in all_rows if hits_topic(list(row.tags or []))]
+    leftover = [row for row in all_rows if row not in matched]
+
+    picked: list[QuestionBank] = []
+    if matched:
+        picked.extend(rng.sample(matched, min(count, len(matched))))
+    if len(picked) < count and leftover:
+        picked.extend(rng.sample(leftover, min(count - len(picked), len(leftover))))
+
+    return [
+        BankQuestion(
+            id=row.id or 0,
+            text=row.text,
+            points=list(row.reference_points or []),
+            category=(row.tags or [""])[0],
+            source=row.source,
+        )
+        for row in picked
+    ]
+
+
 def _query_pool(
     db: Session,
     *,
@@ -525,8 +697,13 @@ def _query_pool(
     if max_difficulty is not None:
         statement = statement.where(QuestionBank.difficulty <= max_difficulty)
 
-    # 草稿不进抽题池：模型生成的东西要人看过才该被问到
-    return [row for row in db.exec(statement).all() if DRAFT_TAG not in (row.tags or [])]
+    # 草稿不进抽题池：模型生成的东西要人看过才该被问到；
+    # 已删除的题同样不进——否则"删掉的题还在面试里被问到"
+    return [
+        row
+        for row in db.exec(statement).all()
+        if DRAFT_TAG not in (row.tags or []) and not is_deleted(row)
+    ]
 
 
 def _allocate(
@@ -626,6 +803,7 @@ def list_questions(
     category: str | None = None,
     max_difficulty: int | None = None,
     keyword: str | None = None,
+    tag: Iterable[str] | None = None,
     limit: int = 200,
 ) -> list[dict[str, object]]:
     ensure_seeded(db)
@@ -639,22 +817,51 @@ def list_questions(
         statement = statement.where(QuestionBank.type == role)
     if max_difficulty is not None:
         statement = statement.where(QuestionBank.difficulty <= max_difficulty)
-    if keyword:
-        statement = statement.where(QuestionBank.text.contains(keyword))  # type: ignore[attr-defined]
 
     rows = list(db.exec(statement.order_by(QuestionBank.id)).all())  # type: ignore[attr-defined]
-    # 草稿只在生成面板里管，题库页不显示
-    rows = [row for row in rows if DRAFT_TAG not in (row.tags or [])]
+    # 草稿只在生成面板里管，题库页不显示；已删除的题当然也不显示
+    rows = _visible_rows(rows)
+    if keyword:
+        # 关键词不只搜题干，也搜标签（「高频」「易错」这类性质标签和分类名）：
+        # 在搜索框输入「高频」，就该搜到所有带"高频"标签的题——哪怕题干里
+        # 根本没有这两个字。范围 = 题干 ∪ 分类名 ∪ 标记标签名。
+        # 题量不大（几百道），内存里过滤没有性能问题，而且 SQL 的 contains
+        # 表达不了"题干或标签"这种跨列匹配。
+        kw = keyword.strip()
+        if kw:
+            rows = [
+                row
+                for row in rows
+                if kw in (row.text or "")
+                or any(
+                    kw in tag.removeprefix(_TAG_MARK_PREFIX)
+                    for tag in (row.tags or [])
+                    if not tag.startswith("上传:")  # 文件名不参与搜索
+                )
+            ]
+    if tag:
+        # 按标记标签筛（高频 / 易错 / 自定义）：**多选且取交集**——
+        # 选了「高频」+「易错」时，只有两个标签都带上的题才算命中。
+        # 匹配的是带前缀的原始 tag（`标记:高频`），不是显示名：
+        # 一道"分类恰好叫高频"的题不该被这个筛子捞出来。
+        for name in tag:
+            marked = f"{_TAG_MARK_PREFIX}{name}"
+            rows = [row for row in rows if marked in (row.tags or [])]
     items = [_row_to_brief(row, stats) for row in rows]
     if category:
-        items = [item for item in items if item["category"] == category]
+        # 支持**按父主题筛**：分类形如「相机与图像基础 / 相机二开」，
+        # 只做精确匹配的话，点父主题会一道题都筛不出来（实测 81 个主题就是这么堆起来的：
+        # 40 多个只有 1 道题的细主题平铺在一排标签里，根本没法用）。
+        prefix = f"{category} / "
+        items = [item for item in items if item["category"] == category or item["category"].startswith(prefix)]
     return items[:limit]
 
 
 def get_question(db: Session, question_id: int) -> dict[str, object] | None:
     ensure_seeded(db)
     row = db.get(QuestionBank, question_id)
-    if row is None:
+    # 已删除的题按"不存在"处理：它的详情页不该还能打开
+    if row is None or is_deleted(row):
         return None
 
     detail = _row_to_brief(row, _attempt_stats(db))
@@ -692,15 +899,12 @@ def meta(db: Session) -> dict[str, object]:
     但会单独给出数量。
     """
     ensure_seeded(db)
-    rows = [
-        row
-        for row in db.exec(select(QuestionBank)).all()
-        if DRAFT_TAG not in (row.tags or [])
-    ]
+    rows = _visible_rows(db.exec(select(QuestionBank)).all())
 
     counts: dict[str, int] = {}
     categories: list[str] = []
     source_counts: dict[str, int] = {}
+    mark_counts: dict[str, int] = {}
     for row in rows:
         counts[row.type] = counts.get(row.type, 0) + 1
         origin = _origin_of(row.source)
@@ -708,6 +912,13 @@ def meta(db: Session) -> dict[str, object]:
         for tag in row.tags or []:
             if tag.startswith("上传:"):
                 continue  # 文件名不是分类
+            if tag.startswith(_TAG_MARK_PREFIX):
+                # 「标记:高频」「标记:易错」是**题目性质**，不是主题。
+                # 以前只挡了「上传:」，于是这两个跑进主题列表，用户看到的主题又多又怪。
+                # 它们单独聚合成「标记标签」，供筛选器按标签筛题。
+                name = tag.removeprefix(_TAG_MARK_PREFIX)
+                mark_counts[name] = mark_counts.get(name, 0) + 1
+                continue
             if tag not in categories:
                 categories.append(tag)
 
@@ -722,6 +933,15 @@ def meta(db: Session) -> dict[str, object]:
             for key in ROLE_LABELS
         ],
         "categories": sorted(categories),
+        #: 两级主题：`父` 与它下面的 `子`。分类字符串形如「相机与图像基础 / 相机二开」，
+        #: 平铺展示会变成 81 个标签（其中 40 多个只有 1 道题），所以界面上只平铺父主题，
+        #: 选中父主题后再出子主题——数据结构在这里算好，前端不用自己拆字符串。
+        "topics": _topic_tree(rows),
+        #: 标记标签按题数降序排：高频这类覆盖面大的排前面，冷门的自定义标签沉底
+        "mark_tags": [
+            {"name": name, "count": count}
+            for name, count in sorted(mark_counts.items(), key=lambda item: (-item[1], item[0]))
+        ],
         "total": len(rows),
         "sources": [
             {"key": "builtin", "label": "内置题库", "count": source_counts.get("builtin", 0)},
@@ -730,6 +950,38 @@ def meta(db: Session) -> dict[str, object]:
         ],
         "draft_count": _draft_count(db),
     }
+
+
+#: 分类字符串里父子之间的分隔符（导入时由「章节 + 题目括号」拼出来）
+TOPIC_SEPARATOR = " / "
+
+
+def _topic_tree(rows: Sequence[QuestionBank]) -> list[dict[str, object]]:
+    """把分类聚成两级：`[{name, count, children: [{name, count, full}]}]`。
+
+    只有**带子主题**的父主题才会列出 children；子主题名里如果还有分隔符，只再拆一层
+    （文档最多就是"章节 / 题目括号"两级，多出来的层级并回父名，不制造第三级）。
+    """
+    child_counts: dict[str, dict[str, int]] = {}
+    own_counts: dict[str, int] = {}
+    for row in rows:
+        tags = [tag for tag in (row.tags or []) if not tag.startswith(("上传:", _TAG_MARK_PREFIX))]
+        category = tags[0] if tags else "未分类"
+        parent, _, child = category.partition(TOPIC_SEPARATOR)
+        parent = parent.strip() or "未分类"
+        own_counts[parent] = own_counts.get(parent, 0) + 1
+        if child.strip():
+            bucket = child_counts.setdefault(parent, {})
+            bucket[child.strip()] = bucket.get(child.strip(), 0) + 1
+
+    topics: list[dict[str, object]] = []
+    for parent, count in sorted(own_counts.items(), key=lambda item: (-item[1], item[0])):
+        children = [
+            {"name": name, "count": number, "full": f"{parent}{TOPIC_SEPARATOR}{name}"}
+            for name, number in sorted(child_counts.get(parent, {}).items(), key=lambda item: (-item[1], item[0]))
+        ]
+        topics.append({"name": parent, "count": count, "children": children})
+    return topics
 
 
 def _origin_of(source: str) -> str:
@@ -775,3 +1027,72 @@ def record_attempt(db: Session, *, question_id: int, rating: str, note: str = ""
         "last_rating": str(stats.get("last", "")),
         "tally": dict(tally) if isinstance(tally, dict) else {},
     }
+
+
+# --------------------------------------------------------------------------- #
+# 题目标记标签：用户自己给题目添加 / 移除「高频」「易错」等
+# --------------------------------------------------------------------------- #
+
+
+def _normalize_mark_tag(raw: str) -> str:
+    """把用户给的标签清洗成可入库的「标记」值；不合法返回空串。
+
+    用户标签只会被当作**题目性质**（`标记:` 前缀那一类），所以凡是会破坏
+    「来源 / 标记 / 分类」区分、或撞上系统保留约定的取值都要挡掉：
+    空串、超过长度上限、以「上传: / 标记:」开头的（会伪装成来源或重复前缀）、
+    「已删除 / 草稿」（系统内部标记），以及含分类分隔符「 / 」的
+    （会跟两级主题的"父 / 子"筛选语义混淆）。
+    """
+    clean = (raw or "").strip()
+    if not clean or len(clean) > MARK_TAG_MAX_LEN:
+        return ""
+    if clean.startswith("上传:") or clean.startswith(_TAG_MARK_PREFIX):
+        return ""
+    if clean in (DELETED_TAG, DRAFT_TAG):
+        return ""
+    if TOPIC_SEPARATOR in clean:
+        return ""
+    return clean
+
+
+def update_question_tags(
+    db: Session,
+    *,
+    question_id: int,
+    add: Iterable[str] | None = None,
+    remove: Iterable[str] | None = None,
+) -> dict[str, object] | None:
+    """给一道题添加 / 移除「标记」标签。返回更新后的清单信息，题目不存在返回 None。
+
+    只动 `标记:` 那一类：分类取 tags 的第一个元素，来源是「上传:」前缀——
+    这两个是题目自身的属性，不该被"打标签"这个动作改掉。
+    添加的标签**只追加到末尾**（插到前面会把第一个分类挤掉，`_row_to_brief`
+    就会把标记当成分类显示）。
+
+    移除不存在的标签是静默的：重复点击、或标签早已被摘掉时，不报错也不计数。
+    """
+    row = db.get(QuestionBank, question_id)
+    if row is None or is_deleted(row):
+        return None
+
+    tags = list(row.tags or [])
+    for raw in add or []:
+        clean = _normalize_mark_tag(raw)
+        if not clean:
+            continue
+        marked = f"{_TAG_MARK_PREFIX}{clean}"
+        if marked not in tags:
+            tags.append(marked)
+    for raw in remove or []:
+        clean = _normalize_mark_tag(raw)
+        if not clean:
+            continue
+        marked = f"{_TAG_MARK_PREFIX}{clean}"
+        tags = [tag for tag in tags if tag != marked]
+
+    if tags != (row.tags or []):
+        # 赋新列表而不是原地改：JSON 列的原地修改 SQLAlchemy 检测不到
+        row.tags = tags
+        db.add(row)
+        db.commit()
+    return _row_to_brief(row, _attempt_stats(db))

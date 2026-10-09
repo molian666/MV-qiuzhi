@@ -36,6 +36,10 @@ class JobCard:
     jd_url: str = ""
     jd_text: str = ""
     salary_range: str = ""
+    #: 薪资数字被平台用自定义字体混淆过（Boss 会这么做）。
+    #: 适配器清理掉不可见码点后，**这个词本身会消失**，所以必须单独带一个标记出来，
+    #: 否则下游（runner 的 notes、薪资过滤规则）就无从知道"这个薪资是解不出来的"。
+    salary_obfuscated: bool = False
     city: str = ""
     experience_req: str = ""
     degree_req: str = ""
@@ -69,5 +73,13 @@ class PlatformAdapter(Protocol):
     async def fetch_detail(self, card: JobCard) -> JobCard: ...
 
     async def send_greeting(self, card: JobCard, text: str, resume_image: str | None = None) -> SendResult: ...
+
+    async def send_resume(self, card: JobCard, resume_image: str | None) -> SendResult:
+        """把简历**真的发出去**（不是只发一句招呼语）。
+
+        `resume_image` 为空时走平台的「发送在线简历」——Boss 支持不选文件直接发在线简历，
+        所以"没配附件"不等于做不到，只是发出去的是平台上的那一份。
+        """
+        ...
 
     async def close(self) -> None: ...

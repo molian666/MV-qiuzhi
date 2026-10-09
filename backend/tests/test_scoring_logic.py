@@ -124,13 +124,45 @@ def test_scoring_messages_carry_record_and_rubric() -> None:
 # --------------------------------------------------------------------------- #
 # normalize_report
 # --------------------------------------------------------------------------- #
-def test_normalize_fills_missing_dimensions_with_default() -> None:
+def test_normalize_marks_missing_dimensions_as_unscored() -> None:
+    """**缺项不再按 3 分占位。**
+
+    以前缺项会填成 3 分（"中间值"）并计入总分，每一处遗漏都在把总分往 60 分拽——
+    这是"过度宽容"的一个确定来源。现在缺项标成未评分：既不参与总分，
+    界面上也如实显示"这项没评"，而不是给一个看起来确定的 3。
+    """
     report = normalize_report({"dimensions": {"depth": {"score": 5}}}, valid_turn_ids={1})
     assert len(report.dimensions) == len(dimension_keys())
+
     by_key = {dimension.key: dimension for dimension in report.dimensions}
     assert by_key["depth"].score == 5
-    assert by_key["structure"].score == 3
-    assert "未给出" in by_key["structure"].comment
+    assert by_key["depth"].scored is True
+
+    missing = by_key["structure"]
+    assert missing.scored is False
+    assert "未给出" in missing.comment
+    # 关键：只有一个维度真的评过时，总分反映**那一项**，而不是被缺项拉向中间
+    assert report.overall == 100
+
+
+def test_normalize_overall_is_zero_when_nothing_was_scored() -> None:
+    """一个维度都没评出来时不能编一个分数出来。"""
+    report = normalize_report({"summary": "没评"}, valid_turn_ids=set())
+
+    assert report.overall == 0
+    assert all(dimension.scored is False for dimension in report.dimensions)
+
+
+def test_normalize_does_not_invent_a_score_for_a_broken_value() -> None:
+    """模型给了 `"score": "abc"` 时，"3 分"是我们编的——不该算进总分。"""
+    report = normalize_report(
+        {"dimensions": {"depth": {"score": "abc"}, "structure": {"score": 5}}},
+        valid_turn_ids=set(),
+    )
+    by_key = {dimension.key: dimension for dimension in report.dimensions}
+
+    assert by_key["depth"].scored is False
+    assert report.overall == 100  # 只按真的评过的那一项
 
 
 def test_normalize_clamps_and_rounds_scores() -> None:
@@ -142,10 +174,12 @@ def test_normalize_clamps_and_rounds_scores() -> None:
         }
     }
     report = normalize_report(raw, valid_turn_ids=set())
-    by_key = {dimension.key: dimension.score for dimension in report.dimensions}
-    assert by_key["relevance"] == 5
-    assert by_key["structure"] == 1
-    assert by_key["depth"] == 5
+    by_key = {dimension.key: dimension for dimension in report.dimensions}
+    assert by_key["relevance"].score == 5
+    assert by_key["structure"].score == 1
+    assert by_key["depth"].score == 5
+    # 越界值仍然算"评过"（夹到边界），而不是当成缺项
+    assert by_key["structure"].scored is True
 
 
 def test_normalize_overall_defaults_to_dimension_average() -> None:
@@ -201,12 +235,22 @@ def test_normalize_handles_garbage_input() -> None:
 
 
 def test_weakest_dimension_helper() -> None:
+    """只在**评过**的维度里挑最弱。
+
+    没评的维度 score 是 0（占位），把它算进来"最弱"永远是那个没评的——
+    改进建议会被挂到一个跟候选人表现无关的维度上。
+    """
     report = normalize_report(
         {"dimensions": {"depth": {"score": 1}, "structure": {"score": 5}}},
         valid_turn_ids=set(),
     )
     assert report.weakest is not None
     assert report.weakest.key == "depth"
+
+
+def test_weakest_is_none_when_nothing_was_scored() -> None:
+    report = normalize_report({"summary": "x"}, valid_turn_ids=set())
+    assert report.weakest is None
 
 
 def test_dimensions_payload_shape() -> None:

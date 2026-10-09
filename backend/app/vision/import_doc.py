@@ -206,6 +206,28 @@ _MARK_SEPARATORS = re.compile(r"[·、,，/\s]+")
 _MIN_SECTIONED_QUESTIONS = 3
 
 
+def _clean_section_title(title: str) -> str:
+    """章节标题 → 分类名。
+
+    以前这里是 `.strip()[:40]`，**40 字硬截断**会惹祸：像
+    `## 视觉软件平台（VisionPro / VisionMaster / Halcon / VM 二开 …）` 这样的长标题，
+    截断后变成 `视觉软件平台（VisionPro / VisionMaster / Halcon`——而分类里带 ` / `
+    意味着"父 / 子"，于是同一个主题在界面上裂成十来个看起来像子主题的碎片。
+
+    现在的做法：剥掉「第X部分：」前缀、上限放宽到 120 字、只清理**残缺**的括号
+    （完整括号里的信息照旧保留——不做"丢掉括号内容"这种会丢信息的猜测）。
+    """
+    text = _PART_PREFIX.sub("", title).strip()
+    text = re.sub(r"\s+", " ", text)
+    if len(text) > 120:
+        text = text[:120].rstrip()
+    for left, right in (("（", "）"), ("(", ")")):
+        if text.count(left) > text.count(right):
+            text = text[: text.rfind(left)].strip()
+            break
+    return text
+
+
 def _parse_sectioned(content: str) -> ImportResult:
     """解析整理过的面经文档。
 
@@ -256,7 +278,7 @@ def _parse_sectioned(content: str) -> ImportResult:
         section = _HEADING_SECTION.match(line)
         if section:
             flush()
-            category = _PART_PREFIX.sub("", section.group("title")).strip()[:40]
+            category = _clean_section_title(section.group("title"))
             continue
 
         if pending is not None:

@@ -86,15 +86,27 @@ async def test_hint_is_not_a_turn(client: TestClient, tmp_path: Path) -> None:
 
 
 async def test_text_answers_complete_interview(client: TestClient, tmp_path: Path) -> None:
+    """答满题数 → 进入收尾 → 候选人提一个问题 → 才真正结束。
+
+    **收尾不再是"结束"**：会话必须保持 live 并邀请候选人提问，
+    否则 rubric 里的主动性维度永远没有依据。
+    """
     runtime, _, events, session_id = await _make_runtime(client, tmp_path, max_questions=2)
 
     await runtime.handle({"type": "text", "text": "第一轮：我做订单系统重构。"})
     await runtime.handle({"type": "text", "text": "第二轮：用了预扣加异步对账。"})
+
+    # 收尾阶段：等他提问，而且会话还没结束
+    kinds = [event["type"] for event in events]
+    assert "awaiting_question" in kinds
+    assert "finished" not in kinds, "收尾阶段不该直接结束"
+
+    # 他提了一个问题 → 面试官作答 → 结束
+    await runtime.handle({"type": "text", "text": "请问团队现在主要做什么方向？"})
     await runtime.close()
 
     kinds = [event["type"] for event in events]
-    assert kinds.count("candidate_turn") == 2
-    assert kinds.count("interviewer_text") == 2
+    assert kinds.count("candidate_turn") == 3
     assert "finished" in kinds
 
     detail = client.get(f"/api/sessions/{session_id}").json()
@@ -105,8 +117,24 @@ async def test_text_answers_complete_interview(client: TestClient, tmp_path: Pat
         "interviewer",
         "candidate",
         "interviewer",
+        "candidate",
+        "interviewer",
     ]
+    # 收尾题之后，候选人的那一轮要标成"提问"，面试官最后那一轮是 closing
+    assert detail["turns"][-2]["kind"] == "question"
     assert detail["turns"][-1]["kind"] == "closing"
+
+
+async def test_finish_control_ends_from_the_closing_phase(client: TestClient, tmp_path: Path) -> None:
+    """候选人不想提问时，必须能直接结束——不能把他锁在收尾阶段。"""
+    runtime, _, events, session_id = await _make_runtime(client, tmp_path, max_questions=1)
+
+    await runtime.handle({"type": "text", "text": "答完"})
+    await runtime.handle({"type": "finish"})
+    await runtime.close()
+
+    detail = client.get(f"/api/sessions/{session_id}").json()
+    assert detail["status"] == "finished"
 
 
 async def test_interrupt_is_acknowledged(client: TestClient, tmp_path: Path) -> None:

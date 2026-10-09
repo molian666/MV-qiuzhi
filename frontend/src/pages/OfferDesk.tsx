@@ -222,7 +222,7 @@ export default function OfferDesk() {
             onClick={() => setPanel(item.key)}
             className={
               item.key === panel
-                ? 'rounded-control bg-ink-9 px-3 py-1.5 text-sm text-surface'
+                ? 'btn-primary rounded-control px-3 py-1.5 text-sm'
                 : 'rounded-control px-3 py-1.5 text-sm text-ink-6 transition-colors hover:bg-paper'
             }
           >
@@ -298,7 +298,7 @@ export default function OfferDesk() {
               type="button"
               disabled={busy}
               onClick={() => void addOffer()}
-              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+              className="mt-2 btn-primary rounded-control px-3 py-1.5 text-xs"
             >
               添加
             </button>
@@ -500,7 +500,7 @@ export default function OfferDesk() {
               type="button"
               disabled={busy}
               onClick={() => void startNegotiation()}
-              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+              className="mt-2 btn-primary rounded-control px-3 py-1.5 text-xs"
             >
               开始谈判
             </button>
@@ -561,7 +561,7 @@ export default function OfferDesk() {
                   type="button"
                   disabled={busy || !negDraft.trim()}
                   onClick={() => void sendReply()}
-                  className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+                  className="btn-primary rounded-control px-3 py-1.5 text-xs"
                 >
                   说
                 </button>
@@ -625,7 +625,7 @@ export default function OfferDesk() {
         <section className="rounded-card border border-ink-1 bg-surface p-4">
           <h2 className="text-sm font-semibold">避坑检查</h2>
           <p className="mt-0.5 text-xs text-ink-6">
-            把 JD、聊天记录或 offer 文本粘进来。这里**只给信号和核实渠道，不下结论**——
+            把 JD、聊天记录或 offer 文本粘进来。这里<strong className="font-medium text-ink-7">只给信号和核实渠道，不下结论</strong>——
             同一句话在不同上下文里含义可以完全相反。
           </p>
           <textarea
@@ -639,7 +639,7 @@ export default function OfferDesk() {
             type="button"
             disabled={busy || !riskText.trim()}
             onClick={() => void scanRisk()}
-            className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+            className="mt-2 btn-primary rounded-control px-3 py-1.5 text-xs"
           >
             扫描
           </button>
@@ -723,7 +723,7 @@ export default function OfferDesk() {
             type="button"
             disabled={busy}
             onClick={() => void scanContract()}
-            className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+            className="mt-2 btn-primary rounded-control px-3 py-1.5 text-xs"
           >
             生成清单
           </button>

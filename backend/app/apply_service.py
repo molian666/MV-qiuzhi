@@ -13,12 +13,14 @@ from sqlmodel import Session, select
 
 from .analysis.apply_import import ParseResult, ParsedRow, normalize_channel, parse_csv_text, parse_table_rows
 from .analysis.apply_stats import ApplicationSnapshot, overview, stage_of, status_rank
+from .analysis.rejection import blacklist_candidates
 from .clock import utcnow
 from .models.apply import (
     APPLICATION_STATUSES,
     TERMINAL_STATUSES,
     Application,
     ApplicationEvent,
+    Blacklist,
     ImportBatch,
 )
 
@@ -292,3 +294,88 @@ def snapshots(db: Session) -> list[ApplicationSnapshot]:
 
 def statistics(db: Session, *, weeks: int = 8) -> dict:
     return overview(snapshots(db), weeks=weeks)
+
+
+# --------------------------------------------------------------------------- #
+# 自动拉黑（能力：autofill_blacklist）
+# --------------------------------------------------------------------------- #
+@dataclass(slots=True)
+class RejectionScanOutcome:
+    """一次扫描的结果。`candidates` 带依据，便于在界面上核对。"""
+
+    scanned: int = 0
+    added: int = 0
+    candidates: list[dict[str, str]] = field(default_factory=list)
+
+
+def _rejection_texts(db: Session, application: Application) -> list[str]:
+    """这家公司目前留存的、可能含拒绝信号的文本。
+
+    **现在只有两条来源**：应用记录的备注、以及状态流转里的线索（`raw_ref` 会存
+    邮件主题 / 页面摘要这类原文）。沟通记录的抓取接上之后再补一条即可——
+    判定逻辑本身在 `analysis/rejection.py`，与来源无关。
+    """
+    texts: list[str] = []
+    if application.note:
+        texts.append(application.note)
+
+    events = db.exec(
+        select(ApplicationEvent).where(ApplicationEvent.application_id == application.id)
+    ).all()
+    for event in events:
+        if event.raw_ref:
+            texts.append(event.raw_ref)
+    return texts
+
+
+def autofill_blacklist(
+    db: Session,
+    *,
+    platform: str = "",
+    dry_run: bool = False,
+) -> RejectionScanOutcome:
+    """扫描已有投递记录，把识别出"明确拒绝"的公司加进黑名单。
+
+    判据刻意保守（见 `analysis/rejection.py`）：**误判一次会让用户永远看不到一家
+    本来有戏的公司**，所以只认明确拒绝与岗位关闭，不认"等通知"这类模糊表述。
+
+    `dry_run=True` 只返回会被拉黑的公司与依据、**不写库**——先让用户看一眼再决定，
+    比默默拉黑一批公司安全得多。
+    """
+    applications = list(db.exec(select(Application)).all())
+    blacklisted_names = {
+        str(row.company).strip().lower()
+        for row in db.exec(select(Blacklist)).all()
+        if row.company
+    }
+
+    rows: list[tuple[str, str, list[str]]] = [
+        (
+            application.company,
+            platform or application.channel or "",
+            _rejection_texts(db, application),
+        )
+        for application in applications
+    ]
+
+    found = blacklist_candidates(rows, blacklisted=blacklisted_names)
+    outcome = RejectionScanOutcome(
+        scanned=len(applications),
+        candidates=[
+            {
+                "company": item.company,
+                "platform": item.platform,
+                "reason": item.reason,
+                "evidence": item.evidence,
+            }
+            for item in found
+        ],
+    )
+    if dry_run or not found:
+        return outcome
+
+    for item in found:
+        db.add(Blacklist(platform=item.platform, company=item.company, reason=item.reason))
+    db.commit()
+    outcome.added = len(found)
+    return outcome

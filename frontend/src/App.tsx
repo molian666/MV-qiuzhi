@@ -116,14 +116,21 @@ export default function App() {
 
   // 整体锁在视口高度内：滚动发生在页面**内部的**面板里，而不是整页。
   // 工具型界面这样更好用——切页时导航和标题不会跟着跑掉。
+  // 侧栏做成暗色"工位状态栏"（HMI 语义）：深底 + 当前工位亮底取景框 + 信号条。
+  //
+  // M19：用 `.app-viewport`（100dvh）而不是 `h-screen`（100vh）。
+  // 手机浏览器地址栏伸缩时 `vh` 按最大高度算，底部会被顶到地址栏外面；
+  // 底部还有 44px 触控目标时这一点会直接导致"按钮点不到"。
   return (
-    <div className="flex h-screen flex-col overflow-hidden md:flex-row">
+    <div className="app-viewport flex flex-col overflow-hidden md:flex-row">
       {/* 侧栏。窄屏时变成横向可滚动的条带——十几项在手机上只能这样摆。 */}
-      <aside className="shrink-0 border-b border-ink-1 bg-surface md:flex md:w-52 md:flex-col md:border-b-0 md:border-r">
+      <aside className="shrink-0 border-b border-dark-rail bg-dark md:flex md:w-52 md:flex-col md:border-b-0 md:border-r">
         <div className="flex items-center justify-between gap-3 px-4 py-3 md:block md:py-4">
           <div>
-            <div className="text-sm font-semibold tracking-tight">mianshi</div>
-            <div className="mt-0.5 text-[11px] text-ink-4">机器视觉求职训练</div>
+            <div className="text-sm font-semibold tracking-tight text-surface">mianshi</div>
+            <div className="mt-0.5 font-mono text-[10px] tracking-wide text-dark-ink-4">
+              机器视觉求职训练
+            </div>
           </div>
           {auth.auth_enabled && (
             <button
@@ -131,7 +138,7 @@ export default function App() {
               onClick={() => {
                 void api.logout().then(() => setAuth({ ...auth, logged_in: false }))
               }}
-              className="rounded-control border border-ink-1 px-2 py-1 text-[11px] text-ink-6 transition-colors hover:bg-paper md:mt-3 md:w-full"
+              className="rounded-control border border-dark-rail px-2 py-1 font-mono text-[10px] text-dark-ink-4 transition-colors hover:bg-dark-rail md:mt-3 md:w-full"
               title={`登录有效期 ${auth.ttl_days} 天`}
             >
               退出登录
@@ -142,7 +149,9 @@ export default function App() {
         <nav className="flex gap-4 overflow-x-auto px-4 pb-3 md:min-h-0 md:flex-1 md:block md:gap-0 md:overflow-y-auto md:pb-4">
           {NAV.map((section) => (
             <div key={section.group} className="shrink-0 md:mb-4">
-              <div className="mb-1 text-[11px] text-ink-3 md:px-2 md:text-ink-4">{section.group}</div>
+              <div className="mb-1 font-mono text-[10px] tracking-wide text-dark-ink-3 md:px-2">
+                {section.group}
+              </div>
               <div className="flex gap-1 md:block md:space-y-0.5">
                 {section.items.map((item) => {
                   const active = item.key === tab
@@ -154,8 +163,8 @@ export default function App() {
                       aria-current={active ? 'page' : undefined}
                       className={
                         active
-                          ? 'block whitespace-nowrap rounded-control bg-ink-9 px-2.5 py-1.5 text-left text-[13px] text-surface md:w-full'
-                          : 'block whitespace-nowrap rounded-control px-2.5 py-1.5 text-left text-[13px] text-ink-6 transition-colors hover:bg-paper md:w-full'
+                          ? 'block whitespace-nowrap rounded-control border-l-2 border-ok bg-surface px-2.5 py-1.5 pl-2 text-left text-[13px] font-medium text-ink-9 md:w-full'
+                          : 'block whitespace-nowrap rounded-control px-2.5 py-1.5 text-left text-[13px] text-dark-ink-4 transition-colors hover:bg-dark-rail md:w-full'
                       }
                     >
                       {item.label}
@@ -170,14 +179,25 @@ export default function App() {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-ink-1 bg-surface px-4 py-3">
-          <div className="min-w-0">
+          <div className="flex min-w-0 items-baseline gap-3">
             <h1 className="truncate text-sm font-semibold">{current?.label ?? ''}</h1>
-            {current?.note && <div className="text-[11px] text-ink-4">{current.note}</div>}
+            {current?.note && (
+              <span className="hidden truncate font-mono text-[11px] text-ink-4 sm:inline">
+                {current.note}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 text-[11px]">
-            <span className="text-ink-4">模型</span>
-            <span className="rounded-control bg-sunken px-2 py-0.5 font-mono text-ink-6">
-              {provider || '…'}
+            <span className="font-mono text-ink-4">模型</span>
+            <span className="flex items-center gap-1.5 rounded-control bg-sunken px-2 py-0.5">
+              <span
+                className={
+                  provider && provider !== '未连接'
+                    ? 'signal-dot text-ok'
+                    : 'signal-dot text-warn'
+                }
+              />
+              <span className="font-mono text-ink-6">{provider || '…'}</span>
             </span>
           </div>
         </header>
@@ -185,7 +205,7 @@ export default function App() {
         {/* overflow-hidden：默认不整页滚动。
             里面每个页面自己决定哪块区域滚（h-full + 内部 overflow-y-auto），
             内容确实撑不下的页面由这一层兜底，避免被裁掉看不见。 */}
-        <main className="min-h-0 flex-1 overflow-hidden p-4">
+        <main className="min-h-0 flex-1 overflow-hidden bg-grid-field p-4">
           <div className="h-full overflow-y-auto">
             {tab === 'interview' && <InterviewRoom onOpenReport={openReport} />}
             {tab === 'sessions' && <Sessions onOpenReport={openReport} />}

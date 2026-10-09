@@ -343,7 +343,7 @@ export default function System() {
                 type="button"
                 onClick={() => void save()}
                 disabled={saving || !hasChanges}
-                className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+                className="btn-primary rounded-control px-3 py-1.5 text-xs"
               >
                 {saving ? '保存中…' : '保存'}
               </button>

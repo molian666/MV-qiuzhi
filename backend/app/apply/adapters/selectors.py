@@ -49,6 +49,9 @@ class BossSelectors(SelectorSet):
     detail_jd: str = ""
     detail_experience: str = ""
     detail_degree: str = ""
+    #: 详情页的薪资。**列表页的薪资数字被平台用自定义字体混淆**（实测 DOM 里是私用区码点），
+    #: 而详情页同一字段是正常文本（实测 `12-18K·13薪`），所以这里取到就能还原真实薪资。
+    detail_salary: str = ""
     hr_name: str = ""
     hr_active: str = ""
     headhunter_marker: str = ""
@@ -56,6 +59,17 @@ class BossSelectors(SelectorSet):
     greet_button: str = ""
     greet_input: str = ""
     greet_send: str = ""
+
+    #: 「投递简历」：`greet_button` 只是打开沟通，**简历要靠另外的动作发出去**。
+    #: 下面四个是"真的把简历发过去"所需的选择器；未校准时附件投递会**明确报错**，
+    #: 而不是安静地只发一句招呼语就让状态变成"已投"。
+    resume_send_button: str = ""
+    #: 那个 `input[type=file]`（平台上通常被 CSS 藏起来，所以用 `set_input_files`
+    #: 直接设值，不去点它——点一个不可见元素会超时）
+    resume_upload_input: str = ""
+    resume_confirm_button: str = ""
+    #: 点完发送后用来确认"真的发出去了"（出现即视为成功）
+    resume_sent_marker: str = ""
 
     captcha_marker: str = ""
     login_marker: str = ""

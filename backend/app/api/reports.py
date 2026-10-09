@@ -61,6 +61,9 @@ def _to_out(db: Session, bundle: ReportBundle) -> ScoreReportOut:
                 score=int(value.get("score") or 0),
                 comment=str(value.get("comment") or ""),
                 evidence_turn_ids=_int_list(value.get("evidence_turn_ids")),
+                # 老报告里没有这个键时按"已评分"处理：那时缺项是被填成 3 分的，
+                # 当作已评分才符合当时的事实（现在的新报告会明确写 False）
+                scored=bool(value.get("scored", True)),
             )
         )
     # 按 rubric 顺序排：雷达图的轴顺序必须稳定，否则同一份数据两次渲染看起来不一样

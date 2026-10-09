@@ -13,11 +13,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from io import BytesIO
+from pathlib import Path
 
 from .pacing import parse_transcript
 
-#: 支持的扩展名（.txt/.md 是纯文本；.csv/.tsv 按纯文本读——对话稿里很少有真 CSV）
-SUPPORTED_SUFFIXES = (".txt", ".md", ".markdown", ".text", ".log", ".csv", ".tsv")
+#: 支持的扩展名（.txt/.md 是纯文本；.csv/.tsv 按纯文本读——对话稿里很少有真 CSV；
+#:  .docx 是 Word 文档，走 `extract_document_text` 的 docx 分支）
+SUPPORTED_SUFFIXES = (".txt", ".md", ".markdown", ".text", ".log", ".csv", ".tsv", ".docx")
 
 #: 单个文稿的大小上限。一份两小时的对话转写约 200KB，1MB 足够宽松
 MAX_DOC_BYTES = 1_000_000
@@ -66,6 +69,43 @@ class DocCheck:
             + (f"、{self.timestamped} 行带时间戳（等待时长按实测算）" if self.timestamped else "（无时间戳，等待时长按字数估算）")
             + ("。角色是按「谁在提问」推断的" if self.inferred_roles else "")
         )
+
+
+def _docx_to_text(data: bytes) -> str:
+    """Word(.docx) 的对话转写：python-docx 取段落（表格里的转写也很常见，一并取）。"""
+    from docx import Document
+
+    document = Document(BytesIO(data))
+    parts: list[str] = []
+    for paragraph in document.paragraphs:
+        if paragraph.text.strip():
+            parts.append(paragraph.text)
+    for table in document.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells]
+            parts.append(" | ".join(cells))
+    return "\n".join(parts)
+
+
+def extract_document_text(filename: str, data: bytes) -> tuple[str, str]:
+    """把一份对话文稿文件解成文本，返回 (文本, 解析方式说明)。
+
+    - `.docx` → python-docx 提取（encoding 报 `docx`，界面不再显示"编码"这一栏）
+    - 其余 → `decode_document` 按 BOM → UTF-8 → GB18030 的顺序试编码
+    """
+    if not data:
+        raise TranscriptDocError("文件是空的")
+    if len(data) > MAX_DOC_BYTES:
+        raise TranscriptDocError(
+            f"文件太大（{len(data) // 1024}KB），上限是 {MAX_DOC_BYTES // 1000}KB。"
+            "请只上传面试对话的部分。"
+        )
+    if Path(filename).suffix.lower() == ".docx":
+        text = _docx_to_text(data)
+        if not text.strip():
+            raise TranscriptDocError("这份 Word 文档里没有文字内容（可能是空文档或纯图片）")
+        return text, "docx"
+    return decode_document(data)
 
 
 def decode_document(data: bytes) -> tuple[str, str]:

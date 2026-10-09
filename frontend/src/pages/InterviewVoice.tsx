@@ -10,7 +10,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import InterviewSetup, { DEFAULT_SETUP, interviewerOf, setupToPayload, type SetupValue } from '../components/InterviewSetup'
 import ProfilePreview from '../components/ProfilePreview'
+import CoachCard from '../components/CoachCard'
 import type {
+  CoachInfo,
   InterviewOptions,
   JobTarget,
   ProfileListItem,
@@ -19,11 +21,18 @@ import type {
   SessionDetail,
   Turn,
 } from '../api/types'
-import type { ServerEvent } from '../api/ws'
+import type { ClientInfo } from '../api/types'
+import type { ServerEvent, SocketStatus } from '../api/ws'
 import { SessionSocket } from '../api/ws'
+import { BargeInDetector, type BargeInOptions } from '../audio/bargein'
 import { startMicCapture } from '../audio/mic'
 import type { MicCapture } from '../audio/mic'
 import { AgentSpeaker } from '../audio/player'
+import { thinkingPauseMs } from '../audio/thinking'
+import { unlockAudio } from '../audio/unlock'
+import PhonePreflight from '../components/PhonePreflight'
+import { useDevice } from '../mobile/useDevice'
+import { useWakeLock } from '../mobile/useWakeLock'
 
 const SPEAKER_LABEL: Record<string, string> = {
   interviewer: '面试官',
@@ -31,8 +40,32 @@ const SPEAKER_LABEL: Record<string, string> = {
   system: '系统',
 }
 
-/** 本地打断阈值：超过这个音量就认为用户在说话（与后端 VAD 的 min_energy 同量级） */
-const BARGE_IN_LEVEL = 0.02
+/**
+ * 本地打断（barge-in）判定（M19 改造）。
+ *
+ * 原来这里是一个固定阈值 `0.02`，那是按笔记本调出来的。手机上不成立：
+ * 扬声器与麦克风相距不到 1cm，面试官的声音会被自己收进去 —— 固定阈值会
+ * "面试官一说话就把自己打断"。改成按底噪自适应 + 冷却窗，
+ * 判定逻辑本身在 `audio/bargein.ts` 里（可单测），这里只负责接麦克风。
+ *
+ * 用 `useRef` 而不是模块级单例：模块级会跨页面实例共享状态，
+ * 而底噪估计是"这一场、这台设备"的事——新开一场必须从零开始估。
+ */
+function useBargeInDetector(options: BargeInOptions = {}) {
+  const ref = useRef<BargeInDetector | null>(null)
+  if (ref.current === null) {
+    ref.current = new BargeInDetector(options)
+  }
+  return ref.current
+}
+
+/**
+ * 麦克风"静默"多久算被系统掐了（毫秒）。
+ *
+ * 40ms 一个分片，正常说话时远小于这个值；安静时前端 VAD 也仍在收分片
+ * （`onChunk` 是按聚合窗口回调的，与有没有声音无关），所以 1.5 秒没有分片＝真的断了。
+ */
+const MIC_STALL_MS = 1500
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -79,12 +112,36 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [draft, setDraft] = useState('')
+  // M16：简历文件上传（PDF/docx/txt/md）
+  const resumeFileRef = useRef<HTMLInputElement>(null)
+  const [uploadingResume, setUploadingResume] = useState(false)
 
   const socketRef = useRef<SessionSocket | null>(null)
   const micRef = useRef<MicCapture | null>(null)
   const speakerRef = useRef<AgentSpeaker>(new AgentSpeaker())
+  //: 上一轮候选人的回答：用来算面试官开口前的"思考停顿"（见 audio/thinking.ts）
+  const lastAnswerRef = useRef('')
   const streamRef = useRef<HTMLDivElement>(null)
   const sessionIdRef = useRef<number | null>(null)
+
+  // ---- M19 手机端：设备能力、唤醒锁、连接状态、服务端体检 ----
+  const device = useDevice()
+  const wakeLock = useWakeLock()
+  const bargeIn = useBargeInDetector()
+  const [info, setInfo] = useState<ClientInfo | null>(null)
+  const [infoError, setInfoError] = useState('')
+  const [socketStatus, setSocketStatus] = useState<SocketStatus>('disconnected')
+  /** 从后台回来时的恢复结果，直接显示给用户（不要静默） */
+  const [recoveryNote, setRecoveryNote] = useState('')
+  /** 正在恢复中：避免 visibilitychange 连发时重复跑恢复流程 */
+  const recoveringRef = useRef(false)
+  /**
+   * 最近一次收到音频分片的时刻（毫秒）。
+   *
+   * 用它判断"麦克风是不是被系统掐了"——比猜 `MediaStreamTrack.readyState` 可靠：
+   * 手机上切后台后轨道常常仍是 `live`，但**再也不产生数据**，从轨道状态看不出来。
+   */
+  const lastChunkAtRef = useRef(Date.now())
 
   const appendTurn = useCallback((turn: Turn) => {
     setTurns((previous) => (previous.some((item) => item.idx === turn.idx) ? previous : [...previous, turn]))
@@ -99,6 +156,28 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
       .interviewOptions()
       .then(setOptions)
       .catch(() => setOptions(null))
+  }, [])
+
+  // M19：读服务端的部署形态，给 PhonePreflight 用。
+  // 这个端点是免鉴权的（BACKEND auth.PUBLIC_PATHS），所以登录页附近也能拿到。
+  useEffect(() => {
+    let cancelled = false
+    api
+      .clientInfo()
+      .then((value) => {
+        if (!cancelled) {
+          setInfo(value)
+          setInfoError('')
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setInfoError(errorMessage(err))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // 选中画像时读出它的策略：展示"这场会怎么面你"，让学习效果可见
@@ -139,6 +218,19 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
           setStatus(event.mode === 'interrupt' ? '面试官插话了' : '这题时间到了')
           break
 
+        case 'silence':
+          // 沉默看门狗：必须显示出来，**否则用户会以为程序卡住了**——
+          // 而"卡住"正是这个功能要解决的问题。
+          setPressureNote(event.message)
+          setStatus(event.action === 'nudge' ? '还没听到你说话' : '这一题先跳过，进入下一题')
+          break
+
+        case 'awaiting_question':
+          // 收尾阶段：轮到他提问。会话仍是 live，所以输入框要能继续用。
+          setPressureNote(event.message)
+          setStatus('轮到你提问了')
+          break
+
         case 'state':
           setAudioMode(event.audio_mode)
           setTextFallback(event.text_fallback)
@@ -161,8 +253,10 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
             end_ms: null,
             created_at: nowIso(),
             audio_url: null,
+            // M14 教练模式：语音链路通过 WS 事件下发点评，装进 meta 与文字链路同构
+            meta: event.coach ? { coach: event.coach } : undefined,
           })
-          speakerRef.current.speak(event.text)
+          speakerRef.current.speak(event.text, thinkingPauseMs(lastAnswerRef.current))
           setStatus('面试官正在提问')
           break
 
@@ -182,6 +276,8 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
           })
           setPartial('')
           setAwaitingText('')
+          // 记下这次回答：下一题的"思考停顿"按它的长度算（长回答想一下更自然）
+          lastAnswerRef.current = event.text
           break
 
         case 'asr_partial':
@@ -293,9 +389,114 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
     [],
   )
 
+  // M19：有会话时就申请屏幕常亮。手机 30 秒黑屏会直接掐掉麦克风与 WebSocket，
+  // 而"思考一道题"很容易超过 30 秒。iOS 低电量模式会拒绝，失败也不拦流程，
+  // 只在界面上提示"别锁屏"（见 useWakeLock 的 denied 分支）。
+  useEffect(() => {
+    if (session === null) {
+      void wakeLock.release()
+      return
+    }
+    void wakeLock.request()
+  }, [session, wakeLock])
+
+  /**
+   * M19：从后台/锁屏回来时的恢复。
+   *
+   * 手机切到别的 App 再切回来，会发生三件**互不相同**的事，必须逐个检查：
+   * 1. 麦克风轨道被系统挂起 → 不再有音频分片上来，需要重新 getUserMedia
+   *    （权限已授予时不会二次弹窗）；
+   * 2. `AudioContext` 被暂停 → 面试官的声音会静默消失（`unlockAudio` 会 resume）；
+   * 3. WebSocket 断开 → `SessionSocket` 自己在退避重连（见 `api/ws.ts`），
+   *    这里只负责把状态如实显示出来。
+   *
+   * **关键是把结果说出来**。静默地"看起来连上了但什么都不动"，比直接报错更糟——
+   * 用户会以为是自己操作错了。
+   *
+   * 依赖只放 `session` / `recording`：把 `startRecording` 放进依赖会让这个 effect
+   * 每次渲染都重挂监听（它们每次渲染都是新函数），而监听器内部读到的
+   * 也是当次渲染的闭包——那才是真正会出 stale 问题的地方。
+   */
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible' || session === null) {
+        return
+      }
+      if (recoveringRef.current) {
+        return
+      }
+      recoveringRef.current = true
+      void (async () => {
+        const notes: string[] = []
+        try {
+          // 1) 麦克风：看"最近还有没有音频分片上来"，而不是猜轨道状态
+          if (recording && micRef.current !== null) {
+            const silentFor = Date.now() - lastChunkAtRef.current
+            if (silentFor > MIC_STALL_MS) {
+              await stopRecording()
+              await startRecording()
+              notes.push('麦克风已重新连接')
+            }
+          }
+
+          // 2) 面试官的播放链路
+          const unlocked = unlockAudio()
+          if (unlocked.context !== null && unlocked.context.state !== 'running') {
+            notes.push('音频输出被系统暂停了，若听不到面试官说话请点一下屏幕')
+          }
+
+          // 3) 连接（重连由 SessionSocket 自己退避，这里只说清现状）
+          if (socketRef.current !== null && !socketRef.current.connected) {
+            notes.push('正在重连服务（这一场面试还在继续）')
+          }
+
+          // 4) 常亮锁在切后台时会被系统释放，回来要重新申请
+          await wakeLock.request()
+        } catch (err) {
+          notes.push(`恢复失败：${errorMessage(err)}`)
+        } finally {
+          recoveringRef.current = false
+        }
+        setRecoveryNote(notes.join('；'))
+      })()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, recording, wakeLock])
+
+  const uploadResumeFile = async (file: File) => {
+    setUploadingResume(true)
+    setError('')
+    try {
+      const created = await api.uploadResume(file)
+      const resumeList = await api.listResumes()
+      setResumes(resumeList)
+      setResumeId(String(created.id))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setUploadingResume(false)
+      if (resumeFileRef.current) resumeFileRef.current.value = ''
+    }
+  }
+
   const startSession = async () => {
     setBusy(true)
     setError('')
+    setRecoveryNote('')
+    // M19：**必须在用户手势里**先解锁音频。iOS 上 AudioContext 与 speechSynthesis
+    // 只有在手势调用栈里才会生效，否则表现是"面试官不出声"且不报错。
+    // 这个按钮就是最自然的手势点。
+    const unlocked = unlockAudio()
+    if (unlocked.skipped) {
+      setRecoveryNote(`音频能力受限：${unlocked.skipped}`)
+    }
     try {
       const created = await api.createSession({
         target_id: targetId ? Number(targetId) : null,
@@ -314,9 +515,11 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
 
       const socket = new SessionSocket(created.id, {
         onEvent: handleEvent,
+        // M19：连接状态要显示出来。手机切后台/换网一定会断，
+        // 静默重连会让用户以为程序坏了。
+        onStatus: setSocketStatus,
         onClose: () => {
           setConnected(false)
-          setStatus('连接已断开')
         },
       })
       socketRef.current = socket
@@ -335,13 +538,25 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
       return
     }
     setError('')
+    // 再解锁一次：用户可能先点了"开始面试"、又隔了一会儿才点"开始说话"
+    unlockAudio()
     try {
+      // 换输入设备/重新采集时底噪要重新估，否则上一台设备的底噪会污染阈值
+      bargeIn.reset()
+      lastChunkAtRef.current = Date.now()
       const mic = await startMicCapture({
-        onChunk: (pcm) => socketRef.current?.sendAudio(pcm),
+        onChunk: (pcm) => {
+          lastChunkAtRef.current = Date.now()
+          socketRef.current?.sendAudio(pcm)
+        },
         onLevel: (value) => {
           setLevel(value)
-          // 本地打断：用户一开口就压掉面试官的声音（毫秒级，比等后端 barge_in 快）
-          if (value > BARGE_IN_LEVEL && speakerRef.current.speaking) {
+          // 底噪估计**一直**更新：只在"面试官说话时"采样会把他的声音当成环境噪声
+          bargeIn.observe(value)
+          // 本地打断：用户一开口就压掉面试官的声音（毫秒级，比等后端 barge_in 快）。
+          // 阈值是自适应的，避免手机外放时面试官把自己打断（见 audio/bargein.ts）。
+          if (speakerRef.current.speaking && bargeIn.shouldTrigger(value, performance.now())) {
+            bargeIn.markTriggered(performance.now())
             speakerRef.current.stop()
           }
         },
@@ -392,6 +607,20 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
 
   const isLive = session?.status === 'live' && connected
 
+  // M19：连接状态要**如实**显示，包括"正在重连"。
+  // 手机切后台/换网一定会断；如果界面只写"已连接"，用户看到的是一动不动却"看起来正常"的页面。
+  const connectionLabel =
+    socketStatus === 'connected' && connected
+      ? '已连接'
+      : socketStatus === 'reconnecting'
+        ? '重连中…'
+        : socketStatus === 'connecting'
+          ? '连接中…'
+          : session !== null
+            ? '已断开'
+            : '未连接'
+  const connectionOk = socketStatus === 'connected' && connected
+
   const buttonBase = 'rounded-control px-3 py-1.5 text-xs font-medium disabled:opacity-40'
   const inputClass = 'w-full rounded-card border border-ink-2 px-3 py-2 text-sm outline-none focus:border-info'
 
@@ -402,12 +631,19 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
           <div className="flex items-center gap-2">
             <span
               className={
-                connected
+                connectionOk
                   ? 'rounded-full bg-ok-soft px-2.5 py-1 text-xs text-ok'
-                  : 'rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-6'
+                  : socketStatus === 'reconnecting' || socketStatus === 'connecting'
+                    ? 'rounded-full bg-warn-soft px-2.5 py-1 text-xs text-warn'
+                    : 'rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-6'
+              }
+              title={
+                socketStatus === 'reconnecting'
+                  ? '连接断了，正在自动重连；这一场面试在服务端仍在继续'
+                  : undefined
               }
             >
-              {connected ? '已连接' : '未连接'}
+              {connectionLabel}
             </span>
             {isLive && (
               <button type="button" onClick={() => void finishSession()} className={`${buttonBase} border border-ink-2 text-ink-7 hover:bg-paper`}>
@@ -416,6 +652,20 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
             )}
           </div>
         </header>
+
+        {/* M19：设备体检。全部正常时只占一行；出问题时才展开可执行的修复指引。 */}
+        <div className="border-b border-ink-1 px-3 py-1.5">
+          <PhonePreflight device={device} info={info} error={infoError} />
+        </div>
+
+        {recoveryNote && (
+          <div className="border-b border-warn bg-warn-soft px-4 py-1.5 text-xs text-warn">
+            {recoveryNote}
+            <button type="button" className="ml-2 underline" onClick={() => setRecoveryNote('')}>
+              知道了
+            </button>
+          </div>
+        )}
 
         {(currentInterviewer || pressureNote) && (
           <div className="space-y-1 border-b border-info bg-info-soft px-4 py-1.5 text-xs text-info">
@@ -448,21 +698,27 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
 
           {turns.map((turn) => {
             const isCandidate = turn.speaker === 'candidate'
+            // M14 教练模式：点评装在 meta 里，与文字链路同构
+            const coach = !isCandidate ? (turn.meta?.coach as CoachInfo | null | undefined) : null
             return (
               <div key={turn.idx} className={isCandidate ? 'flex justify-end' : 'flex justify-start'}>
-                <div
-                  className={
-                    isCandidate
-                      ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-info px-4 py-2 text-sm text-surface'
-                      : 'max-w-[80%] rounded-2xl rounded-bl-sm bg-sunken px-4 py-2 text-sm text-ink-9'
-                  }
-                >
-                  <div className={isCandidate ? 'mb-1 text-[11px] opacity-75' : 'mb-1 text-[11px] text-ink-6'}>
-                    {SPEAKER_LABEL[turn.speaker] ?? turn.speaker}
-                    {turn.kind === 'followup' ? ' · 追问' : ''}
-                    {turn.topic ? ` · ${turn.topic}` : ''}
+                <div className="flex max-w-[80%] flex-col items-start gap-1.5">
+                  <div
+                    className={
+                      isCandidate
+                        ? 'rounded-2xl rounded-br-sm bg-info px-4 py-2 text-sm text-surface'
+                        : 'rounded-2xl rounded-bl-sm bg-sunken px-4 py-2 text-sm text-ink-9'
+                    }
+                  >
+                    <div className={isCandidate ? 'mb-1 text-[11px] opacity-75' : 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] text-ink-6'}>
+                      <span>{SPEAKER_LABEL[turn.speaker] ?? turn.speaker}</span>
+                      {turn.kind === 'followup' && <span className="rounded-control bg-ink-9/10 px-1">追问</span>}
+                      {turn.kind === 'scene' && <span className="rounded-control bg-ng-soft px-1 text-ng">突发场景</span>}
+                      {turn.topic && <span className="text-ink-4">· {turn.topic}</span>}
+                    </div>
+                    <div className="whitespace-pre-wrap leading-relaxed">{turn.text}</div>
                   </div>
-                  <div className="whitespace-pre-wrap leading-relaxed">{turn.text}</div>
+                  {coach && <CoachCard coach={coach} />}
                 </div>
               </div>
             )
@@ -499,7 +755,7 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
               type="button"
               onClick={() => (recording ? void stopRecording() : void startRecording())}
               disabled={!isLive}
-              className={`${buttonBase} ${recording ? 'bg-ng text-surface hover:bg-ng' : 'bg-ink-9 text-surface hover:bg-ink-9'}`}
+              className={`${buttonBase} ${recording ? 'bg-ng text-surface hover:bg-ng/90' : 'bg-ink-9 text-surface hover:bg-ink-7'}`}
             >
               {recording ? '暂停收音' : '开始说话'}
             </button>
@@ -556,7 +812,7 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
               type="button"
               onClick={submitText}
               disabled={!isLive || !draft.trim()}
-              className="rounded-card bg-ink-9 px-4 py-2 text-sm font-medium text-surface hover:bg-ink-9 disabled:opacity-40"
+              className="btn-primary rounded-control px-4 py-2 text-sm font-medium"
             >
               提交
             </button>
@@ -600,7 +856,27 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
             ))}
           </select>
 
-          <label className="mb-1 block text-xs text-ink-6">简历</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-xs text-ink-6">简历</label>
+            <button
+              type="button"
+              onClick={() => resumeFileRef.current?.click()}
+              disabled={busy || connected || uploadingResume}
+              className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ink-6 hover:bg-paper disabled:opacity-50"
+            >
+              {uploadingResume ? '解析中…' : '上传文件'}
+            </button>
+          </div>
+          <input
+            ref={resumeFileRef}
+            type="file"
+            accept=".pdf,.docx,.txt,.md"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void uploadResumeFile(file)
+            }}
+          />
           <select value={resumeId} onChange={(event) => setResumeId(event.target.value)} className={`${inputClass} mb-3`}>
             <option value="">不指定</option>
             {resumes.map((resume) => (

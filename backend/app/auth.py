@@ -38,8 +38,18 @@ COOKIE_NAME = "mianshi_session"
 TOKEN_TTL_DAYS = 30
 TOKEN_TTL_SECONDS = TOKEN_TTL_DAYS * 24 * 3600
 
-#: 免鉴权路径：健康检查（探活）、登录、登录状态查询
-PUBLIC_PATHS = frozenset({"/api/health", "/api/auth/login", "/api/auth/logout", "/api/auth/status"})
+#: 免鉴权路径：健康检查（探活）、登录、登录状态查询，以及客户端环境体检
+PUBLIC_PATHS = frozenset({
+    "/api/health",
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/status",
+    # 客户端环境体检（M19 手机端）：只回答"这次部署能不能提供安全上下文"，
+    # 全是部署形态的事实，不含任何隐私数据（见 api/client_info.py）。
+    # 放公开路径是**故意的**：用户最可能卡在登录页排查"为什么没麦克风"，
+    # 那时他还没有 cookie；若这里要鉴权，就正好在最需要它的时候返回 401。
+    "/api/client-info",
+})
 
 #: 视为「本机」的绑定地址
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})

@@ -14,6 +14,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
+from .pua import has_obfuscated
+
 # --------------------------------------------------------------------------- #
 # 岗位事实（过滤器的输入）
 # --------------------------------------------------------------------------- #
@@ -89,9 +91,15 @@ def parse_salary(text: str) -> tuple[float, float] | None:
 
     支持：`15-25K`、`15k-25k`、`15-25K·14薪`、`20-40万/年`、`8千-1.2万`、`15000-25000`、`15-25`。
     "面议"或解析不出时返回 None —— **宁可让规则跳过这一项，也不要猜错薪资**。
+
+    平台用自定义字体混淆数字时（Boss 的薪资就是），文本里是一串私用区码点：
+    这里**显式**返回 None，而不是让正则碰巧匹配不上——两者的区别在于前者是"我们知道
+    这里有问题"，后者是"我们不知道"。**注意这意味着薪资规则对这类岗位完全不生效**，
+    所以调用方必须把这件事告诉用户（见 `runner.search_and_queue` 的 notes），
+    不能让用户以为"薪资区间"规则在起作用。
     """
     raw = (text or "").strip()
-    if not raw or any(word in raw for word in _NEGOTIABLE):
+    if not raw or has_obfuscated(raw) or any(word in raw for word in _NEGOTIABLE):
         return None
 
     lowered = raw.lower().replace(" ", "")

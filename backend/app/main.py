@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .api import api_router
+from .apply.scheduler import start_background, stop_background
 from .auth import PUBLIC_PATHS, assert_safe_bind, is_authenticated
 from .config import Settings, get_settings
 from .db import init_db
@@ -29,7 +30,13 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         init_db()
-        yield
+        # 定时投递的后台循环。非本机运行时不挂（见 start_background 的说明）。
+        # 用 background job 而不是常驻服务：应用关掉它就不存在了，符合本地优先的定位。
+        scheduler_task = await start_background(_app)
+        try:
+            yield
+        finally:
+            await stop_background(scheduler_task)
 
     app = FastAPI(
         title="mianshi 求职操作系统 API",

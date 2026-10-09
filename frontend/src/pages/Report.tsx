@@ -101,7 +101,13 @@ export default function Report({ sessionId, onSelectSession }: Props) {
     }
   }
 
-  const radarData = report?.dimensions.map((dimension) => ({ label: dimension.label, score: dimension.score })) ?? []
+  // 未评分的维度在雷达图上不能画成 0：那会看起来像"这项考砸了"，
+  // 而实际是模型没给分。画成 null 让图表留空（echarts 的 radar 会跳过空值）。
+  const radarData =
+    report?.dimensions.map((dimension) => ({
+      label: dimension.label,
+      score: dimension.scored === false ? null : dimension.score,
+    })) ?? []
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -133,7 +139,7 @@ export default function Report({ sessionId, onSelectSession }: Props) {
               type="button"
               onClick={() => void regenerate()}
               disabled={sessionId === null || regenerating || loading}
-              className="rounded-control bg-ink-9 px-3 py-1.5 text-xs font-medium text-surface hover:bg-ink-9 disabled:opacity-40"
+              className="btn-primary rounded-control px-3 py-1.5 text-xs font-medium"
             >
               {regenerating ? '评分中…' : '重新生成'}
             </button>
@@ -148,6 +154,40 @@ export default function Report({ sessionId, onSelectSession }: Props) {
         <p className="shrink-0 rounded-control bg-paper px-3 py-2 text-sm text-ink-6">
           正在载入报告…
         </p>
+      )}
+
+      {/* 空态：报告是"评分台"——没有输入时，主区不该是空白，而是一张待命的工作台。 */}
+      {!report && !loading && !error && (
+        <section className="flex min-h-0 flex-1 items-center justify-center">
+          <div className="w-full max-w-md rounded-panel border border-ink-1 bg-surface p-6">
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-sm font-semibold text-ink-9">报告生成台</h3>
+              <span className="font-mono text-[10px] text-ink-4">IDLE</span>
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-ink-6">
+              报告不会凭空出现——选一场面试，评分才会开始。步骤：
+            </p>
+            <ol className="mt-3 space-y-2">
+              <li className="flex gap-2 text-xs leading-relaxed text-ink-6">
+                <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
+                <span>在「历史面试」里跑一场面试，或从右侧下拉直接挑一场已结束的场次</span>
+              </li>
+              <li className="flex gap-2 text-xs leading-relaxed text-ink-6">
+                <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
+                <span>选中会话后点「重新生成」，从这场对话里自动评分</span>
+              </li>
+              <li className="flex gap-2 text-xs leading-relaxed text-ink-6">
+                <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
+                <span>报告含总分、维度雷达图与逐题点评，改进项会写进「训练」的掌握度</span>
+              </li>
+            </ol>
+            {reports.length === 0 && (
+              <p className="mt-4 rounded-control bg-ng-soft px-3 py-2 text-xs text-ng">
+                还没有可评分的会话——先去「面试间」跑一场，再回来看报告。
+              </p>
+            )}
+          </div>
+        </section>
       )}
 
       {report && (
@@ -185,18 +225,30 @@ export default function Report({ sessionId, onSelectSession }: Props) {
               <div className="rounded-panel border border-ink-1 bg-surface p-4">
                 <h3 className="mb-2 text-sm font-semibold text-ink-9">七维明细</h3>
                 <div className="space-y-2">
-                  {report.dimensions.map((dimension) => (
-                    <div key={dimension.key} className="rounded-card bg-paper px-3 py-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-ink-7">{dimension.label}</span>
-                        <span className="text-ink-6">{dimension.score}/5</span>
+                  {report.dimensions.map((dimension) => {
+                    // `scored === false` 表示模型没给这一项评分（score 是占位的 0）。
+                    // 必须显示"未评分"——直接显示 0/5 会让用户以为这项考砸了。
+                    const unscored = dimension.scored === false
+                    return (
+                      <div key={dimension.key} className="rounded-card bg-paper px-3 py-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium text-ink-7">{dimension.label}</span>
+                          <span className={unscored ? 'text-ink-4' : 'text-ink-6'}>
+                            {unscored ? '未评分（不计入总分）' : `${dimension.score}/5`}
+                          </span>
+                        </div>
+                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-1">
+                          <div
+                            className={unscored ? 'h-full bg-ink-2' : 'h-full bg-info'}
+                            style={{ width: unscored ? '0%' : `${(dimension.score / 5) * 100}%` }}
+                          />
+                        </div>
+                        {dimension.comment && (
+                          <p className="mt-1 text-xs leading-relaxed text-ink-6">{dimension.comment}</p>
+                        )}
                       </div>
-                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-1">
-                        <div className="h-full bg-info" style={{ width: `${(dimension.score / 5) * 100}%` }} />
-                      </div>
-                      {dimension.comment && <p className="mt-1 text-xs leading-relaxed text-ink-6">{dimension.comment}</p>}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </div>

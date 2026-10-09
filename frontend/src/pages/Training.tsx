@@ -302,7 +302,7 @@ export default function Training() {
                             type="button"
                             onClick={() => void submit()}
                             disabled={grading || !draft.trim()}
-                            className="rounded-control bg-ink-9 px-3 py-1.5 text-xs font-medium text-surface transition-opacity hover:opacity-90 disabled:opacity-40"
+                            className="btn-primary rounded-control px-3 py-1.5 text-xs font-medium"
                           >
                             {grading ? '批改中…' : '提交并批改'}
                           </button>

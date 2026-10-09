@@ -34,7 +34,11 @@ class JobTarget(SQLModel, table=True):
 
 
 class Resume(SQLModel, table=True):
-    """简历，多版本用 variant_label + parent_resume_id 组织（M8 起 A/B 统计）。"""
+    """简历，多版本用 variant_label + parent_resume_id 组织（M8 起 A/B 统计）。
+
+    source: manual（手动粘贴 / 快速新建）| upload（文件上传）；
+    file_name / file_path 只在上传型简历上有值（原文件名与落盘位置，供追溯）。
+    """
 
     __tablename__ = "resume"
 
@@ -46,6 +50,9 @@ class Resume(SQLModel, table=True):
     target_job_id: int | None = Field(default=None, foreign_key="job_target.id")
     parent_resume_id: int | None = Field(default=None, foreign_key="resume.id")
     ats_report: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    source: str = "manual"
+    file_name: str = ""
+    file_path: str = ""
     created_at: datetime = Field(default_factory=utcnow, index=True)
 
 
@@ -63,6 +70,14 @@ class QuestionBank(SQLModel, table=True):
     sample_answer: str = Field(default="", sa_column=Column(Text))
     source: str = "manual"
     created_at: datetime = Field(default_factory=utcnow, index=True)
+
+
+#: `QuestionBank.tags` 里的保留标记：**删除不是删行，而是打这个墓碑**。
+#: 内置题库（M13）按题干幂等播种，硬删之后下一次播种会把它原样加回来，
+#: 用户就会看到"删了又自己回来"——所以行留着，凡是给人看 / 拿去抽题的地方跳过它。
+#: 常量放在这里而不是 `vision_service`：训练抽题（M5）与导出也要跳过已删除的题，
+#: 它们本来就都依赖这个模型模块，不该为了一个字符串多出跨模块依赖。
+DELETED_TAG = "已删除"
 
 
 class QuestionAttempt(SQLModel, table=True):

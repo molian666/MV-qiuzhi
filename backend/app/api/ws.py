@@ -10,17 +10,16 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from ..analysis.pacing import policy_prompt_block
 from ..config import get_settings
 from ..db import session_scope
 from ..deps import get_llm, get_speech_provider
 from ..models.session import InterviewSession
 from ..pacing_service import load_policy_for_session
 from ..realtime.audio_store import AudioStore
-from ..analysis.pressure import normalize_pressure
 from ..auth import websocket_authenticated
 from ..realtime.session_runtime import VoiceRuntimeConfig, VoiceSessionRuntime
 from ..story_service import starred_block
+from .sessions import _bank_block_from_session, _compose_policy_block, _realism_flags, _session_options
 router = APIRouter(tags=["realtime"])
 logger = logging.getLogger(__name__)
 
@@ -46,6 +45,13 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
         status = session_row.status
         # M4：选了面试官画像就按它的节奏来——等待时长直接覆盖 VAD 的静音阈值
         policy = load_policy_for_session(db, session_row, default_silence_ms=settings.speech_silence_ms)
+        # M8：语音会话的底稿在开始时固定，所以给"主推的故事卡"而不是每轮重挑。
+        # **必须在事务里取**：出了 `with` 之后 `db` 已经关闭，再用它只会抛异常。
+        story_block = starred_block(db)
+        # M11/M13/M14：把这些从 plan 里还原出来（此前只在开场题那一刻算过）
+        pressure, panel, style_preset, locale_key = _session_options(session_row)
+        coach, silence_pressure, scene, resume_dive = _realism_flags(session_row)
+        bank_block = _bank_block_from_session(session_row)
 
     if status != "live":
         await websocket.send_json({"type": "error", "message": f"会话状态为 {status}，无法继续"})
@@ -56,8 +62,37 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
     llm = get_llm()
     store = AudioStore(settings.audio_dir, session_id, sample_rate=speech.sample_rate)
 
-    # M11：压力模式（语音这边只管打断与限时；追问深度由文本链路管）
-    pressure = normalize_pressure(plan.get("pressure"))
+    max_questions = int(plan.get("max_questions") or settings.default_max_questions)
+    #: 开场题已经问过（round 0 是创建会话时生成的），所以后续回合从 1 开始。
+    #: 多算 1 轮是为了收尾那一问；连环面的阶段数可能超过题数，取两者较大值。
+    panel_rounds = int((plan.get("panel") or {}).get("total_rounds") or 0)
+    block_count = max(max_questions, panel_rounds) + 1
+
+    def policy_blocks(round_index: int) -> str:
+        """这一轮的完整指令块：风格 + 连环面身份 + 压力 + 拟真 + 画像 + 语言。
+
+        与文字链路走**同一个** `_compose_policy_block`，所以两条链路不会再各写一套、
+        也不会再出现"语音面试从第 2 题起丢掉风格/角色/语言"这种情况。
+        """
+        round_style = panel.style_for(round_index) if panel is not None else style_preset
+        return _compose_policy_block(
+            style=round_style,
+            panel=panel,
+            panel_round=round_index,
+            pressure=pressure,
+            policy=policy,
+            locale=locale_key,
+            coach=coach,
+            silence_pressure=silence_pressure,
+            scene=scene,
+            resume_dive=resume_dive,
+        )
+
+    def interviewer_blocks(round_index: int) -> dict:
+        return panel.current(round_index) if panel is not None else {}
+
+    # 开场题（round 0）的块同时留作兜底：万一按轮取块出问题，退回老行为而不是丢掉全部指令
+    fallback_block = policy_blocks(0)
 
     runtime = VoiceSessionRuntime(
         session_id=session_id,
@@ -66,7 +101,7 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
         store=store,
         sink=websocket.send_json,
         config=VoiceRuntimeConfig(
-            max_questions=int(plan.get("max_questions") or settings.default_max_questions),
+            max_questions=max_questions,
             style=str(plan.get("style") or "标准技术面"),
             # 画像里的等待时长覆盖默认 VAD 阈值：这是"节奏跟着画像变"最直接的体现
             silence_ms=policy.silence_ms if policy is not None else settings.speech_silence_ms,
@@ -74,9 +109,11 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
             asr_wait_ms=settings.asr_wait_ms,
             # Mock 语音（没有 ASR）时必须允许文字替身，否则这一轮没法继续
             text_fallback=speech.requires_text_fallback,
-            policy_block=policy_prompt_block(policy) if policy is not None else "",
-            # M8：语音会话的底稿在开始时固定，所以给"主推的故事卡"而不是每轮重挑
-            story_block=starred_block(db),
+            policy_block=fallback_block,
+            policy_blocks=policy_blocks,
+            interviewer_blocks=interviewer_blocks,
+            story_block=story_block,
+            bank_block=bank_block,
             # M11：0 表示这个模式没开
             interrupt_after_ms=(pressure.clamped().interrupt_after_ms if pressure.interrupt else 0),
             answer_seconds=(pressure.clamped().answer_seconds if pressure.time_limit else 0),

@@ -5,6 +5,9 @@
  * 所有事件都带 `seq`，前端据此忽略重复事件（断线重连时有用）。
  */
 
+import type { CoachInfo } from './types'
+import { ReconnectPlan } from './backoff'
+
 export type AudioMode = 'client' | 'server'
 
 export interface StateEvent {
@@ -26,6 +29,8 @@ export interface InterviewerTextEvent {
   kind: string
   topic: string
   is_followup: boolean
+  /** M14 教练模式：上一题点评（null = 本场没开教练或本题无点评） */
+  coach?: CoachInfo | null
   seq: number
 }
 
@@ -125,6 +130,32 @@ export interface PressureEvent {
   after_ms?: number
 }
 
+/**
+ * 沉默看门狗：候选人一段时间没说话。
+ *
+ * `nudge` 只是提醒一次（"还在吗"），`advance` 表示已超时、这一轮被收掉并进入下一题。
+ * 前端要把它显示出来——**不然用户会以为程序卡住了**，而这恰恰是这个功能要解决的问题。
+ */
+export interface SilenceEvent {
+  type: 'silence'
+  seq: number
+  action: 'nudge' | 'advance'
+  elapsed_ms: number
+  message: string
+}
+
+/**
+ * 进入收尾阶段：轮到候选人提问。
+ *
+ * 这时候会话仍然是 live——**收尾不是结束**。前端要提示他可以提问，
+ * 否则他只会看到一个没有反应的界面（而这个阶段的提问正是评分里"主动性"的依据）。
+ */
+export interface AwaitingQuestionEvent {
+  type: 'awaiting_question'
+  seq: number
+  message: string
+}
+
 export type ServerEvent =
   | StateEvent
   | InterviewerTextEvent
@@ -138,6 +169,8 @@ export type ServerEvent =
   | AwaitingTextEvent
   | FinishedEvent
   | PressureEvent
+  | SilenceEvent
+  | AwaitingQuestionEvent
   | ErrorEvent
   | PongEvent
 
@@ -145,7 +178,21 @@ export interface SocketHandlers {
   onEvent: (event: ServerEvent) => void
   onOpen?: () => void
   onClose?: () => void
+  /**
+   * 连接状态变化（M19 手机端）。
+   *
+   * `reconnecting` 时**会话还在服务端继续跑**，只是这条管道断了；UI 必须把这件事
+   * 显示出来，否则用户会以为程序卡死（这正是手机切后台最常见的表现）。
+   */
+  onStatus?: (status: SocketStatus) => void
 }
+
+/** 连接状态。`reconnecting`/`disconnected` 都要在界面上如实呈现。 */
+export type SocketStatus =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected'
 
 function toBase64(pcm: Int16Array): string {
   const bytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)
@@ -172,6 +219,12 @@ export class SessionSocket {
   private readonly handlers: SocketHandlers
   private socket: WebSocket | null = null
   private lastSeq = 0
+  /** 断线自动重连的计划（延迟与次数由 backoff.ts 决定，这里只管什么时候用） */
+  private readonly plan = new ReconnectPlan()
+  private retryTimer: ReturnType<typeof setTimeout> | null = null
+  /** 用户主动关闭（或会话已结束）：不再自动重连 */
+  private manualClose = false
+  private status: SocketStatus = 'connecting'
 
   constructor(sessionId: number, handlers: SocketHandlers) {
     this.sessionId = sessionId
@@ -182,23 +235,53 @@ export class SessionSocket {
     return this.socket?.readyState === WebSocket.OPEN
   }
 
+  get connectionStatus(): SocketStatus {
+    return this.status
+  }
+
+  private setStatus(status: SocketStatus): void {
+    if (this.status === status) {
+      return
+    }
+    this.status = status
+    this.handlers.onStatus?.(status)
+  }
+
   connect(): Promise<void> {
+    this.manualClose = false
+    return this.openSocket()
+  }
+
+  private openSocket(): Promise<void> {
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const url = `${scheme}://${window.location.host}/ws/sessions/${this.sessionId}`
+    this.setStatus(this.plan.attempt > 0 ? 'reconnecting' : 'connecting')
 
     return new Promise((resolve, reject) => {
       const socket = new WebSocket(url)
       this.socket = socket
+      let settled = false
 
       socket.onopen = () => {
+        settled = true
+        this.plan.reset()
+        this.setStatus('connected')
         this.handlers.onOpen?.()
         resolve()
       }
       socket.onerror = () => {
-        reject(new Error('WebSocket 连接失败：请确认后端已启动'))
+        if (!settled) {
+          settled = true
+          reject(new Error('WebSocket 连接失败：请确认后端已启动'))
+        }
       }
       socket.onclose = () => {
         this.handlers.onClose?.()
+        if (this.manualClose) {
+          this.setStatus('disconnected')
+          return
+        }
+        this.scheduleReconnect()
       }
       socket.onmessage = (event: MessageEvent<string>) => {
         let parsed: ServerEvent
@@ -217,6 +300,34 @@ export class SessionSocket {
         this.handlers.onEvent(parsed)
       }
     })
+  }
+
+  /**
+   * 退避重连。
+   *
+   * 注意 `lastSeq` **刻意不清零**：重连后服务端若把之前的事件重发一遍，
+   * 去重会挡住它们，不会让界面出现重复的问答。
+   */
+  private scheduleReconnect(): void {
+    const delay = this.plan.next()
+    if (delay === null) {
+      // 重试用尽：交给 UI 明确提示"请手动重连"，不假装还在连
+      this.setStatus('disconnected')
+      return
+    }
+    this.setStatus('reconnecting')
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null
+      if (this.manualClose) {
+        return
+      }
+      void this.openSocket().catch(() => {
+        // 连不上就再排一次（onclose 也会走到这里，两条路都收敛到退避）
+        if (!this.manualClose) {
+          this.scheduleReconnect()
+        }
+      })
+    }, delay)
   }
 
   sendAudio(pcm: Int16Array): void {
@@ -242,8 +353,14 @@ export class SessionSocket {
   }
 
   close(): void {
+    this.manualClose = true
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer)
+      this.retryTimer = null
+    }
     this.socket?.close()
     this.socket = null
+    this.setStatus('disconnected')
   }
 
   static decodeAudio(event: AudioChunkEvent): { pcm: Int16Array; sampleRate: number } {

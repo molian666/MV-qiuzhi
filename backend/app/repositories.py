@@ -22,9 +22,17 @@ def ordered_turns(db: Session, session_id: int) -> list[SessionTurn]:
 
 
 def count_turns(turns: list[SessionTurn]) -> tuple[int, int]:
-    """(面试官提问数, 候选人作答数)。收尾轮不计入提问。"""
+    """(面试官提问数, 候选人作答数)。
+
+    两个**不计入**的回合，各自都有理由：
+
+    - 收尾轮（`closing`）不算提问：那是"你有什么想问我的"，不是一道题；
+    - 候选人在收尾阶段的**提问**（`question`）不算作答：他那一轮没有回答问题。
+      以前 `answers` 只按 `speaker == "candidate"` 数，收尾阶段加入提问回合后，
+      `answer_count` 会凭空多 1——那是用户直接看到的数字，也算错了"他答了几题"。
+    """
     questions = sum(1 for t in turns if t.speaker == "interviewer" and t.kind != "closing")
-    answers = sum(1 for t in turns if t.speaker == "candidate")
+    answers = sum(1 for t in turns if t.speaker == "candidate" and t.kind != "question")
     return questions, answers
 
 

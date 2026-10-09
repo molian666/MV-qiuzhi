@@ -27,9 +27,9 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-paper px-4 text-ink-9">
+    <div className="flex min-h-full items-center justify-center bg-grid-field px-4 text-ink-9">
       <form
-        className="w-full max-w-sm rounded-card border border-ink-1 bg-surface p-6"
+        className="w-full max-w-sm rounded-card border border-ink-1 border-t-2 border-t-ok bg-surface p-6"
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
@@ -60,7 +60,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
         <button
           type="submit"
           disabled={busy || !password}
-          className="mt-4 w-full rounded-control bg-ink-9 px-3 py-2 text-sm text-surface disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+          className="mt-4 w-full btn-primary rounded-control px-3 py-2 text-sm"
         >
           {busy ? '登录中…' : '登录'}
         </button>

@@ -103,6 +103,18 @@ export interface CreateSessionPayload {
   panel?: PanelStageSpec[] | null
   /** M11：面试语言 */
   locale?: string
+  /** M14：拟真与反馈（四个独立开关，可叠加） */
+  coach?: boolean
+  silence_pressure?: boolean
+  scene?: boolean
+  resume_dive?: boolean
+}
+
+/** M14 教练模式：上一题的即时点评（面试官随下一题下发） */
+export interface CoachInfo {
+  points?: string
+  missed?: string
+  better?: string
 }
 
 // -------------------------------------------------------------------------- //
@@ -367,9 +379,32 @@ export interface VisionSourceStat {
   count: number
 }
 
+export interface VisionTopicChild {
+  name: string
+  count: number
+  /** 完整分类串（`父 / 子`），直接拿它去筛题 */
+  full: string
+}
+
+export interface VisionTopic {
+  name: string
+  count: number
+  children: VisionTopicChild[]
+}
+
+export interface VisionMarkTag {
+  /** 标记标签名（高频 / 易错 / 自定义） */
+  name: string
+  count: number
+}
+
 export interface VisionMeta {
   roles: VisionRoleOption[]
   categories: string[]
+  /** 两级主题：界面只平铺父主题，选中后再出子主题（否则 80 多个标签没法用） */
+  topics: VisionTopic[]
+  /** 题库里出现过的标记标签及各自题数，筛选器按它显示按钮 */
+  mark_tags: VisionMarkTag[]
   total: number
   sources: VisionSourceStat[]
   /** 待采纳的草稿题数。它们不在 sources 统计里（还没进抽题池） */
@@ -481,6 +516,9 @@ export interface ResumeItem {
   version: number
   target_job_id: number | null
   created_at: string
+  /** M16 文件上传：manual（粘贴）| upload（文件）；file_name 只在 upload 型有值 */
+  source: string
+  file_name: string
 }
 
 export interface CreateResumePayload {
@@ -530,6 +568,26 @@ export interface Health {
   data_dir: string
 }
 
+/**
+ * 客户端环境体检（M19 手机端）。
+ *
+ * 只包含**部署形态的事实**，浏览器侧的判断（`window.isSecureContext`、
+ * 麦克风权限）必须前端自己做——服务端看不到也猜不准。
+ */
+export interface ClientInfo {
+  /** 这次部署在服务端看来有没有可能提供安全上下文（TLS 或本机访问） */
+  secure_context_possible: boolean
+  /** 服务端没配 TLS：用 HTTP 从非本机访问时麦克风一定失败 */
+  mic_requires_https: boolean
+  use_tls: boolean
+  /** 服务绑在本机：loopback 访问恒为安全上下文，也决定投递类功能是否可用 */
+  local_deployment: boolean
+  auth_enabled: boolean
+  speech_provider: string
+  host: string
+  port: number
+}
+
 // --------------------------------------------------------------------------- //
 // 评分报告（M3）
 // --------------------------------------------------------------------------- //
@@ -539,6 +597,8 @@ export interface DimensionScore {
   score: number
   comment: string
   evidence_turn_ids: number[]
+  /** 模型真的给了这一项的分数吗？false 时 score 是占位的 0，界面要显示"未评分"。 */
+  scored?: boolean
 }
 
 export interface EvidenceTurn {
@@ -884,6 +944,10 @@ export interface ApplySettings {
   platform: string
   default_channel: string
   want_salary_min: number
+  /** 搜索用城市代码（Boss 如 101010100=北京）；留空＝用平台当前城市 */
+  city: string
+  /** 静默模式：visible | offscreen | headless */
+  window_mode: string
   per_minute: number
   per_day: number
   jitter_min_seconds: number
@@ -893,6 +957,61 @@ export interface ApplySettings {
   /** 硬上限：配置会被夹到这个范围内 */
   max_per_minute: number
   max_per_day: number
+  /** 能力开关的完整状态（读接口返回；写的时候只传 `ApplyCapabilitiesInput`） */
+  capabilities?: ApplyCapabilities
+}
+
+/** 风险档位：0=本机功能，1=对外通知，2=无人值守投递，3=账号风险能力 */
+export interface ApplyCapability {
+  key: string
+  label: string
+  tier: number
+  tier_label: string
+  tier_summary: string
+  /** 这个能力**会让程序做什么**（给用户看的后果说明，不是功能名） */
+  summary: string
+  default: boolean
+  requires: string[]
+  /** 用户是否勾选 */
+  wanted: boolean
+  /** 勾了**且**闸门通过 */
+  on: boolean
+  /** 没生效时的可操作原因 */
+  blocked_reason: string
+  /** 需要用户输入的那句确认短语（仅当原因就是缺短语时非空） */
+  missing_phrase: string
+}
+
+export interface ApplyCapabilities {
+  items: ApplyCapability[]
+  risk_acknowledged: boolean
+  signed_phrases: string[]
+  run_local: boolean
+  captcha_mode: string
+  captcha_modes: { key: string; label: string; detail: string }[]
+  tier_labels: Record<string, string>
+  tier_summaries: Record<string, string>
+  /** 是否有任一"自动"档能力真的生效 */
+  any_auto_enabled: boolean
+}
+
+/** 写入用的能力开关（只传想改的部分；省略的字段由后端保留） */
+export interface ApplyCapabilitiesInput {
+  enabled: Record<string, boolean>
+  signed_phrases?: string[]
+  run_local?: boolean
+  captcha_mode?: string
+}
+
+/**
+ * `PUT /apply/settings` 的请求体。
+ *
+ * 读接口返回的是**完整**能力状态（含 `items` 与每个能力的未生效原因），而写接口只接受
+ * `ApplyCapabilitiesInput`——两者形状不同，所以这里显式换掉 capabilities，
+ * 而不是拿 `Partial<ApplySettings>` 硬塞（那样要么报类型错，要么得写 as 掩盖）。
+ */
+export type ApplySettingsPayload = Omit<Partial<ApplySettings>, 'capabilities'> & {
+  capabilities?: ApplyCapabilitiesInput
 }
 
 export interface ApplyStatus {
@@ -906,6 +1025,134 @@ export interface ApplyStatus {
   remaining_quota: number
   adapter_ready: boolean
   adapter_note: string
+}
+
+/** 通知配置（企业微信机器人 / 通用 Webhook） */
+export interface ApplyNotifySettings {
+  /** 地址**不回显**：webhook URL 里的 key 等同于凭据 */
+  url: string
+  channel: string
+  on_sent: boolean
+  on_circuit: boolean
+  on_captcha: boolean
+  on_failed: boolean
+  configured: boolean
+  /** 脱敏后的地址片段，够确认"填对了哪个" */
+  masked_url: string
+  channels: { key: string; label: string }[]
+}
+
+export interface ApplyNotifyPayload {
+  url?: string
+  channel?: string
+  on_sent?: boolean
+  on_circuit?: boolean
+  on_captcha?: boolean
+  on_failed?: boolean
+}
+
+/** 定时投递配置 */
+export interface ApplySchedule {
+  enabled: boolean
+  times: string[]
+  /** queue = 只抓岗位入队（不投递）；apply = 抓完并自动投递 */
+  mode: string
+  limit: number
+  keywords: string[]
+  city: string
+  fetch_detail: boolean
+  grace_minutes: number
+  /** 实际生效的时间点（认不出的已被丢掉） */
+  parsed_times: string[]
+  description: string
+  active: boolean
+  next_run_at: string | null
+  due_now: boolean
+  last_run_at: string | null
+  last_result: string
+  mode_labels: Record<string, string>
+  max_slots: number
+}
+
+export interface ApplySchedulePayload {
+  enabled?: boolean
+  times?: string[]
+  mode?: string
+  limit?: number
+  keywords?: string[]
+  city?: string
+  fetch_detail?: boolean
+  grace_minutes?: number
+}
+
+/** 自动拉黑的一次判定（含依据，便于核对） */
+export interface BlacklistCandidate {
+  company: string
+  platform: string
+  reason: string
+  evidence: string
+}
+
+export interface AutofillBlacklistResult {
+  scanned: number
+  added: number
+  dry_run: boolean
+  candidates: BlacklistCandidate[]
+}
+
+/** 一个投递账号（多账号轮换的基本单位） */
+export interface ApplyProfile {
+  id: number
+  platform: string
+  label: string
+  /** 浏览器用户数据目录。**每个账号必须独立**——共用等于共用一个登录态。 */
+  user_data_dir: string
+  daily_limit: number
+  enabled: boolean
+  /** 代理**不回显凭据**，只给"配了没有" + 脱敏形式 */
+  proxy_configured: boolean
+  masked_proxy: string
+  locale: string
+  daily_sent: number
+  remaining: number
+  broken: boolean
+  circuit_broken_until: string | null
+  last_used_at: string | null
+  /** 代理是否可用。**不可用时这个账号不会被选中**（别裸奔）。 */
+  proxy_ok: boolean
+}
+
+export interface ApplyProfiles {
+  items: ApplyProfile[]
+  /** 有没有任何账号。没有时投递走单账号（默认浏览器目录、直连）。 */
+  configured: boolean
+  default_daily_limit: number
+  locales: { key: string; label: string }[]
+}
+
+export interface ApplyProfilePayload {
+  platform?: string
+  label?: string
+  user_data_dir?: string
+  daily_limit?: number
+  enabled?: boolean
+  proxy?: string
+  locale?: string
+}
+
+export interface ApplyProxyProbe {
+  ok: boolean
+  /** 出口 IP —— 用户真正想知道的（"我换成功了吗"） */
+  exit_ip: string
+  detail: string
+  local_proxy: boolean
+}
+
+/** 上传附件的结果 */
+export interface ApplyAttachment {
+  path: string
+  size: number
+  task_id: number | null
 }
 
 export interface ApplyRule {
@@ -957,13 +1204,19 @@ export interface ApplyQueueTask {
   error: string
   created_at: string
   approved_at: string | null
+  greeted_at: string | null
   sent_at: string | null
+  /** 这条任务挂的简历附件。空 = 投递时发平台的在线简历。 */
+  resume_image_path: string
+  /** 这条任务由哪个账号投（多账号）。空 = 默认账号。 */
+  profile_id: number | null
 }
 
 export interface ApplyQueueSnapshot {
   total: number
   pending: number
   approved: number
+  greeted: number
   sent: number
   failed: number
   by_status: Record<string, number>

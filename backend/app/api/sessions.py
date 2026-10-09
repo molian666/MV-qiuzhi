@@ -19,6 +19,7 @@ from ..analysis.pacing import build_policy, policy_prompt_block, policy_summary
 from ..analysis.panels import panel_prompt_block, parse_panel
 from ..analysis.pressure import normalize_pressure, pressure_prompt_block
 from ..analysis.question_bank import BankQuestion, bank_prompt_block
+from ..analysis.realism import realism_prompt_block
 from ..clock import utcnow
 from ..config import get_settings
 from ..deletion import DeletionError, delete_session
@@ -28,7 +29,8 @@ from ..models.pacing import InterviewerProfile
 from ..models.session import InterviewSession, SessionTurn
 from ..pacing_service import load_policy_for_session, profile_samples
 from ..providers.llm.base import LLMClient, LLMError
-from ..realtime.interviewer import Interviewer
+from ..realtime.interviewer import REVERSE_QUESTION_PROMPT, Interviewer
+from ..realtime.session_runtime import PHASE_CLOSING
 from ..repositories import count_turns, ordered_turns
 from ..story_service import prompt_block_for
 from ..vision_service import pick_questions
@@ -97,11 +99,15 @@ def _compose_policy_block(
     pressure: Any,
     policy: Any,
     locale: str,
+    coach: bool = False,
+    silence_pressure: bool = False,
+    scene: bool = False,
+    resume_dive: bool = False,
 ) -> str:
     """把"这场面试怎么问"的几类指令合成一个块。
 
     顺序有讲究：越靠近末尾的指令越容易被模型遵守，
-    所以风格与角色放前面、画像节奏其次、"用什么语言"放最后。
+    所以风格与角色放前面、压力与拟真其次、画像节奏其后、"用什么语言"放最后。
     """
     blocks: list[str] = []
     if style is not None:
@@ -110,6 +116,17 @@ def _compose_policy_block(
         blocks.append(panel_prompt_block(panel, panel_round, locale=locale))
     if pressure is not None and pressure.enabled:
         blocks.append(pressure_prompt_block(pressure, locale=locale))
+    # M14：拟真与反馈（教练 / 沉默施压 / 现场突发 / 简历深挖）。放在压力之后，
+    # 画像之前——它们比压力更具体，但画像的原题素材要压在最接近末尾的位置
+    realism_block = realism_prompt_block(
+        coach=coach,
+        silence_pressure=silence_pressure,
+        scene=scene,
+        resume_dive=resume_dive,
+        locale=locale,
+    )
+    if realism_block:
+        blocks.append(realism_block)
     if policy is not None:
         blocks.append(policy_prompt_block(policy))
     if locale != "zh":
@@ -126,6 +143,17 @@ def _session_options(session_row: InterviewSession) -> tuple[Any, Any, Any, str]
     style = resolve_style(style_key) if style_key else None
     locale_key = str(plan.get("locale") or "zh")
     return pressure, panel, style, locale_key
+
+
+def _realism_flags(session_row: InterviewSession) -> tuple[bool, bool, bool, bool]:
+    """从 session.plan 里还原 M14 四个拟真 / 反馈开关（教练 / 沉默施压 / 现场突发 / 简历深挖）。"""
+    plan = session_row.plan or {}
+    return (
+        bool(plan.get("coach")),
+        bool(plan.get("silence_pressure")),
+        bool(plan.get("scene")),
+        bool(plan.get("resume_dive")),
+    )
 
 
 def _load_target(db: Session, session_row: InterviewSession) -> JobTarget | None:
@@ -222,6 +250,7 @@ async def create_session(
             category=payload.question_category,
             max_difficulty=payload.question_max_difficulty,
             count=payload.question_count or max_questions,
+            weak=payload.weak_questions,
         )
         # 抽不到题时不报错：退回自由出题，而不是让一场面试开不起来
     bank_block = bank_prompt_block(bank_questions)
@@ -231,6 +260,13 @@ async def create_session(
         "style": style,
         "locale": locale_key,
         "pressure": pressure.to_dict(),
+        # M14：拟真与反馈开关（落进 plan，每轮还原成规则进 prompt）
+        "coach": payload.coach,
+        "silence_pressure": payload.silence_pressure,
+        "scene": payload.scene,
+        "resume_dive": payload.resume_dive,
+        # M18：薄弱点面试（抽题优先命中掌握度低的技能点）
+        "weak_questions": payload.weak_questions,
     }
     if bank_questions:
         # 要点也一起存：报告里要拿它对照「哪些点答到了」
@@ -291,7 +327,7 @@ async def create_session(
     session_id = session_row.id or 0
 
     interviewer = Interviewer(llm)
-    # M11：开场用的行为指令（风格 → 角色 → 压力 → 画像 → 语言）
+    # M11：开场用的行为指令（风格 → 角色 → 压力 → 拟真 → 画像 → 语言）
     opening_policy_block = _compose_policy_block(
         style=style_preset,
         panel=panel,
@@ -299,6 +335,10 @@ async def create_session(
         pressure=pressure,
         policy=policy,
         locale=locale_key,
+        coach=payload.coach,
+        silence_pressure=payload.silence_pressure,
+        scene=payload.scene,
+        resume_dive=payload.resume_dive,
     )
     try:
         plan, result = await interviewer.next_question(
@@ -353,6 +393,14 @@ async def submit_answer(
             detail=f"会话当前状态为 {session_row.status}，无法继续作答（请新建一场，或直接查看报告）",
         )
 
+    # 收尾阶段：他是在**提问**，不是在答题 —— 走单独一条路径。
+    # 语音链路（realtime/session_runtime.py）里是同一套语义，两边的 kind 必须一致，
+    # 否则评分时"主动性"维度只在其中一种模式下有依据。
+    if (session_row.plan or {}).get("phase") == PHASE_CLOSING:
+        return await _answer_reverse_question(
+            session_id=session_id, session_row=session_row, text=payload.text.strip(), db=db, llm=llm
+        )
+
     settings = get_settings()
     turns = _turns(db, session_id)
     max_questions = int(session_row.plan.get("max_questions") or settings.default_max_questions)
@@ -386,6 +434,7 @@ async def submit_answer(
 
     # M11：这一轮该由谁问（连环面会换人，音色也跟着换）
     pressure, panel, style_preset, locale_key = _session_options(session_row)
+    coach, silence_pressure, scene, resume_dive = _realism_flags(session_row)
     round_index = answer_count
     if panel is not None:
         style_preset = panel.style_for(round_index)
@@ -396,8 +445,16 @@ async def submit_answer(
         pressure=pressure,
         policy=policy,
         locale=locale_key,
+        coach=coach,
+        silence_pressure=silence_pressure,
+        scene=scene,
+        resume_dive=resume_dive,
     )
     current_interviewer = panel.current(round_index) if panel is not None else {}
+
+    # M14：现场突发——第 3 次回答之后，下一问必须换成突发场景题（编排层硬卡时机，
+    # 不靠模型自己数轮数；收尾优先，题太少的场次不插）
+    force_scene = scene and answer_count == 3 and not closing
 
     try:
         plan, result = await interviewer.next_question(
@@ -410,6 +467,7 @@ async def submit_answer(
             policy_block=question_policy_block,
             story_block=story_block,
             bank_block=_bank_block_from_session(session_row),
+            force_scene=force_scene,
         )
     except LLMError as exc:
         log_llm_error(db, task="interview_turn", provider=provider, error=str(exc), session_id=session_id)
@@ -434,13 +492,114 @@ async def submit_answer(
     db.refresh(question_turn)
 
     if closing:
-        _mark_finished(session_row, db)
+        # **收尾不是结束**：进入收尾阶段，等候选人提问。
+        # 以前这里直接 `_mark_finished`，于是候选人根本没机会提问，
+        # rubric 里的「主动性 / 反问质量」维度在文字模式下也永远拿不到数据。
+        plan = dict(session_row.plan or {})
+        plan["phase"] = PHASE_CLOSING
+        session_row.plan = plan
+        db.add(session_row)
+        db.commit()
+        db.refresh(session_row)
 
     return AnswerOut(
         session=_detail(session_row, _turns(db, session_id), db),
         question=TurnOut.model_validate(question_turn),
-        finished=closing,
-        message="面试已结束。评分报告在 M3 提供。" if closing else "",
+        finished=False,
+        message=(
+            "面试问题问完了。现在轮到你提问——有什么想了解的可以直接问；没有的话点「结束面试」。"
+            if closing
+            else ""
+        ),
+    )
+
+
+async def _answer_reverse_question(
+    *,
+    session_id: int,
+    session_row: InterviewSession,
+    text: str,
+    db: Session,
+    llm: LLMClient,
+) -> AnswerOut:
+    """收尾阶段：候选人提问 → 面试官作答 → 真正结束。"""
+    settings = get_settings()
+    turns = _turns(db, session_id)
+    elapsed = _elapsed_ms(session_row)
+    previous_end = turns[-1].end_ms if turns and turns[-1].end_ms is not None else 0
+
+    # 候选人的提问：**kind 必须是 question**，评分要靠它判断"他问了什么"
+    question_turn = SessionTurn(
+        session_id=session_id,
+        idx=len(turns),
+        speaker="candidate",
+        text=text,
+        kind="question",
+        start_ms=previous_end,
+        end_ms=elapsed,
+    )
+    db.add(question_turn)
+    db.commit()
+    db.refresh(question_turn)
+    turns.append(question_turn)
+
+    max_questions = int(session_row.plan.get("max_questions") or settings.default_max_questions)
+    policy = load_policy_for_session(db, session_row, default_silence_ms=settings.speech_silence_ms)
+    _pressure, panel, style_preset, locale_key = _session_options(session_row)
+    coach, silence_pressure, scene, resume_dive = _realism_flags(session_row)
+    if panel is not None:
+        style_preset = panel.style_for(max_questions)
+
+    interviewer = Interviewer(llm)
+    try:
+        plan, result = await interviewer.next_question(
+            turns=turns,
+            target=_load_target(db, session_row),
+            resume=_load_resume(db, session_row),
+            max_questions=max_questions,
+            style=str(session_row.plan.get("style") or DEFAULT_STYLE),
+            policy_block=_compose_policy_block(
+                style=style_preset,
+                panel=panel,
+                panel_round=max_questions,
+                pressure=_pressure,
+                policy=policy,
+                locale=locale_key,
+                coach=coach,
+                silence_pressure=silence_pressure,
+                scene=scene,
+                resume_dive=resume_dive,
+            ),
+            story_block=prompt_block_for(db, question=text, limit=2),
+            prompt=REVERSE_QUESTION_PROMPT,
+        )
+    except LLMError as exc:
+        log_llm_error(db, task="interview_turn", provider=getattr(llm, "name", ""), error=str(exc), session_id=session_id)
+        # 答不上来也要把面试收掉，不能卡在"等他提问"这一步
+        _mark_finished(session_row, db)
+        raise HTTPException(status_code=502, detail=f"生成回答失败：{exc}") from exc
+
+    log_llm_result(db, result, session_id=session_id)
+    answer_turn = SessionTurn(
+        session_id=session_id,
+        idx=len(turns),
+        speaker="interviewer",
+        text=plan.question,
+        kind="closing",
+        topic=plan.topic,
+        start_ms=elapsed,
+        end_ms=elapsed,
+    )
+    db.add(answer_turn)
+    db.commit()
+    db.refresh(answer_turn)
+
+    _mark_finished(session_row, db)
+    return AnswerOut(
+        session=_detail(session_row, _turns(db, session_id), db),
+        question=TurnOut.model_validate(answer_turn),
+        finished=True,
+        message="面试已结束。可以去看评分报告了。",
     )
 
 

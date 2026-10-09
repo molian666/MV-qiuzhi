@@ -48,10 +48,63 @@
      精度、误检率、IoU、评分都是要竖着比大小的量，等宽对齐后能直接看出来。 */
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 
+  /* 暗色侧栏（M19 整体 UI）：HMI 工位状态栏的语义——深底灰阶、不引入色相。
+     侧栏文字不能用内容区的 ink-4（深底上对比不足 2.6:1），单独给一档。 */
+  --color-dark: #1a1f24; /* 侧栏底 */
+  --color-dark-rail: #2b333b; /* 侧栏分隔 / 边框 */
+  --color-dark-ink-3: #6e7881; /* 侧栏分组标题（弱） */
+  --color-dark-ink-4: #a9b2ba; /* 侧栏次级文字 */
+
   --radius-control: 4px;
   --radius-card: 6px;
   --radius-panel: 8px;
 }
+
+/* 主区背景：极淡的工程网格（标定板语言）。只有 4% 透明度，
+   面板浮在上面时几乎不可见——作用是给空白处一点"工位台面"的质地，不是装饰色块。 */
+.bg-grid-field {
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(to right, rgba(20, 23, 26, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 23, 26, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* 信号灯（HMI 状态指示）：实心圆点 + 一圈同色光晕。只在状态意义明确时用。 */
+.signal-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
+}
+
+/* 主按钮（M19d）：统一交互反馈——hover 提亮一档、按下有 1px 位移（工控按钮的物理感）、
+   disabled 统一灰化。尺寸 / 圆角仍由页面上的 Tailwind 类控制，这里只接管"状态"。 */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  background: var(--color-ink-9);
+  color: var(--color-surface);
+  font-weight: 500;
+  transition: background-color 120ms ease, transform 60ms ease;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #262d34;
+}
+.btn-primary:active:not(:disabled) {
+  background: #101316;
+  transform: translateY(1px);
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+
 
 html,
 body,
@@ -89,4 +142,47 @@ samp {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   手机端（M19）
+
+   两个单位问题，在桌面上看是"可选优化"，在手机上是"能不能用"：
+
+   1. **`100vh` 不等于可见高度**。手机浏览器地址栏伸缩时 `vh` 按"最大高度"算，
+      于是底部按钮会被顶到地址栏外面。`dvh` 跟随动态视口，`svh` 取最小高度。
+      这里用 `dvh`（Chrome 108+ / iOS 16.4+），并在上面的 @supports 里回退 `vh`。
+   2. **刘海与 Home 条**。底部固定操作条必须吃 `safe-area-inset-bottom`，
+      否则"答完了"按钮会被 Home 条压住一半——手指点不到。
+--------------------------------------------------------------------------- */
+
+/* 全屏应用外壳：不用 h-screen，改用动态视口高度 */
+.app-viewport {
+  height: 100vh;
+}
+@supports (height: 100dvh) {
+  .app-viewport {
+    height: 100dvh;
+  }
+}
+
+/* 底部安全区：给固定操作条留出 Home 条 / 手势区的高度 */
+.pb-safe {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+.pb-safe-lg {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* 触控目标最小 44px（Apple HIG / WCAG 2.5.5 的经验值）。
+   手机上把按钮做小是"看起来能用、实际总点错"的典型。 */
+.touch-target {
+  min-height: 44px;
+}
+
+/* 手机上的滚动容器：惯性滚动 + 不把滚动传递给父级
+   （否则输入框弹起时会把整页顶走） */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }

@@ -29,6 +29,11 @@ _ENV_OVERRIDES = {
     "SPEECH_PROVIDER": "mock",
     "ASR_PROVIDER": "mock",
     "TRUST_ENV_PROXY": "false",
+    # 定时投递的后台循环会随应用启动、跑在 TestClient 自己的事件循环里。
+    # 它按**真实时间**判断"到点没到点"，于是让 tick 计数、"同一天不跑两次"这类断言
+    # 随跑测试的时刻而变（实测：同一份代码在不同时间跑结果不同）。
+    # 这里统一压掉；要测循环的用例自己直接调 `tick()` / `run_once()`。
+    "APPLY_SCHEDULER_ENABLED": "false",
 }
 
 

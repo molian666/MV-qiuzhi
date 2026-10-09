@@ -5,7 +5,7 @@
  * 2. 「我投的那些岗位，匹配度和回音对得上吗」——按匹配分区间看回复率。
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { AtsIssue, MatchBandReport, MatchResult, ResumeItem } from '../api/types'
 
@@ -69,6 +69,9 @@ export default function ResumeHealth() {
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // M16 同款：简历文件上传（PDF/docx/txt/md），体检页与面试间共用同一个后端端点
+  const resumeFileRef = useRef<HTMLInputElement>(null)
+  const [uploadingResume, setUploadingResume] = useState(false)
 
   const loadResumes = useCallback(async () => {
     try {
@@ -179,6 +182,21 @@ export default function ResumeHealth() {
     }
   }
 
+  const uploadResumeFile = async (file: File) => {
+    setUploadingResume(true)
+    setError('')
+    try {
+      const created = await api.uploadResume(file)
+      await loadResumes()
+      setResumeId(created.id)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setUploadingResume(false)
+      if (resumeFileRef.current) resumeFileRef.current.value = ''
+    }
+  }
+
   const issues = result ? result.ats : (atsOnly ?? [])
 
   return (
@@ -200,40 +218,66 @@ export default function ResumeHealth() {
           多版本是为了投递 A/B：同一个岗位可以投不同侧重点的简历，之后在投递分析里比较回复率。
         </p>
 
-        <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="text-xs text-ink-6">
-            当前简历
-            <select
-              className="mt-1 w-64 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
-              value={resumeId ?? ''}
-              onChange={(event) => setResumeId(Number(event.target.value))}
+        {/* 两行结构：第 1 行「当前简历 + 上传文件」，第 2 行「新版本标注 + 另存」。
+            每行是 [弹性控件 | 按钮] 的底边对齐，换行不再错落；动作层级也拉开了——
+            上传文件是次动作（描边），另存为新版本是核心动作（实底）。 */}
+        <div className="mt-3 space-y-2">
+          <div className="flex items-end gap-2">
+            <label className="min-w-0 flex-1 text-xs text-ink-6">
+              当前简历
+              <select
+                className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
+                value={resumeId ?? ''}
+                onChange={(event) => setResumeId(Number(event.target.value))}
+              >
+                <option value="">（未选择）</option>
+                {resumes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} v{item.version}
+                    {item.variant_label ? ` · ${item.variant_label}` : ''}
+                    {item.source === 'upload' ? ` · ${item.file_name}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={busy || uploadingResume}
+              onClick={() => resumeFileRef.current?.click()}
+              className="shrink-0 rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:cursor-not-allowed"
             >
-              <option value="">（未选择）</option>
-              {resumes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} v{item.version}
-                  {item.variant_label ? ` · ${item.variant_label}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs text-ink-6">
-            新版本标注
-            <input
-              className="mt-1 w-40 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
-              placeholder="如：量化版"
-              value={cloneLabel}
-              onChange={(event) => setCloneLabel(event.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            disabled={busy || resumeId === null}
-            onClick={() => void cloneVersion()}
-            className="rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:cursor-not-allowed"
-          >
-            另存为新版本
-          </button>
+              {uploadingResume ? '解析中…' : '上传文件'}
+            </button>
+          </div>
+          <input
+            ref={resumeFileRef}
+            type="file"
+            accept=".pdf,.docx,.txt,.md"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void uploadResumeFile(file)
+            }}
+          />
+          <div className="flex items-end gap-2">
+            <label className="min-w-0 flex-1 text-xs text-ink-6">
+              新版本标注
+              <input
+                className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm"
+                placeholder="如：量化版"
+                value={cloneLabel}
+                onChange={(event) => setCloneLabel(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={busy || resumeId === null}
+              onClick={() => void cloneVersion()}
+              className="shrink-0 btn-primary rounded-control px-3 py-1.5 text-xs"
+            >
+              另存为新版本
+            </button>
+          </div>
         </div>
 
         {versions.length > 1 && (
@@ -267,10 +311,22 @@ export default function ResumeHealth() {
               type="button"
               disabled={busy}
               onClick={() => void createResume()}
-              className="mt-2 rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+              className="mt-2 btn-primary rounded-control px-3 py-1.5 text-xs"
             >
               创建简历
             </button>
+            <div className="mt-2 text-xs text-ink-6">
+              或者直接{' '}
+              <button
+                type="button"
+                disabled={uploadingResume}
+                onClick={() => resumeFileRef.current?.click()}
+                className="text-info hover:underline disabled:cursor-not-allowed"
+              >
+                {uploadingResume ? '解析中…' : '上传简历文件'}
+              </button>
+              （PDF / Word / txt / md，体检与诊断照常可用）
+            </div>
           </div>
         )}
       </section>
@@ -309,7 +365,7 @@ export default function ResumeHealth() {
               type="button"
               disabled={busy || resumeId === null}
               onClick={() => void diagnose()}
-              className="w-full rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface disabled:cursor-not-allowed disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+              className="w-full btn-primary rounded-control px-3 py-1.5 text-xs"
             >
               开始诊断
             </button>

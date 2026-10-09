@@ -275,6 +275,9 @@ def parse_transcript(
 
     _fill_timestamps(drafts, chars_per_second=chars_per_second)
     note = infer_speaker_roles(drafts)
+    if not note:
+        # 没有可分组推断的说话人（无标记逐行对话）→ 按内容逐行判断
+        note = _infer_line_roles(drafts)
     if note and roles_info is not None:
         roles_info.append(note)
     return drafts
@@ -336,6 +339,7 @@ def _looks_like_speaker_body(line: str) -> bool:
 #: 提问特征词：出现这些，这句多半是面试官在问
 _INTERVIEWER_MARKERS = (
     "介绍一下",
+    "自我介绍",
     "说说",
     "说一下",
     "讲讲",
@@ -557,6 +561,99 @@ def infer_speaker_roles(drafts: Sequence[SegmentDraft]) -> str:
     return (
         f"判断 {candidate} 是候选人（三路信号里 {best} 路支持：{detail}），"
         "其余为面试官。如果反了，请在文稿里用 `[面试官]` / `[我]` 标出来。"
+    )
+
+
+def _line_role_score(text: str) -> float:
+    """单行"像谁在说"的净分：>0 像面试官（在问），<0 像候选人（在答）。
+
+    组级推断（`infer_speaker_roles`）靠的是"两类说话人之间的差异"；
+    逐行推断没有对照，只能靠这一行自己的内容。所以权重比组级更保守：
+    问句才稳拿 2 分，自述经历（「我做过/我负责」几乎只候选人说）扣 2 分；
+    应答开头（「好的/我是」）和超长陈述只是弱信号，各扣 1 分，
+    不参与"置信判定"（见 `_infer_line_roles` 的 ±2 阈值）。
+    """
+    text = text.strip()
+    if not text:
+        return 0.0
+    score = 0.0
+    if text.endswith(("？", "?")):
+        score += 2.0
+    if any(marker in text for marker in _INTERVIEWER_MARKERS):
+        score += 1.0
+    if any(phrase in text for phrase in _INTERVIEWER_PHRASES):
+        score += 1.0
+    for phrase in _CANDIDATE_MARKERS:
+        if phrase in text:
+            score -= 2.0
+            break
+    if not text.endswith(("？", "?")) and text.startswith(_ANSWER_MARKERS):
+        score -= 1.0
+    if len(text) > 40:
+        score -= 1.0
+    return score
+
+
+def _infer_line_roles(drafts: Sequence[SegmentDraft]) -> str:
+    """给**没有说话人标记**的文稿逐行判断谁是面试官。
+
+    `infer_speaker_roles` 按说话人分组推断，至少要有两个不同说话人（发言人1/2）
+    才有对照可用；但常见的是**完全没有标记**的逐行对话——每行 speaker 都是
+    unknown，分组推断无从下手。这里改按行判：
+
+    1. **内容打分**：问句/「你介绍一下」这类话术像面试官，
+       自述经历/应答开头/超长陈述像候选人；净分 ≥2 定面试官、≤-2 定候选人；
+    2. **交替补全**：打不出分的行按"面试基本是一问一答"从**最近已定角色取反**，
+       首行未定则默认面试官（面试开场通常是面试官说话）；
+    3. **不硬猜**：全部行都打不出置信分（如整份「嗯/对/好的」）时不推断，
+       维持 unknown——猜错比不猜更糟，且用户无从核对。
+
+    就地改写 drafts 里 unknown 的行；已显式标 `[面试官]`/`[我]` 或「发言人1/2」
+    （交给 `infer_speaker_roles` 处理过）的行不动。返回推断说明（"" 表示未推断），
+    调用方要展示给用户：这是猜测，猜反了要用标记改正。
+    """
+    if len(drafts) < 2:
+        return ""
+    pending = [d for d in drafts if d.speaker == "unknown"]
+    if not pending:
+        return ""
+
+    # 「发言人1/2 / Speaker A」这类**编号说话人**是"标了人、没标角色"——
+    # 该由 `infer_speaker_roles` 按组对照来判断（刚才已经试过、失败了）。
+    # 逐行推断只处理**完全没有说话人信息**的逐行对话；编号格式（含
+    # "发言人1 00:10：正文"这种没被正则吃成组的）仍保持未标注，
+    # 宁可让用户标，也不在"谁在问谁在答"本就分不清的文稿上猜。
+    if any(re.match(r"^\s*(发言人|说话人|讲话人|Speaker)\s*\d", d.text) for d in drafts):
+        return ""
+
+    # 第一遍：内容打分，置信的直接定角色
+    anchored = 0
+    for draft in pending:
+        score = _line_role_score(draft.text)
+        if score >= 2:
+            draft.speaker = "interviewer"
+            anchored += 1
+        elif score <= -2:
+            draft.speaker = "candidate"
+            anchored += 1
+    has_explicit = any(d.speaker in ("interviewer", "candidate") for d in drafts)
+    if anchored == 0 and not has_explicit:
+        return ""  # 全是中性短句，也没有已标角色可当锚——不硬猜
+
+    # 第二遍：未定的行按"最近已定角色取反"补全（对话基本是一问一答）
+    last = ""
+    for draft in drafts:
+        if draft.speaker == "unknown":
+            draft.speaker = "candidate" if last == "interviewer" else "interviewer"
+        if draft.speaker in ("interviewer", "candidate"):
+            last = draft.speaker
+
+    n_interviewer = sum(1 for d in drafts if d.speaker == "interviewer")
+    n_candidate = sum(1 for d in drafts if d.speaker == "candidate")
+    return (
+        f"文稿里没有说话人标记，按内容逐行推断：面试官 {n_interviewer} 行、"
+        f"你 {n_candidate} 行（凭问句、自述与提问话术）。"
+        "如果反了，请在行首用 `[面试官]` / `[我]` 标出来。"
     )
 
 

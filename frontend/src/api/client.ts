@@ -7,14 +7,26 @@ import type {
   ApplicationItem,
   ApplicationStats,
   ApplyExecutionOutcome,
+  ApplyAttachment,
+  ApplyNotifyPayload,
+  ApplyNotifySettings,
+  ApplyProfile,
+  ApplyProfilePayload,
+  ApplyProfiles,
+  ApplyProxyProbe,
   ApplyQueueSnapshot,
   ApplyQueueTask,
   ApplyRule,
+  ApplySchedule,
+  ApplySchedulePayload,
   ApplySearchOutcome,
   ApplySettings,
+  ApplySettingsPayload,
   ApplyStatus,
   AtsIssue,
   AuthStatus,
+  AutofillBlacklistResult,
+  ClientInfo,
   ContractReport,
   ExportPreview,
   LoginResult,
@@ -132,6 +144,14 @@ async function readDetail(response: Response, fallback: string): Promise<string>
 export const api = {
   health: () => request<Health>('/health'),
 
+  /**
+   * 客户端环境体检（M19 手机端）。
+   *
+   * 这个端点在服务端是**免鉴权**的（见 `backend/app/auth.py` 的 PUBLIC_PATHS）：
+   * 用户最可能卡在登录页排查"为什么没麦克风"，那时还没有 cookie。
+   */
+  clientInfo: () => request<ClientInfo>('/client-info'),
+
   // 系统配置（M13 补充）：写进 backend/.env，密钥不回显、不入库
   systemSettings: () => request<SystemSettings>('/system/settings'),
   updateSystemSettings: (values: Record<string, string>) =>
@@ -168,20 +188,40 @@ export const api = {
     category?: string
     maxDifficulty?: number
     keyword?: string
+    /** 标记标签多选（高频 / 易错 / 自定义），重复传参、后端取交集 */
+    tags?: string[]
   }) => {
     const search = new URLSearchParams()
     if (params?.role) search.set('role', params.role)
     if (params?.category) search.set('category', params.category)
     if (params?.maxDifficulty) search.set('max_difficulty', String(params.maxDifficulty))
     if (params?.keyword) search.set('keyword', params.keyword)
+    for (const tag of params?.tags ?? []) {
+      search.append('tag', tag)
+    }
     const query = search.toString()
     return request<VisionQuestionBrief[]>(`/vision/questions${query ? `?${query}` : ''}`)
   },
   visionQuestion: (questionId: number) => request<VisionQuestion>(`/vision/questions/${questionId}`),
+  /** 删除一道题（连带它的自测记录）。**不可逆**，界面上必须先二次确认。 */
+  visionDeleteQuestion: (questionId: number) =>
+    request<{ deleted: number }>(`/vision/questions/${questionId}`, { method: 'DELETE' }),
+  /** 批量删除（勾选多道一起删）。不存在的 id 会被跳过，返回真正删掉的条数。 */
+  visionDeleteQuestions: (questionIds: number[]) =>
+    request<{ deleted: number }>('/vision/questions/delete', {
+      method: 'POST',
+      body: JSON.stringify({ question_ids: questionIds }),
+    }),
   rateVisionQuestion: (questionId: number, rating: string, note = '') =>
     request<VisionAttempt>(`/vision/questions/${questionId}/attempt`, {
       method: 'POST',
       body: JSON.stringify({ rating, note }),
+    }),
+  /** 给一道题添加/移除「标记」标签（高频、易错等，可自定义）。返回更新后的清单信息。 */
+  visionUpdateQuestionTags: (questionId: number, add: string[], remove: string[]) =>
+    request<VisionQuestionBrief>(`/vision/questions/${questionId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify({ add, remove }),
     }),
   /** 上传题库文档。FormData 不设 Content-Type，让浏览器自己带 boundary。 */
   visionImport: (file: File, role = 'uploaded') => {
@@ -226,6 +266,14 @@ export const api = {
   listResumes: () => request<ResumeItem[]>('/resumes'),
   createResume: (payload: CreateResumePayload) =>
     request<ResumeItem>('/resumes', { method: 'POST', body: JSON.stringify(payload) }),
+  /** M16 简历文件上传：FormData 走 multipart（request 遇非字符串 body 不设 Content-Type） */
+  uploadResume: (file: File, name?: string, targetJobId?: number | null) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (name) form.append('name', name)
+    if (targetJobId != null) form.append('target_job_id', String(targetJobId))
+    return request<ResumeItem>('/resumes/upload', { method: 'POST', body: form })
+  },
 
   listSessions: () => request<SessionSummary[]>('/sessions'),
   createSession: (payload: CreateSessionPayload) =>
@@ -348,7 +396,7 @@ export const api = {
   // 半自动投递（M10）
   applyStatus: () => request<ApplyStatus>('/apply/status'),
   applySettings: () => request<ApplySettings>('/apply/settings'),
-  updateApplySettings: (payload: Partial<ApplySettings>) =>
+  updateApplySettings: (payload: ApplySettingsPayload) =>
     request<ApplySettings>('/apply/settings', { method: 'PUT', body: JSON.stringify(payload) }),
   applyRules: () => request<ApplyRule[]>('/apply/rules'),
   updateApplyRule: (id: number, payload: Partial<ApplyRule>) =>
@@ -359,10 +407,10 @@ export const api = {
   },
   applyQueueSnapshot: () => request<ApplyQueueSnapshot>('/apply/queue/snapshot'),
   /** 抓岗位 → 过滤 → 打分 → 进待投队列（**不会投递**） */
-  searchApplyCandidates: (keywords: string[], limit: number) =>
+  searchApplyCandidates: (keywords: string[], limit: number, city = '', fetchDetail = false) =>
     request<ApplySearchOutcome>('/apply/search', {
       method: 'POST',
-      body: JSON.stringify({ keywords, limit }),
+      body: JSON.stringify({ keywords, limit, city, fetch_detail: fetchDetail }),
     }),
   approveApplyTasks: (taskIds: number[], overrides: Record<number, string> = {}) =>
     request<{ approved: number }>('/apply/queue/approve', {
@@ -374,12 +422,82 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ task_ids: taskIds }),
     }),
-  /** 执行已确认的投递（受限速与熔断约束） */
-  executeApply: (limit: number, dryRun = false) =>
+  /** 从队列里真正删掉这些任务（不是标记跳过） */
+  deleteApplyTasks: (taskIds: number[]) =>
+    request<{ deleted: number }>('/apply/queue/delete', {
+      method: 'POST',
+      body: JSON.stringify({ task_ids: taskIds }),
+    }),
+  /** 拉黑这些任务所属的公司，并把它们从队列移除（以后同类岗位会被自动拦下） */
+  blacklistApplyTasks: (taskIds: number[]) =>
+    request<{ blacklisted: number; deleted: number }>('/apply/queue/blacklist', {
+      method: 'POST',
+      body: JSON.stringify({ task_ids: taskIds }),
+    }),
+  /** 执行已确认的投递（受限速与熔断约束）。action：greet=只打招呼 / resume=投递简历 */
+  executeApply: (limit: number, dryRun = false, action: 'greet' | 'resume' = 'resume') =>
     request<ApplyExecutionOutcome>('/apply/execute', {
       method: 'POST',
-      body: JSON.stringify({ limit, dry_run: dryRun }),
+      body: JSON.stringify({ limit, dry_run: dryRun, action }),
     }),
+
+  // 通知（企业微信 / 通用 Webhook）
+  applyNotifySettings: () => request<ApplyNotifySettings>('/apply/notify/settings'),
+  updateApplyNotifySettings: (payload: ApplyNotifyPayload) =>
+    request<ApplyNotifySettings>('/apply/notify/settings', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  /** 测试连通性。**永远 200**，失败原因在 detail 里（与 /system/test-llm 一致） */
+  testApplyNotify: (payload: { url?: string; channel?: string } = {}) =>
+    request<{ ok: boolean; detail: string }>('/apply/notify/test', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  // 定时投递
+  applySchedule: () => request<ApplySchedule>('/apply/schedule'),
+  updateApplySchedule: (payload: ApplySchedulePayload) =>
+    request<ApplySchedule>('/apply/schedule', { method: 'PUT', body: JSON.stringify(payload) }),
+
+  /** 自动拉黑：默认只预览，确认后才写库 */
+  autofillBlacklist: (dryRun = true) =>
+    request<AutofillBlacklistResult>(`/apply/blacklist/autofill?dry_run=${dryRun}`, {
+      method: 'POST',
+    }),
+
+  // 投递账号（多账号轮换）
+  applyProfiles: () => request<ApplyProfiles>('/apply/profiles'),
+  createApplyProfile: (payload: ApplyProfilePayload) =>
+    request<ApplyProfile>('/apply/profiles', { method: 'POST', body: JSON.stringify(payload) }),
+  updateApplyProfile: (id: number, payload: ApplyProfilePayload) =>
+    request<ApplyProfile>(`/apply/profiles/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteApplyProfile: (id: number) =>
+    request<void>(`/apply/profiles/${id}`, { method: 'DELETE' }),
+  /** 探测代理是否真的能用。**永远 200**，失败原因与出口 IP 都在返回体里。 */
+  probeApplyProxy: (payload: { proxy?: string; profile_id?: number } = {}) =>
+    request<ApplyProxyProbe>('/apply/profiles/probe', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** 上传简历附件（**只收图片**）。PDF 要在前端转成图片再传。 */
+  uploadApplyAttachment: async (file: File, taskId?: number) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (taskId !== undefined) {
+      form.append('task_id', String(taskId))
+    }
+    // **不要手动设 Content-Type**：浏览器要自己填 multipart 的 boundary，
+    // 手动写了反而会让后端解析不出字段。
+    return request<ApplyAttachment>('/apply/attachments', { method: 'POST', body: form })
+  },
+  /** 摘掉附件（只断引用，不删磁盘文件）。 */
+  detachApplyAttachment: (taskId: number) =>
+    request<{ task_id: number; removed: boolean; previous: string }>(
+      `/apply/queue/${taskId}/attachment`,
+      { method: 'DELETE' },
+    ),
 
   // 简历智能与话术（M8）
   matchResume: (resumeId: number, payload: { jd_text?: string; job_title?: string; application_id?: number }) =>

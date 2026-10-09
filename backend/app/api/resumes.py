@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from pathlib import Path
+from re import sub as _re_sub
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlmodel import Session, select
 
 from ..analysis.ats import check_ats
+from ..analysis.resume_extract import UnsupportedResumeFile, extract_resume_text
 from ..analysis.resume_match import extract_resume_hits, match as match_resume
 from ..analysis.skill_dict import group_label
+from ..config import get_settings
 from ..deps import get_session
 from ..models.apply import Application
 from ..models.core import JobTarget, Resume
@@ -67,6 +73,71 @@ def create_resume(payload: ResumeCreate, db: Session = Depends(get_session)) -> 
     version = len(existing) + 1
 
     resume = Resume(**payload.model_dump(), version=version)
+    db.add(resume)
+    db.commit()
+    db.refresh(resume)
+    return resume
+
+
+@router.post("/upload", response_model=ResumeOut, status_code=201, summary="上传简历文件（PDF/docx/txt/md）")
+def upload_resume(
+    file: UploadFile = File(...),
+    name: str = Form(""),
+    target_job_id: int | None = Form(None),
+    db: Session = Depends(get_session),
+) -> Resume:
+    """保存原文件 + 提取正文入库。原文件名保留在 file_name / file_path 里供追溯。"""
+    settings = get_settings()
+    original_name = file.filename or "简历"
+    suffix = Path(original_name).suffix.lower()
+
+    resume_dir = settings.upload_dir / "resumes"
+    resume_dir.mkdir(parents=True, exist_ok=True)
+
+    # 字节只读一次：解析用一份、落盘用同一份，避免重复读 file.file
+    payload = file.file.read() or b""
+    if not payload:
+        raise HTTPException(status_code=422, detail="文件是空的")
+
+    tmp_path = resume_dir / f"tmp_{uuid4().hex[:12]}{suffix}"
+    tmp_path.write_bytes(payload)
+    try:
+        try:
+            text = extract_resume_text(tmp_path)
+        except UnsupportedResumeFile as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    if not text:
+        raise HTTPException(
+            status_code=422,
+            detail="没有从文件里提取到正文：请检查文件内容是否为空，或是否为扫描件/图片型 PDF",
+        )
+
+    if target_job_id is not None and db.get(JobTarget, target_job_id) is None:
+        raise HTTPException(status_code=404, detail=f"岗位不存在：{target_job_id}")
+
+    # 名字默认取原文件名（去扩展名）；同名族内版本递增
+    base_name = (name.strip() or Path(original_name).stem).strip()
+    family = list(db.exec(select(Resume).where(Resume.name == base_name)).all())
+    resume = Resume(
+        name=base_name,
+        content_text=text,
+        version=len(family) + 1,
+        target_job_id=target_job_id,
+        source="upload",
+        file_name=original_name,
+    )
+    db.add(resume)
+    db.commit()
+    db.refresh(resume)
+
+    # 原文件正式落盘（带 resume.id，同名文件不会互相覆盖）
+    safe = _re_sub(r"[^\w\-.\u4e00-\u9fff]+", "_", original_name)
+    final_path = resume_dir / f"{resume.id}_{safe}"
+    final_path.write_bytes(payload)
+    resume.file_path = str(final_path)
     db.add(resume)
     db.commit()
     db.refresh(resume)

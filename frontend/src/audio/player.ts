@@ -17,6 +17,8 @@ export class AgentSpeaker {
   private context: AudioContext | null = null
   private sources = new Set<AudioBufferSourceNode>()
   private nextStartTime = 0
+  /** 待播的"思考停顿"定时器：打断/停止时必须清掉，否则停顿结束后还会说话 */
+  private thinkTimer: ReturnType<typeof setTimeout> | null = null
 
   setMode(mode: AudioMode): void {
     this.mode = mode
@@ -27,26 +29,46 @@ export class AgentSpeaker {
 
   get speaking(): boolean {
     if (this.mode === 'client') {
-      return typeof window !== 'undefined' && window.speechSynthesis?.speaking === true
+      return (
+        this.thinkTimer !== null ||
+        (typeof window !== 'undefined' && window.speechSynthesis?.speaking === true)
+      )
     }
     return this.sources.size > 0
   }
 
-  /** client 模式：把面试官的话读出来。 */
-  speak(text: string): void {
+  /**
+   * client 模式：把面试官的话读出来。
+   *
+   * `pauseMs` 是开口前的"思考停顿"（见 `audio/thinking.ts`）。**默认 0** 是为了不影响
+   * 现有调用方；语音面试那条链路会传一个按回答长度算出来的值。
+   */
+  speak(text: string, pauseMs = 0): void {
     if (this.mode !== 'client' || !text.trim()) {
       return
     }
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       return
     }
+    this.clearThinkTimer()
     const synth = window.speechSynthesis
     synth.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = 'zh-CN'
-    utterance.rate = 1.02
-    utterance.pitch = 1
-    synth.speak(utterance)
+
+    const say = () => {
+      this.thinkTimer = null
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = 'zh-CN'
+      utterance.rate = 1.02
+      utterance.pitch = 1
+      synth.speak(utterance)
+    }
+
+    if (pauseMs > 0) {
+      // 停顿期间也要能被"打断"取消，所以先 cancel 再排队
+      this.thinkTimer = setTimeout(say, pauseMs)
+    } else {
+      say()
+    }
   }
 
   /** server 模式：播放一段 pcm16。 */
@@ -75,10 +97,18 @@ export class AgentSpeaker {
 
   /** 打断 / 收尾：立刻静音。 */
   stop(): void {
+    this.clearThinkTimer()
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel()
     }
     this.stopServerAudio()
+  }
+
+  private clearThinkTimer(): void {
+    if (this.thinkTimer !== null) {
+      clearTimeout(this.thinkTimer)
+      this.thinkTimer = null
+    }
   }
 
   private stopServerAudio(): void {

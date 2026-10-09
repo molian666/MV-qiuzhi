@@ -30,6 +30,8 @@ certs/
 # ---- Node / 前端 ----
 node_modules/
 frontend/dist/
+# PyInstaller 打包产物（根目录 dist：mianshi.exe 等，不入库）
+dist/
 frontend/.vite/
 *.log
 
@@ -44,3 +46,15 @@ Thumbs.db
 
 # ---- UI 截图核查产物（本地看界面用，不入库） ----
 .ui-shots/
+
+# ---- 临时校验产物（手工实验用，不入库） ----
+.tmp-mobile/
+.tmp-tests/
+
+# ---- ACL 恢复备份（系统工具生成，非项目内容） ----
+.acl-recovery/
+
+# ---- 桌面应用 / 安装包产物（编译产物与 31MB 安装包，不入库） ----
+desktop-app/
+installer/
+installer.zip

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import InterviewSetup, { DEFAULT_SETUP, interviewerOf, setupToPayload, type SetupValue } from '../components/InterviewSetup'
 import ProfilePreview from '../components/ProfilePreview'
+import CoachCard from '../components/CoachCard'
 import type {
+  CoachInfo,
   InterviewOptions,
   JobTarget,
   ProfileListItem,
@@ -55,6 +57,9 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState<'target' | 'resume' | null>(null)
+  // M16：简历文件上传（PDF/docx/txt/md）
+  const resumeFileRef = useRef<HTMLInputElement>(null)
+  const [uploadingResume, setUploadingResume] = useState(false)
   const [targetDraft, setTargetDraft] = useState({ company: '', title: '', jd_text: '' })
   const [resumeDraft, setResumeDraft] = useState({ name: '', content_text: '' })
 
@@ -226,6 +231,21 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
     }
   }
 
+  const uploadResumeFile = async (file: File) => {
+    setUploadingResume(true)
+    setError('')
+    try {
+      const created = await api.uploadResume(file)
+      await refreshOptions()
+      setResumeId(String(created.id))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setUploadingResume(false)
+      if (resumeFileRef.current) resumeFileRef.current.value = ''
+    }
+  }
+
   const submitResume = async () => {
     if (!resumeDraft.name.trim() && !resumeDraft.content_text.trim()) return
     setBusy(true)
@@ -283,7 +303,7 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
                 <button
                   type="button"
                   onClick={() => setSession(null)}
-                  className="rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface hover:bg-ink-9"
+                  className="btn-primary rounded-control px-3 py-1.5 text-xs"
                 >
                   新开一场
                 </button>
@@ -311,29 +331,37 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
 
           {session?.turns.map((turn) => {
             const isCandidate = turn.speaker === 'candidate'
+            // M14 教练模式：点评随面试官回合的 meta 落库，文字链路从这里读
+            const coach = !isCandidate ? (turn.meta?.coach as CoachInfo | null | undefined) : null
             return (
               <div key={turn.idx} className={isCandidate ? 'flex justify-end' : 'flex justify-start'}>
-                <div
-                  className={
-                    isCandidate
-                      ? 'max-w-[80%] rounded-panel rounded-br-control bg-info px-4 py-2 text-sm text-surface'
-                      : 'max-w-[80%] rounded-panel rounded-bl-control bg-sunken px-4 py-2 text-sm text-ink-9'
-                  }
-                >
+                <div className="flex max-w-[80%] flex-col items-start gap-1.5">
                   <div
                     className={
                       isCandidate
-                        ? 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] opacity-80'
-                        : 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] text-ink-6'
+                        ? 'rounded-panel rounded-br-control bg-info px-4 py-2 text-sm text-surface'
+                        : 'rounded-panel rounded-bl-control bg-sunken px-4 py-2 text-sm text-ink-9'
                     }
                   >
-                    <span>{SPEAKER_LABEL[turn.speaker] ?? turn.speaker}</span>
-                    {turn.kind === 'followup' && (
-                      <span className="rounded-control bg-ink-9/10 px-1">追问</span>
-                    )}
-                    {turn.topic && <span className="text-ink-4">{turn.topic}</span>}
+                    <div
+                      className={
+                        isCandidate
+                          ? 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] opacity-80'
+                          : 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] text-ink-6'
+                      }
+                    >
+                      <span>{SPEAKER_LABEL[turn.speaker] ?? turn.speaker}</span>
+                      {turn.kind === 'followup' && (
+                        <span className="rounded-control bg-ink-9/10 px-1">追问</span>
+                      )}
+                      {turn.kind === 'scene' && (
+                        <span className="rounded-control bg-ng-soft px-1 text-ng">突发场景</span>
+                      )}
+                      {turn.topic && <span className="text-ink-4">{turn.topic}</span>}
+                    </div>
+                    <div className="whitespace-pre-wrap leading-relaxed">{turn.text}</div>
                   </div>
-                  <div className="whitespace-pre-wrap leading-relaxed">{turn.text}</div>
+                  {coach && <CoachCard coach={coach} />}
                 </div>
               </div>
             )
@@ -365,7 +393,7 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
               type="button"
               onClick={() => void submitAnswer()}
               disabled={!isLive || busy || !draft.trim()}
-              className="rounded-card bg-ink-9 px-4 py-2 text-sm font-medium text-surface hover:bg-ink-9 disabled:opacity-40"
+              className="btn-primary rounded-control px-4 py-2 text-sm font-medium"
             >
               发送
             </button>
@@ -392,7 +420,27 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
             ))}
           </select>
 
-          <label htmlFor="live-resume" className="mb-1 block text-xs text-ink-6">简历</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label htmlFor="live-resume" className="text-xs text-ink-6">简历</label>
+            <button
+              type="button"
+              onClick={() => resumeFileRef.current?.click()}
+              disabled={busy || uploadingResume}
+              className="rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ink-6 hover:bg-paper disabled:opacity-50"
+            >
+              {uploadingResume ? '解析中…' : '上传文件'}
+            </button>
+          </div>
+          <input
+            ref={resumeFileRef}
+            type="file"
+            accept=".pdf,.docx,.txt,.md"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void uploadResumeFile(file)
+            }}
+          />
           <select
             id="live-resume"
             value={resumeId}
@@ -509,7 +557,7 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
                 type="button"
                 onClick={() => void submitTarget()}
                 disabled={busy}
-                className="w-full rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface hover:bg-ink-9 disabled:opacity-50"
+                className="w-full btn-primary rounded-control px-3 py-1.5 text-xs"
               >
                 保存岗位
               </button>
@@ -535,7 +583,7 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
                 type="button"
                 onClick={() => void submitResume()}
                 disabled={busy}
-                className="w-full rounded-control bg-ink-9 px-3 py-1.5 text-xs text-surface hover:bg-ink-9 disabled:opacity-50"
+                className="w-full btn-primary rounded-control px-3 py-1.5 text-xs"
               >
                 保存简历
               </button>

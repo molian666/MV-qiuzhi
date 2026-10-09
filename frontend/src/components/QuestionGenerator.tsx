@@ -235,7 +235,7 @@ export default function QuestionGenerator({
           type="button"
           onClick={() => void run('new')}
           disabled={busy !== 'idle'}
-          className="rounded-control bg-ink-9 px-3 py-1.5 text-[11px] text-surface transition-opacity hover:opacity-90 disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+          className="btn-primary rounded-control px-3 py-1.5 text-[11px]"
         >
           {busy === 'generating' ? '生成中…' : '生成一批'}
         </button>

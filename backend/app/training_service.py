@@ -34,7 +34,7 @@ from .learning_service import (
     ensure_topic,
     mastery_overview,
 )
-from .models.core import JobTarget, QuestionAttempt, QuestionBank
+from .models.core import DELETED_TAG, JobTarget, QuestionAttempt, QuestionBank
 from .providers.llm.base import (
     RECORD_MARKER_END,
     RECORD_MARKER_START,
@@ -302,6 +302,10 @@ async def build_training_set(
     seen_texts: set[str] = set()
     for row in db.exec(select(QuestionBank)).all():
         if row.id is None:
+            continue
+        # 已删除的题（题库页删掉的）不该再被推上来练：用户删了它，就不该
+        # 在训练里再见到它
+        if DELETED_TAG in (row.tags or []):
             continue
         text = (row.text or "").strip()
         # 题库里可能有重复题干（历史数据、手动导入的都算），同一次训练不该出两道一样的题

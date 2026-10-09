@@ -22,6 +22,7 @@ from ..schemas.vision import (
     VisionAdoptIn,
     VisionAttemptIn,
     VisionAttemptOut,
+    VisionDeleteIn,
     VisionDraftOut,
     VisionGenerateIn,
     VisionGenerateOut,
@@ -29,6 +30,7 @@ from ..schemas.vision import (
     VisionMetaOut,
     VisionQuestionBriefOut,
     VisionQuestionOut,
+    VisionTagsIn,
     VisionUploadOut,
 )
 from ..vision.import_doc import decode_bytes, parse_document
@@ -36,6 +38,8 @@ from ..vision_service import (
     VisionError,
     adopt_draft,
     adopt_questions,
+    delete_question,
+    delete_questions,
     delete_upload,
     discard_draft,
     generate_draft,
@@ -46,6 +50,7 @@ from ..vision_service import (
     list_uploads,
     meta,
     record_attempt,
+    update_question_tags,
 )
 
 router = APIRouter(prefix="/api/vision", tags=["vision"])
@@ -66,15 +71,20 @@ def read_questions(
     category: str | None = Query(default=None),
     max_difficulty: int | None = Query(default=None, ge=1, le=5),
     keyword: str | None = Query(default=None, max_length=100),
+    tag: list[str] | None = Query(default=None, max_length=20),
     limit: int = Query(default=200, ge=1, le=500),
     db: Session = Depends(get_session),
 ) -> list[VisionQuestionBriefOut]:
+    """题目清单。`tag` 可重复传，多选且取交集：
+    `?tag=高频&tag=易错` 只返回两个标签都带上的题。
+    """
     items = list_questions(
         db,
         role=role,
         category=category,
         max_difficulty=max_difficulty,
         keyword=keyword,
+        tag=tag,
         limit=limit,
     )
     return [VisionQuestionBriefOut(**item) for item in items]  # type: ignore[arg-type]
@@ -86,6 +96,36 @@ def read_question(question_id: int, db: Session = Depends(get_session)) -> Visio
     if detail is None:
         raise HTTPException(status_code=404, detail=f"没有这道题：{question_id}")
     return VisionQuestionOut(**detail)  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------- #
+# 删题：单题 + 批量
+#
+# 路由顺序：批量端点 `/questions/delete` 是**两段**路径，与三段的
+# `/questions/{question_id}/attempt` 不会互相遮蔽；但它和 `{question_id}`
+# 同处一级，所以紧挨着声明，别让后来者插在中间。
+# --------------------------------------------------------------------------- #
+
+
+@router.delete("/questions/{question_id}", summary="删除一道题（连带它的自测记录，不可撤销）")
+def remove_question(question_id: int, db: Session = Depends(get_session)) -> dict[str, int]:
+    """★ 不可逆：题连同它的自测记录一起删掉。
+
+    返回 `{"deleted": 1}` 而不是 204，是为了跟 `DELETE /uploads/{batch}` 的
+    `{"removed": n}` 一个风格：调用方拿得到"到底删掉了几条"。
+    草稿不从这里删（草稿还没进题库），它们走 `DELETE /drafts/{batch}`。
+    """
+    if not delete_question(db, question_id):
+        raise HTTPException(status_code=404, detail=f"没有这道题：{question_id}")
+    return {"deleted": 1}
+
+
+@router.post("/questions/delete", summary="批量删除题目（勾选多道一起删）")
+def remove_questions(payload: VisionDeleteIn, db: Session = Depends(get_session)) -> dict[str, int]:
+    """多选删除。返回真正删掉的条数：不存在的 id、草稿、已经删过的都静默跳过——
+    界面上的勾选集合可能比库里的旧，报错只会让人重试一个本来就会失败的请求。
+    """
+    return {"deleted": delete_questions(db, payload.question_ids)}
 
 
 @router.post(
@@ -147,6 +187,30 @@ def create_attempt(
     except VisionError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return VisionAttemptOut(**result)  # type: ignore[arg-type]
+
+
+@router.post(
+    "/questions/{question_id}/tags",
+    response_model=VisionQuestionBriefOut,
+    summary="给一道题添加/移除标记标签（高频、易错等，可自定义）",
+)
+def update_question_tags_route(
+    question_id: int,
+    payload: VisionTagsIn,
+    db: Session = Depends(get_session),
+) -> VisionQuestionBriefOut:
+    """给一道题打上 / 摘下「高频」「易错」这类标记，或自定义标签。
+
+    只影响 `标记:` 那一类：分类与「上传:」来源不动。更新后立即返回这题的
+    清单信息（tags 已去掉前缀），前端拿它刷新列表与详情。
+    移除不存在的标签是静默的——重复点击不会报错。
+    """
+    updated = update_question_tags(
+        db, question_id=question_id, add=payload.add, remove=payload.remove
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"没有这道题：{question_id}")
+    return VisionQuestionBriefOut(**updated)  # type: ignore[arg-type]
 
 
 # --------------------------------------------------------------------------- #

@@ -56,7 +56,7 @@ from .models.apply import (
     JobPosting,
     PlatformAccount,
 )
-from .models.core import JobTarget, QuestionAttempt, QuestionBank, Resume
+from .models.core import DELETED_TAG, JobTarget, QuestionAttempt, QuestionBank, Resume
 from .models.expression import ExpressionSnapshot
 from .models.offer import Offer
 from .models.pacing import InterviewerProfile, Recording, TranscriptSegment
@@ -108,7 +108,14 @@ def build_bundle(db: Session) -> ExportBundle:
         for row in db.exec(select(SkillMastery).order_by(SkillMastery.id)).all()
     ]
 
-    question_rows = list(db.exec(select(QuestionBank).order_by(QuestionBank.id)).all())
+    # 已删除的题（tags 里的墓碑）不进导出：它已经从界面上消失了，
+    # 导出里再冒出来会让人以为删除没生效。自测记录在删除时已一并清掉，
+    # 所以这个 id→题干 的映射不会因此缺项。
+    question_rows = [
+        row
+        for row in db.exec(select(QuestionBank).order_by(QuestionBank.id)).all()
+        if DELETED_TAG not in (row.tags or [])
+    ]
     questions = {row.id: row.text for row in question_rows}
     training_rows = [
         {

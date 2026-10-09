@@ -37,6 +37,9 @@ class ResumeOut(ResumeCreate):
     id: int
     version: int = 1
     created_at: datetime
+    # M16 文件上传：source = manual（粘贴）| upload（文件）；file_name 只在 upload 型有值
+    source: str = "manual"
+    file_name: str = "" 
 
 
 class QuestionCreate(BaseModel):

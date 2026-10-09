@@ -14,11 +14,13 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.analysis.pacing import parse_transcript
 from app.analysis.transcript_doc import (
     MAX_DOC_BYTES,
     TranscriptDocError,
     check_document,
     decode_document,
+    extract_document_text,
 )
 
 GOOD_DIALOG = """[面试官] 先做个自我介绍吧
@@ -104,14 +106,15 @@ def test_check_counts_speakers_and_timestamps() -> None:
     assert any("时间戳" in warning for warning in check.warnings), "没时间戳要说明是估算"
 
 
-def test_check_flags_missing_speaker_labels() -> None:
-    """没标说话人 → 必须给出可操作的提示，而不是等到生成画像才失败。"""
+def test_check_infers_roles_from_unlabeled_document() -> None:
+    """没标说话人 → 按内容自动分辨谁是面试官，并如实告诉用户这是推断。"""
     check = check_document(UNLABELED, encoding="utf-8")
-    assert check.segments > 0
-    assert check.interviewer == 0
-    assert check.usable is False, "没有面试官发言就不该说能用"
-    assert any("[面试官]" in warning for warning in check.warnings)
-    assert "没有一行标出谁在说话" in check.summary()
+    assert check.segments == 4
+    assert check.interviewer == 2
+    assert check.candidate == 2
+    assert check.usable is True, "推断出面试官发言后应当能用来学画像"
+    assert check.inferred_roles is True, "角色是推断的，必须让用户看见"
+    assert any("推断" in warning for warning in check.warnings)
 
 
 def test_check_counts_real_timestamps_only() -> None:
@@ -137,10 +140,11 @@ def test_inspect_endpoint_returns_preview(client: TestClient) -> None:
     assert body["preview"][0]["speaker"] == "interviewer"
 
 
-def test_inspect_endpoint_warns_on_unlabeled_document(client: TestClient) -> None:
+def test_inspect_endpoint_infers_roles_on_unlabeled_document(client: TestClient) -> None:
     body = _inspect(client, "没标.txt", UNLABELED.encode("utf-8")).json()
-    assert body["usable"] is False
-    assert body["warnings"]
+    assert body["usable"] is True
+    assert body["inferred_roles"] is True
+    assert body["warnings"], "要有推断说明"
 
 
 def test_upload_document_accepts_gbk_and_creates_recording(client: TestClient) -> None:
@@ -276,3 +280,108 @@ def test_deleting_one_recording_keeps_other_profiles(client: TestClient) -> None
 
     assert client.get(f"/api/interviewer-profiles/{keep['id']}").status_code == 200
     assert client.get(f"/api/interviewer-profiles/{doomed['id']}").status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# Word(docx) 文稿
+# --------------------------------------------------------------------------- #
+def _make_docx(text: str) -> bytes:
+    """用 python-docx 现场造一份对话转写（段落即对话行）。"""
+    from io import BytesIO
+
+    from docx import Document
+
+    doc = Document()
+    for line in text.splitlines():
+        doc.add_paragraph(line)
+    buf = BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def test_extract_document_text_reads_docx() -> None:
+    """docx 走 python-docx 提取，返回原文与解析方式 docx；纯文本路径不受影响。"""
+    data = _make_docx(GOOD_DIALOG)
+    text, encoding = extract_document_text("一面.docx", data)
+    # GOOD_DIALOG 的多行字符串自带尾随换行；docx 按段落 join 不产生尾换行——语义等价即可
+    assert text.strip() == GOOD_DIALOG.strip()
+    assert encoding == "docx"
+
+    text2, encoding2 = extract_document_text("一面.txt", GOOD_DIALOG.encode("utf-8"))
+    assert text2.strip() == GOOD_DIALOG.strip()
+    assert encoding2.startswith("utf-8")
+
+
+def test_docx_upload_endpoint_creates_recording(client: TestClient) -> None:
+    """上传 .docx 文稿：201、标题取文件名、落库后立刻有分段，且能切出问答。"""
+    response = _upload(client, "某公司一面.docx", _make_docx(GOOD_DIALOG))
+    assert response.status_code == 201, response.text
+    recording = response.json()
+    assert recording["has_text"] is True
+    assert recording["title"] == "某公司一面"
+
+    detail = client.get(f"/api/recordings/{recording['id']}").json()
+    assert detail["segments"], "docx 上传后也要立刻有段落，不能等生成画像"
+    assert {segment["speaker"] for segment in detail["segments"]} == {"interviewer", "candidate"}
+
+
+def test_docx_inspect_endpoint(client: TestClient) -> None:
+    """体检 .docx：能切出问答、报 usable，预览第一段是面试官。"""
+    body = _inspect(client, "一面.docx", _make_docx(GOOD_DIALOG)).json()
+    assert body["usable"] is True
+    assert body["interviewer"] == 3
+    assert body["preview"][0]["speaker"] == "interviewer"
+
+
+# --------------------------------------------------------------------------- #
+# 无说话人标记：按内容自动分辨
+# --------------------------------------------------------------------------- #
+def test_parse_infers_roles_from_unlabeled_dialog() -> None:
+    """纯对话（无任何标记）按问句/自述/交替分辨出 面试官-你-面试官-你。"""
+    info: list[str] = []
+    drafts = parse_transcript(UNLABELED, roles_info=info)
+    assert [d.speaker for d in drafts] == ["interviewer", "candidate", "interviewer", "candidate"]
+    assert info, "推断必须给出说明，让用户知道这是猜测"
+    assert "按内容" in info[0]
+
+
+def test_parse_neutral_lines_are_not_inferred() -> None:
+    """整份都是「嗯/对」这类中性短句 → 没有任何可核对依据，不硬猜。"""
+    neutral = "嗯。\n对。\n嗯。\n对。\n"
+    info: list[str] = []
+    drafts = parse_transcript(neutral, roles_info=info)
+    assert [d.speaker for d in drafts] == ["unknown", "unknown", "unknown", "unknown"]
+    assert info == []
+
+
+def test_parse_mixed_labels_and_unlabeled_lines() -> None:
+    """部分行标了 `[面试官]`、部分没标 → 未标行按已标角色取反补全。"""
+    mixed = "[面试官] 先做个自我介绍吧\n我是 5 年机器视觉工程师\n[面试官] 亚像素定位怎么做的？\n用形状匹配拿到亚像素坐标"
+    info: list[str] = []
+    drafts = parse_transcript(mixed, roles_info=info)
+    assert [d.speaker for d in drafts] == ["interviewer", "candidate", "interviewer", "candidate"]
+    assert info, "混合文稿的未标行是推断出来的，也要说明"
+
+
+def test_inspect_unlabeled_document_now_usable(client: TestClient) -> None:
+    """体检无标记文稿：推断出角色后 usable，并标注是推断。"""
+    body = _inspect(client, "没标.txt", UNLABELED.encode("utf-8")).json()
+    assert body["usable"] is True
+    assert body["inferred_roles"] is True
+    assert body["warnings"], "要有推断说明"
+
+
+def test_upload_unlabeled_document_infers_segments(client: TestClient) -> None:
+    """上传无标记文稿：落库的段落直接带推断出的角色，可生成画像。"""
+    response = _upload(client, "某公司无标记.txt", UNLABELED.encode("utf-8"))
+    assert response.status_code == 201, response.text
+    recording = response.json()
+    detail = client.get(f"/api/recordings/{recording['id']}").json()
+    speakers = {segment["speaker"] for segment in detail["segments"]}
+    assert speakers == {"interviewer", "candidate"}, f"段落应带推断角色：{speakers}"
+    profile = client.post(
+        "/api/interviewer-profiles",
+        json={"recording_ids": [recording["id"]], "name": "无标记面"},
+    )
+    assert profile.status_code == 201, profile.text
+    assert profile.json()["samples"], "无标记文稿也要能切出问答"

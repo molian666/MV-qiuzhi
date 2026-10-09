@@ -90,6 +90,10 @@ class MockPlatformAdapter:
         self._send_delay = send_delay_seconds
         self.attempts = 0
         self.sent: list[str] = []
+        #: 简历投递记录 `(external_id, 附件路径或 None)`。与 `sent` 分开记，
+        #: 这样"打招呼"和"投简历"在测试里能分别断言——它们以前共用一个出口，
+        #: 于是"投递简历其实没发简历"这件事一直测不出来。
+        self.resumes: list[tuple[str, str | None]] = []
 
     async def ensure_login(self) -> bool:
         return self._logged_in
@@ -122,6 +126,20 @@ class MockPlatformAdapter:
         self.sent.append(card.external_id)
         suffix = "（含图片简历）" if resume_image else ""
         return SendResult(ok=True, detail=f"Mock：已向 {card.company} 发送招呼语{suffix}")
+
+    async def send_resume(self, card: JobCard, resume_image: str | None) -> SendResult:
+        """Mock 的简历投递：把"到底发了什么"记下来供测试断言。"""
+        self.attempts += 1
+        if self._send_delay > 0:
+            await asyncio.sleep(self._send_delay)
+
+        if self._fail_from_attempt is not None and self.attempts >= self._fail_from_attempt:
+            signal = self._fail_signal
+            return SendResult(ok=False, detail=f"Mock：第 {self.attempts} 次发送失败（{signal.message}）", signal=signal)
+
+        self.resumes.append((card.external_id, resume_image))
+        what = "图片简历" if resume_image else "在线简历"
+        return SendResult(ok=True, detail=f"Mock：已向 {card.company} 发送{what}")
 
     async def close(self) -> None:
         """Mock 没有浏览器要关。显式实现是为了满足 PlatformAdapter 协议——

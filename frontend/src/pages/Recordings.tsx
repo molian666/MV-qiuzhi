@@ -21,7 +21,7 @@ const SAMPLE_DIALOG = `[面试官] 先做个自我介绍吧
 `
 
 /** 支持的文稿扩展名，与后端 `SUPPORTED_SUFFIXES` 保持一致 */
-const DOC_ACCEPT = '.txt,.md,.markdown,.text,.log,.csv,.tsv'
+const DOC_ACCEPT = '.txt,.md,.markdown,.text,.log,.csv,.tsv,.docx'
 
 const STATUS_LABEL: Record<string, string> = {  uploaded: '待分析',
   transcribing: '转写中',
@@ -125,7 +125,7 @@ export default function Recordings() {
   /** 保存：有文件就走文稿上传（后端识别编码并直接落段落），否则存粘贴的文本 */
   const submitRecording = async () => {
     if (docFile === null && !rawText.trim()) {
-      setError('请上传对话文稿（.txt / .md），或把对话粘贴进文本框')
+      setError('请上传对话文稿（.txt / .md / .docx），或把对话粘贴进文本框')
       return
     }
     setBusy(true)
@@ -237,7 +237,7 @@ export default function Recordings() {
             {/* 用 Markdown 组件而不是 <p>：这里的 `[面试官]` 要用行内代码样式，
                 **对话文稿** 要加粗——直接写在 <p> 里会把星号原样显示出来 */}
             <div className="mb-3 text-[11px] leading-relaxed [&_p]:m-0 [&_p]:text-[11px] [&_p]:leading-relaxed [&_p]:text-ink-6">
-              <Markdown text="上传**对话文稿**（.txt / .md），或把对话粘贴到下面的文本框。分析靠 `[面试官]` / `[我]` 这类标记切分问答，所以文稿里要标出谁在说话。" />
+              <Markdown text="上传**对话文稿**（.txt / .md / .docx），或把对话粘贴到下面的文本框。没有说话人标记也能按内容自动分辨谁在问谁在答；体检会告诉你推断结果，猜反了再用 `[面试官]` / `[我]` 标出来。" />
             </div>
 
             <input
@@ -251,18 +251,27 @@ export default function Recordings() {
             {/* 主路径：上传文稿文件 */}
             <div className="rounded-card border border-dashed border-ink-2 bg-paper p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={DOC_ACCEPT}
-                  aria-label="上传面试对话文稿（.txt 或 .md）"
-                  onChange={(event) => void pickDocument(event.target.files?.[0] ?? null)}
-                  className="text-xs text-ink-6"
-                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={checking}
+                  className="shrink-0 rounded-control border border-ink-2 bg-paper px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {check ? '重新选择文件' : '选择文件'}
+                </button>
+                {check && <span className="text-[11px] text-ink-6">{check.filename}</span>}
                 {checking && <span className="text-[11px] text-ink-6">正在解析…</span>}
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={DOC_ACCEPT}
+                aria-label="上传面试对话文稿（.txt / .md / .docx）"
+                onChange={(event) => void pickDocument(event.target.files?.[0] ?? null)}
+                className="hidden"
+              />
               <p className="mt-1.5 text-[11px] text-ink-4">
-                支持 .txt / .md；GBK 与 UTF-8 都会自动识别。
+                支持 .txt / .md / .docx。纯文本会自动识别 GBK 与 UTF-8；Word 文档直接读正文。
               </p>
 
               {check && (
@@ -350,7 +359,7 @@ export default function Recordings() {
                 type="button"
                 onClick={() => void submitRecording()}
                 disabled={busy || checking || (docFile === null && !rawText.trim())}
-                className="ml-auto rounded-control bg-ink-9 px-3 py-1.5 text-xs font-medium text-surface hover:bg-ink-9 disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+                className="ml-auto btn-primary rounded-control px-3 py-1.5 text-xs font-medium"
               >
                 {busy ? '保存中…' : '保存这段对话'}
               </button>
