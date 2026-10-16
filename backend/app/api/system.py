@@ -196,3 +196,19 @@ def usage(days: int = Query(default=7, ge=1, le=90), db: Session = Depends(get_s
         "items": sorted(items, key=lambda x: x["calls"], reverse=True),
         "note": "token 为单位用量，具体金额请按所选模型单价换算",
     }
+
+
+@router.get("/version", summary="本地版本信息（git commit），供「检查更新」对比远程")
+def app_version() -> dict[str, Any]:
+    """读本地 git 提交与远程地址，返回给前端做版本对比。
+
+    检测更新的数据来源是 git 仓库本身：本地 HEAD 的 commit sha 就是"我现在的版本"，
+    前端再拿它与 GitHub 远程的最新 commit 对比，不同就是有新版本。
+    不是 git 仓库（或 git 不可用）时返回 None 字段——前端据此隐藏更新检查入口。
+    """
+    from ..version import read_local_version
+
+    info = read_local_version()
+    if info is None:
+        return {"available": False}
+    return {"available": True, **info}

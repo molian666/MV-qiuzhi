@@ -139,7 +139,7 @@ export default function SpeechKit() {
   const sensitiveMeta = meta?.sensitive.find((item) => item.key === sensitiveKind)
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-4 lg:h-full">
       {error && (
         <div className="shrink-0 rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">
           {error}
@@ -148,9 +148,9 @@ export default function SpeechKit() {
 
       {/* 左：素材来源（简历、岗位、JD）——所有产出都从它长出来。
           右：自我介绍、敏感题、历史草稿。 */}
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
         {/* 共用上下文 */}
-        <section className="min-h-0 overflow-y-auto rounded-card border border-ink-1 bg-surface p-4 pr-3">
+        <section className="rounded-card border border-ink-1 bg-surface p-4 pr-3 lg:min-h-0 lg:overflow-y-auto">
           <h2 className="text-sm font-semibold">素材来源</h2>
           <p className="mt-0.5 text-xs text-ink-6">
             故事卡与话术都从你的简历长出来；填上 JD 会让自我介绍和反问更贴这个岗位。
@@ -200,7 +200,7 @@ export default function SpeechKit() {
         </section>
 
         {/* 右栏：所有产出。只有这一栏滚动。 */}
-        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+        <div className="space-y-4 pr-1 lg:min-h-0 lg:overflow-y-auto">
           {/* 故事卡 */}
       <section className="rounded-card border border-ink-1 bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">

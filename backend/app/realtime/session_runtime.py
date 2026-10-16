@@ -15,6 +15,7 @@ import asyncio
 import base64
 import binascii
 import logging
+import random
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
@@ -24,7 +25,7 @@ from ..analysis.silence import ACTION_NUDGE, SilencePolicy, decide_silence
 from ..clock import utcnow
 from ..analysis.glossary import correct_transcript
 from ..db import session_scope
-from ..models.core import JobTarget, Resume
+from ..models.core import DELETED_TAG, JobTarget, QuestionBank, Resume
 from ..models.session import InterviewSession, SessionTurn
 from ..providers.llm.base import LLMClient, LLMError
 from ..providers.speech.base import SpeechEvent, SpeechProvider
@@ -189,9 +190,11 @@ class VoiceSessionRuntime:
     # 生命周期
     # ------------------------------------------------------------------ #
     async def start(self) -> None:
-        await self._speech.start(on_event=self._on_speech_event, silence_ms=self.config.silence_ms)
-        self._awaiting = True
-        self._watchdog_task = asyncio.create_task(self._silence_loop(), name=f"silence-{self.session_id}")
+        # 先把 state 发出去，再连语音上游：前端在连接建立后**立刻**拿到配置，
+        # 立即显示"已连接"。若先等 speech.start()（正常约 0.5s，上游抖动时最长
+        # 15s open_timeout），手机端会看到一条"打开了却什么都没发生"的连接——
+        # 这正是"看起来连上了、2 秒后却断了"的最大帮凶（客户端/网络层对静默
+        # 连接最没有耐心）。
         await self._send(
             {
                 "type": "state",
@@ -204,6 +207,9 @@ class VoiceSessionRuntime:
                 "silence_ms": self.config.silence_ms,
             }
         )
+        await self._speech.start(on_event=self._on_speech_event, silence_ms=self.config.silence_ms)
+        self._awaiting = True
+        self._watchdog_task = asyncio.create_task(self._silence_loop(), name=f"silence-{self.session_id}")
 
     async def close(self) -> None:
         if self._closed:
@@ -801,7 +807,65 @@ class VoiceSessionRuntime:
                         error=str(exc),
                         session_id=self.session_id,
                     )
-                await self._send({"type": "error", "message": f"生成问题失败：{exc}"})
+                # 兜底：模型连续失败不能让面试卡死。从题库抽一道与岗位相关的题顶上，
+                # 面试继续走；只有题库也为空时才发 error 事件。
+                fallback = self._pick_fallback_question(target)
+                if fallback is None:
+                    await self._send({"type": "error", "message": f"生成问题失败：{exc}"})
+                    return
+                fallback_text, fallback_topic = fallback
+                fallback_kind = "closing" if closing else "new_topic"
+                with session_scope() as db:
+                    question_turn = SessionTurn(
+                        session_id=self.session_id,
+                        idx=len(snapshots),
+                        speaker="interviewer",
+                        text=fallback_text,
+                        kind=fallback_kind,
+                        topic=fallback_topic,
+                        is_followup=False,
+                        # 记下这是兜底题（前端的 interviewer_text 不读 meta，仅留痕）
+                        meta={"fallback": True, "reason": str(exc)[:200]},
+                        start_ms=end_ms,
+                        end_ms=end_ms,
+                    )
+                    db.add(question_turn)
+                    db.commit()
+                    db.refresh(question_turn)
+                    question_turn_id = question_turn.id
+                    if closing:
+                        self._phase = PHASE_CLOSING
+                    after = ordered_turns(db, self.session_id)
+                    question_count, answer_total = count_turns(after)
+                await self._send(
+                    {
+                        "type": "interviewer_text",
+                        "turn_id": question_turn_id,
+                        "idx": len(snapshots),
+                        "text": fallback_text,
+                        "kind": fallback_kind,
+                        "topic": fallback_topic,
+                        "is_followup": False,
+                        "coach": None,
+                        "interviewer": turn_interviewer,
+                    }
+                )
+                await self._send(
+                    {
+                        "type": "turn_meta",
+                        "question_count": question_count,
+                        "answer_count": answer_total,
+                        "max_questions": max_questions,
+                        "audio_ms": self._store.duration_ms,
+                    }
+                )
+                if closing:
+                    await self._send(
+                        {
+                            "type": "awaiting_question",
+                            "message": "轮到你提问了：有什么想了解的可以直接说（没有的话点「结束面试」）。",
+                        }
+                    )
                 return
 
             kind = "closing" if closing else (plan.kind or "new_topic")
@@ -906,6 +970,35 @@ class VoiceSessionRuntime:
     # ------------------------------------------------------------------ #
     # 工具
     # ------------------------------------------------------------------ #
+    def _pick_fallback_question(self, target: JobTarget | None) -> tuple[str, str] | None:
+        """模型连续失败时的题库兜底：抽一道与岗位相关的开放题顶上，避免面试卡死。
+
+        优先级：岗位 title/tags 命中 > 任意开放题。返回 (题目文本, 主题)；
+        题库为空（或全是选择题/已删除）时返回 None，调用方再发 error 事件。
+        """
+        with session_scope() as db:
+            rows = db.query(QuestionBank).filter(
+                QuestionBank.question_type == "open",
+                QuestionBank.text != "",
+            ).all()
+            candidates = [q for q in rows if DELETED_TAG not in (q.tags or [])]
+            if not candidates:
+                return None
+
+            if target is not None:
+                keywords = [k for k in [target.title, *(target.tags or [])] if k]
+
+                def hit(q: QuestionBank) -> int:
+                    blob = f"{q.text} {' '.join(q.tags or [])}"
+                    return sum(1 for k in keywords if k and k.lower() in blob.lower())
+
+                score, best = max(((hit(q), q) for q in candidates), key=lambda p: p[0])
+                if score > 0 and best.text.strip():
+                    return best.text.strip(), "通用技术题"
+
+            pick = random.choice(candidates)
+            return pick.text.strip(), "通用技术题"
+
     def _now_ms(self) -> int:
         """会话内时间轴：优先用音频时间（单调、可与波形对齐），无音频时退回墙钟。"""
         audio_ms = self._store.duration_ms

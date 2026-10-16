@@ -83,7 +83,12 @@ class VisionGenerateIn(BaseModel):
     role: Literal["development", "application", "implementation"] = "development"
     count: int = Field(default=4, ge=1, le=12)
     category: str | None = None
+    """主题（题库分类）"""
     difficulty: int | None = Field(default=None, ge=1, le=5)
+    question_type: Literal["open", "choice"] = "open"
+    """题型：open = 问答题（默认）| choice = 选择题（4 选项 + 正确下标 + 解析）"""
+    domain: str | None = Field(default=None, max_length=100)
+    """更细的领域约束（如「打光」「标定」「缺陷检测」），拼进出题 prompt"""
     #: new = 新建批次；append = 在既有批次上**继续生成**；replace = 丢掉这批**重新生成**
     mode: Literal["new", "append", "replace"] = "new"
     batch: str | None = None
@@ -170,6 +175,8 @@ class VisionQuestionBriefOut(BaseModel):
     role_label: str
     category: str
     difficulty: int
+    question_type: str = "open"
+    """题型：open = 问答题 | choice = 选择题。列表页只给题型，不给选项/答案。"""
     tags: list[str] = Field(default_factory=list)
     """题目标签：来源批次、「上传:文件名」、分类，以及文档自带的标记
     （「高频」「易错」）。界面上据此显示这题是什么性质，也方便只练高频题。"""
@@ -184,6 +191,10 @@ class VisionQuestionOut(VisionQuestionBriefOut):
     answer: str
     followups: list[str]
     pitfalls: list[str]
+    #: 选择题专属：选项与正确下标只在详情里给（列表不该提前泄露答案）
+    choice_options: list[str] = Field(default_factory=list)
+    correct_index: int | None = None
+    explanation: str = ""
 
 
 class VisionAttemptIn(BaseModel):

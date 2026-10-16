@@ -29,7 +29,7 @@ TASK = "vision_question_generate"
 #: 一次最多生成多少道。再多模型质量会掉，而且一条 prompt 也塞不下。
 MAX_GENERATE_COUNT = 12
 
-_OUTPUT_SHAPE = """只输出一个 JSON 对象，不要解释文字、不要 markdown 代码块：
+_OUTPUT_SHAPE_OPEN = """只输出一个 JSON 对象，不要解释文字、不要 markdown 代码块：
 
 {
   "questions": [
@@ -40,13 +40,39 @@ _OUTPUT_SHAPE = """只输出一个 JSON 对象，不要解释文字、不要 mar
       "points": ["答题要点，3-6 条，每条一句话"],
       "answer": "参考答案。分小节写，需要时带公式或小例子",
       "followups": ["面试官在这个问题之后大概率会追问什么，2-4 条"],
-      "pitfalls": ["常见错误回答，2-4 条"]
+      "pitfalls": ["常见错误回答，2-4 条"],
+      "explanation": "答题思路解析：这道题从哪几个角度想、最容易漏在哪（2-4 句，可选）"
+    }
+  ]
+}"""
+
+_OUTPUT_SHAPE_CHOICE = """只输出一个 JSON 对象，不要解释文字、不要 markdown 代码块：
+
+{
+  "questions": [
+    {
+      "question": "题干，写成面试官会问出来的样子",
+      "type": "choice",
+      "category": "二级分类，如 相机与传感器 / 镜头与光学 / 光源与打光 / 标定与坐标 / 传统视觉算子 / 深度学习与缺陷检测 / 软件与工具 / 现场实施",
+      "difficulty": 3,
+      "options": ["选项A", "选项B", "选项C", "选项D"],
+      "correct": 0,
+      "explanation": "解析：为什么这个选项对、其他选项错在哪（写实质内容，不要只写'选A'）",
+      "points": ["答题要点，3-5 条，每条一句话"],
+      "answer": "完整解答：不只是标一个选项，把这道题的完整答法写出来"
     }
   ]
 }"""
 
 
-def build_system_prompt(role: str, *, difficulty: int | None, category: str | None) -> str:
+def build_system_prompt(
+    role: str,
+    *,
+    difficulty: int | None,
+    category: str | None,
+    question_type: str = "open",
+    domain: str | None = None,
+) -> str:
     label = ROLE_LABELS.get(role, role)
     description = ROLE_DESCRIPTIONS.get(role, "")
 
@@ -71,8 +97,21 @@ def build_system_prompt(role: str, *, difficulty: int | None, category: str | No
         "- 全部用中文。",
     ]
 
+    if question_type == "choice":
+        lines.extend(
+            [
+                "",
+                "**本批题型：全部出选择题（单选）**",
+                "- 每道 4 个选项（`options`），**只有 1 个正确**；",
+                "- `correct` 是正确选项的下标，从 0 计（A=0、B=1、C=2、D=3）；",
+                "- `explanation` 写解析：为什么这个选项对、其他选项错在哪，要有实质内容；",
+                "- `answer` 写完整解答，不只是标一个选项——候选人答完会拿它对照自己漏了什么。",
+            ]
+        )
     if category:
         lines.append(f"- 本批题目的分类统一为：{category}。")
+    if domain:
+        lines.append(f"- 本批题目聚焦领域：{domain}。")
     if difficulty is not None:
         lines.append(
             f"- 本批题目的难度统一为 {difficulty}（1 入门 ~ 5 资深，按「答得上需要多少现场经验」估）。"
@@ -87,6 +126,8 @@ def build_messages(
     count: int,
     difficulty: int | None = None,
     category: str | None = None,
+    question_type: str = "open",
+    domain: str | None = None,
     existing: Sequence[BankQuestion] = (),
     extra_note: str = "",
 ) -> list[LLMMessage]:
@@ -102,12 +143,19 @@ def build_messages(
             "\n**下面这些题已经出过了，本批不要再出同义或近似的问题**：\n" + listed
         )
 
-    parts.append(f"\n{_OUTPUT_SHAPE}")
+    shape = _OUTPUT_SHAPE_CHOICE if question_type == "choice" else _OUTPUT_SHAPE_OPEN
+    parts.append(f"\n{shape}")
 
     return [
         LLMMessage(
             role="system",
-            content=build_system_prompt(role, difficulty=difficulty, category=category),
+            content=build_system_prompt(
+                role,
+                difficulty=difficulty,
+                category=category,
+                question_type=question_type,
+                domain=domain,
+            ),
         ),
         LLMMessage(role="user", content="\n".join(parts)),
     ]
@@ -120,6 +168,8 @@ async def generate_questions(
     count: int,
     difficulty: int | None = None,
     category: str | None = None,
+    question_type: str = "open",
+    domain: str | None = None,
     existing: Sequence[BankQuestion] = (),
     extra_note: str = "",
 ) -> list[ImportedQuestion]:
@@ -129,6 +179,8 @@ async def generate_questions(
         count=count,
         difficulty=difficulty,
         category=category,
+        question_type=question_type,
+        domain=domain,
         existing=existing,
         extra_note=extra_note,
     )

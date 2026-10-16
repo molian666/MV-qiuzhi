@@ -57,7 +57,13 @@ class Resume(SQLModel, table=True):
 
 
 class QuestionBank(SQLModel, table=True):
-    """题库。source: manual | uploaded | generated | extracted。"""
+    """题库。source: manual | uploaded | generated | extracted。
+
+    `question_type`：open（问答题，默认）| choice（选择题）。
+    选择题额外有 `choice_options` / `correct_index` / `explanation`：
+    它们只用于「生成 → 作答看解析 → 采纳入库」的自测闭环，抽题（今日训练 /
+    模拟面试）不会抽到选择题——面试是问答场景，选项题不适用。
+    """
 
     __tablename__ = "question_bank"
 
@@ -68,6 +74,14 @@ class QuestionBank(SQLModel, table=True):
     difficulty: int = 3
     reference_points: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     sample_answer: str = Field(default="", sa_column=Column(Text))
+    question_type: str = "open"
+    """题型：open = 问答题（默认）；choice = 选择题（选项见下三列）。"""
+    choice_options: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    """选择题的选项（通常 4 个，A/B/C/D）。问答题为空列表。"""
+    correct_index: int | None = None
+    """选择题正确答案的下标（0 起）。问答题为 None。"""
+    explanation: str = Field(default="", sa_column=Column(Text))
+    """解析：选择题是"为什么对/错"；问答题是答题思路补充。"""
     source: str = "manual"
     created_at: datetime = Field(default_factory=utcnow, index=True)
 

@@ -56,6 +56,9 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // 上一条回答已落库、但面试官回复生成失败：界面给出「重试生成回复」入口，
+  // 而不是把人晾在只有输入框的状态（只重试生成，不再重复提交回答）
+  const [answerFailed, setAnswerFailed] = useState(false)
   const [creating, setCreating] = useState<'target' | 'resume' | null>(null)
   // M16：简历文件上传（PDF/docx/txt/md）
   const resumeFileRef = useRef<HTMLInputElement>(null)
@@ -163,6 +166,7 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
     setDraft('')
     setBusy(true)
     setError('')
+    setAnswerFailed(false)
     // 乐观上屏：本地后端很快，但"我发的消息立刻出现"对手感影响很大
     setSession({
       ...previous,
@@ -190,12 +194,29 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
       setSession(result.session)
     } catch (err) {
       setError(errorMessage(err))
+      setAnswerFailed(true)
       // 失败时以服务端状态为准（例如已达到题量上限而返回 409）
       try {
         setSession(await api.getSession(session.id))
       } catch {
         setSession(previous)
       }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** 面试官回复生成失败后的重试：只重新生成面试官那条回复，不重复提交我的回答。 */
+  const retryInterviewer = async () => {
+    if (!session || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const result = await api.retryQuestion(session.id)
+      setSession(result.session)
+      setAnswerFailed(false)
+    } catch (err) {
+      setError(errorMessage(err))
     } finally {
       setBusy(false)
     }
@@ -271,137 +292,12 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
 
   return (
     <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-      <section className="flex h-full min-h-0 flex-col rounded-panel border border-ink-1 bg-surface">
-        <header className="flex flex-wrap items-center justify-end gap-3 border-b border-ink-1 px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            {session && (
-              <span className="rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-6">
-                {STATUS_LABEL[session.status] ?? session.status}
-              </span>
-            )}
-            {isLive && (
-              <button
-                type="button"
-                onClick={() => void finishSession()}
-                disabled={busy}
-                className="rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:opacity-50"
-              >
-                结束本场
-              </button>
-            )}
-            {session && !isLive && (
-              <>
-                {onOpenReport && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenReport(session.id)}
-                    className="rounded-control bg-info px-3 py-1.5 text-xs text-surface hover:bg-info"
-                  >
-                    查看报告
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setSession(null)}
-                  className="btn-primary rounded-control px-3 py-1.5 text-xs"
-                >
-                  新开一场
-                </button>
-              </>
-            )}
-          </div>
-        </header>
-
-        {currentInterviewer && (
-          <div className="border-b border-info bg-info-soft px-4 py-1.5 text-xs text-info">
-            当前面试官：第 {currentInterviewer.index + 1}/{currentInterviewer.total} 位 · {currentInterviewer.label} ·{' '}
-            {currentInterviewer.voice_label}
-            {currentInterviewer.is_handover && <span className="ml-2 font-medium">（刚换人）</span>}
-          </div>
-        )}
-
-        <div ref={streamRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-          {!session && (
-            <div className="rounded-card border border-dashed border-ink-2 p-6 text-sm leading-relaxed text-ink-6">
-              还没有进行中的面试。右侧选好目标岗位与简历后点「开始面试」。
-              <br />
-              没有岗位或简历也可以先在下方的「快速新建」里录入一份 JD 与简历要点。
-            </div>
-          )}
-
-          {session?.turns.map((turn) => {
-            const isCandidate = turn.speaker === 'candidate'
-            // M14 教练模式：点评随面试官回合的 meta 落库，文字链路从这里读
-            const coach = !isCandidate ? (turn.meta?.coach as CoachInfo | null | undefined) : null
-            return (
-              <div key={turn.idx} className={isCandidate ? 'flex justify-end' : 'flex justify-start'}>
-                <div className="flex max-w-[80%] flex-col items-start gap-1.5">
-                  <div
-                    className={
-                      isCandidate
-                        ? 'rounded-panel rounded-br-control bg-info px-4 py-2 text-sm text-surface'
-                        : 'rounded-panel rounded-bl-control bg-sunken px-4 py-2 text-sm text-ink-9'
-                    }
-                  >
-                    <div
-                      className={
-                        isCandidate
-                          ? 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] opacity-80'
-                          : 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] text-ink-6'
-                      }
-                    >
-                      <span>{SPEAKER_LABEL[turn.speaker] ?? turn.speaker}</span>
-                      {turn.kind === 'followup' && (
-                        <span className="rounded-control bg-ink-9/10 px-1">追问</span>
-                      )}
-                      {turn.kind === 'scene' && (
-                        <span className="rounded-control bg-ng-soft px-1 text-ng">突发场景</span>
-                      )}
-                      {turn.topic && <span className="text-ink-4">{turn.topic}</span>}
-                    </div>
-                    <div className="whitespace-pre-wrap leading-relaxed">{turn.text}</div>
-                  </div>
-                  {coach && <CoachCard coach={coach} />}
-                </div>
-              </div>
-            )
-          })}
-
-          {busy && <p className="text-xs text-ink-4">面试官正在思考…</p>}
-        </div>
-
-        <footer className="border-t border-ink-1 px-4 py-3">
-          {error && (
-            <p className="mb-2 rounded-control bg-ng-soft px-3 py-2 text-xs text-ng">{error}</p>
-          )}
-          <div className="flex items-end gap-2">
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  void submitAnswer()
-                }
-              }}
-              disabled={!isLive || busy}
-              rows={3}
-              placeholder={isLive ? '输入你的回答；Enter 发送，Shift+Enter 换行' : '先开始一场面试'}
-              className={`${inputClass} resize-none`}
-            />
-            <button
-              type="button"
-              onClick={() => void submitAnswer()}
-              disabled={!isLive || busy || !draft.trim()}
-              className="btn-primary rounded-control px-4 py-2 text-sm font-medium"
-            >
-              发送
-            </button>
-          </div>
-        </footer>
-      </section>
-
-      <aside className="min-h-0 space-y-4 overflow-y-auto pr-1">
+      {/* 手机端：未开始时配置优先（会话区隐藏）；桌面用 order 保持"左会话右配置" */}
+      <aside
+        className={`min-h-0 space-y-4 overflow-y-auto pr-1 lg:order-2 ${
+          session ? 'hidden lg:block' : ''
+        }`}
+      >
         <div className="rounded-panel border border-ink-1 bg-surface p-4">
           <h3 className="mb-3 text-sm font-semibold text-ink-9">本场配置</h3>
 
@@ -503,7 +399,7 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
             disabled={busy}
             className="w-full rounded-card bg-info px-4 py-2 text-sm font-medium text-surface hover:bg-info disabled:opacity-50"
           >
-            开始面试
+            {busy ? '正在生成开场问题…' : '开始面试'}
           </button>
           {session && (
             <p className="mt-2 text-xs text-ink-6">
@@ -591,6 +487,155 @@ export default function InterviewLive({ onOpenReport, onSessionChange }: Props) 
           )}
         </div>
       </aside>
+
+      {/* 会话区：手机端开始后才显示；桌面始终在左列 */}
+      <section
+        className={`${session ? 'flex' : 'hidden lg:flex'} h-full min-h-0 flex-col rounded-panel border border-ink-1 bg-surface lg:order-1`}
+      >
+        <header className="flex flex-wrap items-center justify-end gap-3 border-b border-ink-1 px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            {session && (
+              <span className="rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-6">
+                {STATUS_LABEL[session.status] ?? session.status}
+              </span>
+            )}
+            {isLive && (
+              <button
+                type="button"
+                onClick={() => void finishSession()}
+                disabled={busy}
+                className="rounded-control border border-ink-2 px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:opacity-50"
+              >
+                结束本场
+              </button>
+            )}
+            {session && !isLive && (
+              <>
+                {onOpenReport && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenReport(session.id)}
+                    className="rounded-control bg-info px-3 py-1.5 text-xs text-surface hover:bg-info"
+                  >
+                    查看报告
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSession(null)}
+                  className="btn-primary rounded-control px-3 py-1.5 text-xs"
+                >
+                  新开一场
+                </button>
+              </>
+            )}
+          </div>
+        </header>
+
+        {currentInterviewer && (
+          <div className="border-b border-info bg-info-soft px-4 py-1.5 text-xs text-info">
+            当前面试官：第 {currentInterviewer.index + 1}/{currentInterviewer.total} 位 · {currentInterviewer.label} ·{' '}
+            {currentInterviewer.voice_label}
+            {currentInterviewer.is_handover && <span className="ml-2 font-medium">（刚换人）</span>}
+          </div>
+        )}
+
+        <div ref={streamRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+          {!session && (
+            <div className="rounded-card border border-dashed border-ink-2 p-6 text-sm leading-relaxed text-ink-6">
+              还没有进行中的面试。右侧选好目标岗位与简历后点「开始面试」。
+              <br />
+              没有岗位或简历也可以先在下方的「快速新建」里录入一份 JD 与简历要点。
+            </div>
+          )}
+
+          {session?.turns.map((turn) => {
+            const isCandidate = turn.speaker === 'candidate'
+            // 防御：空内容的面试官回合不渲染（后端已保证不再落空回合，这里兜底，
+            // 避免历史库里已有的空回合把界面显示成"只有标签没有内容"）
+            if (!isCandidate && !turn.text.trim()) return null
+            // M14 教练模式：点评随面试官回合的 meta 落库，文字链路从这里读
+            const coach = !isCandidate ? (turn.meta?.coach as CoachInfo | null | undefined) : null
+            return (
+              <div key={turn.idx} className={isCandidate ? 'flex justify-end' : 'flex justify-start'}>
+                <div className="flex max-w-[80%] flex-col items-start gap-1.5">
+                  <div
+                    className={
+                      isCandidate
+                        ? 'rounded-panel rounded-br-control bg-info px-4 py-2 text-sm text-surface'
+                        : 'rounded-panel rounded-bl-control bg-sunken px-4 py-2 text-sm text-ink-9'
+                    }
+                  >
+                    <div
+                      className={
+                        isCandidate
+                          ? 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] opacity-80'
+                          : 'mb-1 flex flex-wrap items-baseline gap-x-1.5 text-[11px] text-ink-6'
+                      }
+                    >
+                      <span>{SPEAKER_LABEL[turn.speaker] ?? turn.speaker}</span>
+                      {turn.kind === 'followup' && (
+                        <span className="rounded-control bg-ink-9/10 px-1">追问</span>
+                      )}
+                      {turn.kind === 'scene' && (
+                        <span className="rounded-control bg-ng-soft px-1 text-ng">突发场景</span>
+                      )}
+                      {turn.topic && <span className="text-ink-4">{turn.topic}</span>}
+                    </div>
+                    <div className="whitespace-pre-wrap leading-relaxed">{turn.text}</div>
+                  </div>
+                  {coach && <CoachCard coach={coach} />}
+                </div>
+              </div>
+            )
+          })}
+
+          {busy && <p className="text-xs text-ink-4">面试官正在思考…</p>}
+        </div>
+
+        {/* M22：pb-safe——iPhone Home 条不占 padding，底部输入条会被手势区压住 */}
+        <footer className="pb-safe border-t border-ink-1 px-4 py-3">
+          {error && (
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-control bg-ng-soft px-3 py-2 text-xs text-ng">
+              <span className="min-w-0 flex-1">{error}</span>
+              {answerFailed && isLive && (
+                <button
+                  type="button"
+                  onClick={() => void retryInterviewer()}
+                  disabled={busy}
+                  className="rounded-control bg-info px-2.5 py-1 font-medium text-surface hover:bg-info disabled:opacity-50"
+                >
+                  {busy ? '正在重试…' : '重试生成面试官回复'}
+                </button>
+              )}
+            </div>
+          )}
+          <div className="flex items-end gap-2">
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
+                  void submitAnswer()
+                }
+              }}
+              disabled={!isLive || busy}
+              rows={3}
+              placeholder={isLive ? '输入你的回答；Enter 发送，Shift+Enter 换行' : '先开始一场面试'}
+              className={`${inputClass} resize-none`}
+            />
+            <button
+              type="button"
+              onClick={() => void submitAnswer()}
+              disabled={!isLive || busy || !draft.trim()}
+              className="btn-primary rounded-control px-4 py-2 text-sm font-medium"
+            >
+              发送
+            </button>
+          </div>
+        </footer>
+      </section>
     </div>
   )
 }

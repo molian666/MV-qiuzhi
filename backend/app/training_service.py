@@ -307,6 +307,10 @@ async def build_training_set(
         # 在训练里再见到它
         if DELETED_TAG in (row.tags or []):
             continue
+        # 选择题不参与今日训练：作答是选项点选 + 看解析的自测场景，
+        # 训练页的作答入口是文本框 + LLM 批改，两者对不上
+        if (row.question_type or "open") == "choice":
+            continue
         text = (row.text or "").strip()
         # 题库里可能有重复题干（历史数据、手动导入的都算），同一次训练不该出两道一样的题
         if not text or text in seen_texts:

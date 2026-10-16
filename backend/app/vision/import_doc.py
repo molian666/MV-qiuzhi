@@ -56,6 +56,14 @@ class ImportedQuestion:
     """面试官会追问什么。导入的文档里通常没有，模型生成时会有。"""
     pitfalls: list[str] = field(default_factory=list)
     """常见错误回答。同上。"""
+    question_type: str = "open"
+    """题型：open = 问答题 | choice = 选择题（模型生成时可选）。"""
+    options: list[str] = field(default_factory=list)
+    """选择题选项（A/B/C/D）。问答题为空。"""
+    correct_index: int | None = None
+    """选择题正确选项下标（0 起）。问答题为 None。"""
+    explanation: str = ""
+    """解析：选择题为什么对/错；问答题的答题思路补充。"""
 
 
 @dataclass(slots=True)
@@ -481,6 +489,31 @@ def build_imported_question(payload: dict) -> ImportedQuestion | None:
         except (TypeError, ValueError):
             difficulty = 3
 
+    # 题型：模型生成时可能给 type/question_type（choice = 选择题）。
+    # 选择题必须有选项与正确下标，缺了就算作废（回退为问答题会丢掉答案结构，
+    # 不如不产出——生成面板会提示"这次没生成出来"）。
+    raw_type = _pick_alias(payload, ("question_type", "type", "题型"))
+    is_choice = raw_type.lower() in {"choice", "select", "选择", "选择题"}
+
+    options = _string_list(
+        payload.get("options") or payload.get("choices") or payload.get("选项")
+    )
+    correct = payload.get("correct") if payload.get("correct") is not None else payload.get("correct_index")
+    if is_choice and len(options) < 2:
+        is_choice = False
+
+    correct_index: int | None = None
+    if is_choice:
+        try:
+            correct_index = max(0, min(len(options) - 1, int(str(correct))))
+        except (TypeError, ValueError):
+            correct_index = None
+        if correct_index is None:
+            # 正确下标给不出来就不是一道能判对错的选择题
+            is_choice = False
+
+    explanation = _pick_alias(payload, ("explanation", "解析", "解析说明"))
+
     return ImportedQuestion(
         text=text,
         answer=_pick_alias(payload, _ANSWER_KEYS),
@@ -489,6 +522,10 @@ def build_imported_question(payload: dict) -> ImportedQuestion | None:
         difficulty=difficulty,
         followups=_string_list(payload.get("followups") or payload.get("追问")),
         pitfalls=_string_list(payload.get("pitfalls") or payload.get("常见错误")),
+        question_type="choice" if is_choice else "open",
+        options=options if is_choice else [],
+        correct_index=correct_index if is_choice else None,
+        explanation=explanation,
     )
 
 

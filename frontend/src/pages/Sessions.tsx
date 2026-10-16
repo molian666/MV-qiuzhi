@@ -94,7 +94,7 @@ export default function Sessions({ onOpenReport }: Props) {
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid min-h-0 gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_380px]">
       <section className="flex min-h-0 flex-col rounded-panel border border-ink-1 bg-surface">
         <header className="flex items-center justify-between border-b border-ink-1 px-4 py-3">
           <h2 className="text-base font-semibold text-ink-9">历史面试</h2>
@@ -114,7 +114,7 @@ export default function Sessions({ onOpenReport }: Props) {
         ) : items.length === 0 ? (
           <p className="px-4 py-6 text-sm text-ink-6">还没有面试记录。去「面试间」跑一场文字面试。</p>
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto">
             {/* 中文没有词边界：列一窄就逐字断行（"已结束"竖成三行）。
                 所以固定列一律 nowrap，只让"岗位"这一列自己换行。 */}
             <table className="w-full whitespace-nowrap text-sm">
@@ -124,8 +124,9 @@ export default function Sessions({ onOpenReport }: Props) {
                   <th className="px-4 py-2 font-medium">岗位</th>
                   <th className="px-4 py-2 font-medium">状态</th>
                   <th className="px-4 py-2 font-medium">题量</th>
-                  <th className="px-4 py-2 font-medium">时长</th>
-                  <th className="px-4 py-2 font-medium">开始时间</th>
+                  {/* M22：手机窄屏砍掉低价值列——时长与时间在右侧详情里都有 */}
+                  <th className="hidden px-4 py-2 font-medium sm:table-cell">时长</th>
+                  <th className="hidden px-4 py-2 font-medium sm:table-cell">开始时间</th>
                   <th className="px-4 py-2 font-medium"></th>
                 </tr>
               </thead>
@@ -144,8 +145,8 @@ export default function Sessions({ onOpenReport }: Props) {
                     <td className="px-4 py-2 text-ink-6">
                       {item.answer_count}/{item.plan.max_questions ?? '—'}
                     </td>
-                    <td className="px-4 py-2 text-ink-6">{formatDuration(item.duration_ms)}</td>
-                    <td className="px-4 py-2 text-ink-6">{formatTime(item.created_at)}</td>
+                    <td className="hidden px-4 py-2 text-ink-6 sm:table-cell">{formatDuration(item.duration_ms)}</td>
+                    <td className="hidden px-4 py-2 text-ink-6 sm:table-cell">{formatTime(item.created_at)}</td>
                     <td className="px-4 py-2 text-right">
                       <button
                         type="button"
@@ -168,7 +169,7 @@ export default function Sessions({ onOpenReport }: Props) {
         )}
       </section>
 
-      <aside className="min-h-0 overflow-y-auto rounded-panel border border-ink-1 bg-surface p-4">
+      <aside className="rounded-panel border border-ink-1 bg-surface p-4 lg:min-h-0 lg:overflow-y-auto">
         {!detail ? (
           <p className="text-sm text-ink-6">点击左侧任意一行查看该场面试的全部回合。</p>
         ) : (
@@ -201,7 +202,7 @@ export default function Sessions({ onOpenReport }: Props) {
               <p className="mt-3 text-xs text-ink-4">本场没有录音（纯文字作答不产生音频）。</p>
             )}
 
-            <div className="mt-3 max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+            <div className="mt-3 space-y-3 pr-1 lg:max-h-[55vh] lg:overflow-y-auto">
               {detail.turns.map((turn) => (
                 <div key={turn.idx} className="rounded-card border border-ink-1 bg-paper/60 px-3 py-2">
                   <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-ink-6">

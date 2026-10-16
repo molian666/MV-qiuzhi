@@ -29,6 +29,18 @@ _ENV_OVERRIDES = {
     "SPEECH_PROVIDER": "mock",
     "ASR_PROVIDER": "mock",
     "TRUST_ENV_PROXY": "false",
+    # 部署过的 .env 里会带 AUTH_PASSWORD（上公网必须设），不压掉的话整套测试
+    # 都会吃到"需要登录"而 401。这里统一压成未启用；要测鉴权的用例（test_auth.py）
+    # 自己用 secured fixture 显式 setenv 再 cache_clear，互不干扰。
+    "AUTH_PASSWORD": "",
+    # .env 部署时通常是 HOST=0.0.0.0；无密码 + 公网绑定会让应用拒绝启动
+    # （assert_safe_bind），测试统一走本机回环。
+    "HOST": "127.0.0.1",
+    # 部署过的 .env 带自签证书（SSL_CERTFILE/SSL_KEYFILE），不压掉的话
+    # client-info 体检会报告 use_tls=True，与测试预期（未上云 = 无 TLS）不符。
+    # 要测 TLS 组合的用例自己构造 Settings，不依赖这套环境变量。
+    "SSL_CERTFILE": "",
+    "SSL_KEYFILE": "",
     # 定时投递的后台循环会随应用启动、跑在 TestClient 自己的事件循环里。
     # 它按**真实时间**判断"到点没到点"，于是让 tick 计数、"同一天不跑两次"这类断言
     # 随跑测试的时刻而变（实测：同一份代码在不同时间跑结果不同）。

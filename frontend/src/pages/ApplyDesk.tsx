@@ -388,7 +388,7 @@ export default function ApplyDesk() {
   const resumeReadyCount = approvedQueue.length + greetedQueue.length
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-4 lg:h-full">
       {error && (
         <div className="rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">{error}</div>
       )}
@@ -664,8 +664,8 @@ export default function ApplyDesk() {
       {/* 抓候选 */}
 
       {/* 左列要放下五列表格（#/公司·岗位/薪资/状态/招呼语），320-380px 会把每格挤成竖排 */}
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(440px,560px)_minmax(0,1fr)]">
-        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(440px,560px)_minmax(0,1fr)]">
+        <div className="space-y-4 pr-1 lg:min-h-0 lg:overflow-y-auto">
       <section className="rounded-card border border-ink-1 bg-surface p-4">
         <h2 className="text-sm font-semibold">1. 抓取候选</h2>
         <p className="mt-0.5 text-xs text-ink-6">
@@ -1055,62 +1055,66 @@ export default function ApplyDesk() {
             注意：「期望月薪下限」只管打分，真正按薪资拦截的是下表「薪资区间」的上下限。
           </span>
         </p>
-        <table className="mt-3 w-full text-left text-xs">
-          <thead className="text-ink-6">
-            <tr>
-              <th className="py-1.5 pr-2">启用</th>
-              <th className="py-1.5 pr-2">优先级</th>
-              <th className="py-1.5 pr-2">规则</th>
-              <th className="py-1.5 pr-2">类型</th>
-              <th className="py-1.5 pr-2">参数</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rules.map((rule) => (
-              <tr key={rule.id} className="border-t border-ink-1">
-                <td className="py-1.5 pr-2">
-                  <input
-                    type="checkbox"
-                    checked={rule.enabled}
-                    onChange={() => void toggleRule(rule)}
-                    aria-label={`启用过滤规则：${rule.name || rule.kind}`}
-                  />
-                </td>
-                <td className="py-1.5 pr-2 text-ink-6">{rule.priority}</td>
-                <td className="py-1.5 pr-2">{rule.name || '—'}</td>
-                <td className="py-1.5 pr-2 text-ink-6">{RULE_KIND_LABELS[rule.kind] ?? rule.kind}</td>
-                <td className="py-1.5 pr-2 text-ink-6">
-                  {rule.kind === 'salary' ? (
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <input
-                        type="number"
-                        min={0}
-                        step={1000}
-                        defaultValue={String(rule.params?.min_salary ?? 0)}
-                        onBlur={(event) => void saveSalaryBound(rule, 'min_salary', event.target.value)}
-                        className="w-24 rounded-control border border-ink-2 px-1.5 py-0.5 text-xs"
-                        aria-label="薪资下限（元/月）"
-                      />
-                      <span>–</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1000}
-                        defaultValue={String(rule.params?.max_salary ?? 0)}
-                        onBlur={(event) => void saveSalaryBound(rule, 'max_salary', event.target.value)}
-                        className="w-24 rounded-control border border-ink-2 px-1.5 py-0.5 text-xs"
-                        aria-label="薪资上限（元/月，0＝不限）"
-                      />
-                      <span className="text-ink-4">元/月（0＝不限；这才是真正拦截的那道门）</span>
-                    </span>
-                  ) : (
-                    ruleParams(rule)
-                  )}
-                </td>
+        {/* M22：五列（含两个数字输入框）在手机上必须横向滚动，否则整页被撑出
+             横向滚动条或把参数列挤成竖排 */}
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="text-ink-6">
+              <tr>
+                <th className="py-1.5 pr-2">启用</th>
+                <th className="py-1.5 pr-2">优先级</th>
+                <th className="py-1.5 pr-2">规则</th>
+                <th className="py-1.5 pr-2">类型</th>
+                <th className="py-1.5 pr-2">参数</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rules.map((rule) => (
+                <tr key={rule.id} className="border-t border-ink-1">
+                  <td className="py-1.5 pr-2">
+                    <input
+                      type="checkbox"
+                      checked={rule.enabled}
+                      onChange={() => void toggleRule(rule)}
+                      aria-label={`启用过滤规则：${rule.name || rule.kind}`}
+                    />
+                  </td>
+                  <td className="py-1.5 pr-2 text-ink-6">{rule.priority}</td>
+                  <td className="py-1.5 pr-2">{rule.name || '—'}</td>
+                  <td className="py-1.5 pr-2 text-ink-6">{RULE_KIND_LABELS[rule.kind] ?? rule.kind}</td>
+                  <td className="py-1.5 pr-2 text-ink-6">
+                    {rule.kind === 'salary' ? (
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          step={1000}
+                          defaultValue={String(rule.params?.min_salary ?? 0)}
+                          onBlur={(event) => void saveSalaryBound(rule, 'min_salary', event.target.value)}
+                          className="w-24 rounded-control border border-ink-2 px-1.5 py-0.5 text-xs"
+                          aria-label="薪资下限（元/月）"
+                        />
+                        <span>–</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1000}
+                          defaultValue={String(rule.params?.max_salary ?? 0)}
+                          onBlur={(event) => void saveSalaryBound(rule, 'max_salary', event.target.value)}
+                          className="w-24 rounded-control border border-ink-2 px-1.5 py-0.5 text-xs"
+                          aria-label="薪资上限（元/月，0＝不限）"
+                        />
+                        <span className="text-ink-4">元/月（0＝不限；这才是真正拦截的那道门）</span>
+                      </span>
+                    ) : (
+                      ruleParams(rule)
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
         </div>
     </div>

@@ -4,6 +4,7 @@ import type {
   AnswerDraft,
   AnswerMeta,
   AnswerResult,
+  AppVersion,
   ApplicationItem,
   ApplicationStats,
   ApplyExecutionOutcome,
@@ -96,36 +97,52 @@ export function setToken(token: string): void {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
   // 只有 JSON 字符串才设 Content-Type：multipart 上传必须让浏览器自己带 boundary
   const hasStringBody = typeof init?.body === 'string'
   const token = getToken()
-  const response = await fetch(`/api${path}`, {
-    ...init,
-    headers: {
-      ...(hasStringBody ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...((init?.headers as Record<string, string> | undefined) ?? {}),
-    },
-  })
+  // LLM 重的端点（建会话/答题/重试）由后端限 30 秒超时；这里再兜一层客户端超时，
+  // 防止后端意外挂起时界面无限转圈。默认不超时，避免影响上传等长请求。
+  const controller = timeoutMs ? new AbortController() : undefined
+  const timer = timeoutMs ? window.setTimeout(() => controller?.abort(), timeoutMs) : undefined
+  try {
+    const response = await fetch(`/api${path}`, {
+      ...init,
+      signal: controller?.signal,
+      headers: {
+        ...(hasStringBody ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...((init?.headers as Record<string, string> | undefined) ?? {}),
+      },
+    })
 
-  if (response.status === 401) {
-    // 会话过期（或服务端换了签名密钥）：本地 token 已无效，清掉让 App 回到登录页。
-    // 登录接口本身失败也走这里——那时本来就没有 token，清掉无害，而且能拿到
-    // 服务端给的具体原因（「密码不正确」比「未登录」有用得多）。
-    const detail = await readDetail(response, '未登录或登录已过期，请重新登录')
-    setToken('')
-    throw new UnauthorizedError(detail)
-  }
+    if (response.status === 401) {
+      // 会话过期（或服务端换了签名密钥）：本地 token 已无效，清掉让 App 回到登录页。
+      // 登录接口本身失败也走这里——那时本来就没有 token，清掉无害，而且能拿到
+      // 服务端给的具体原因（「密码不正确」比「未登录」有用得多）。
+      const detail = await readDetail(response, '未登录或登录已过期，请重新登录')
+      setToken('')
+      throw new UnauthorizedError(detail)
+    }
 
-  if (!response.ok) {
-    throw new Error(await readDetail(response, `${response.status} ${response.statusText}`))
-  }
+    if (!response.ok) {
+      throw new Error(await readDetail(response, `${response.status} ${response.statusText}`))
+    }
 
-  if (response.status === 204) {
-    return undefined as T
+    if (response.status === 204) {
+      return undefined as T
+    }
+    return (await response.json()) as T
+  } catch (err) {
+    if (timeoutMs && err instanceof Error && err.name === 'AbortError') {
+      throw new Error(
+        `请求超时（${Math.round(timeoutMs / 1000)} 秒无响应）。模型服务可能不可达，请检查后端网络或稍后再试`,
+      )
+    }
+    throw err
+  } finally {
+    if (timer) window.clearTimeout(timer)
   }
-  return (await response.json()) as T
 }
 
 async function readDetail(response: Response, fallback: string): Promise<string> {
@@ -258,6 +275,8 @@ export const api = {
       method: 'DELETE',
     }),
 
+  // 检测更新（M22+）：本地 git 版本，前端再对比 GitHub 远程
+  appVersion: () => request<AppVersion>('/system/version'),
 
   listTargets: () => request<JobTarget[]>('/targets'),
   createTarget: (payload: CreateTargetPayload) =>
@@ -277,13 +296,19 @@ export const api = {
 
   listSessions: () => request<SessionSummary[]>('/sessions'),
   createSession: (payload: CreateSessionPayload) =>
-    request<SessionDetail>('/sessions', { method: 'POST', body: JSON.stringify(payload) }),
+    request<SessionDetail>('/sessions', { method: 'POST', body: JSON.stringify(payload) }, 45_000),
   getSession: (id: number) => request<SessionDetail>(`/sessions/${id}`),
   answer: (id: number, text: string) =>
     request<AnswerResult>(`/sessions/${id}/answer`, {
       method: 'POST',
       body: JSON.stringify({ text }),
-    }),
+    }, 45_000),
+  /**
+   * 上一条回答的面试官回复生成失败时，只重试「生成回复」。
+   * 不能复用 answer：那会再落一条候选人回答，弄脏对话与历史记录。
+   */
+  retryQuestion: (id: number) =>
+    request<AnswerResult>(`/sessions/${id}/retry-question`, { method: 'POST' }, 45_000),
   finish: (id: number) => request<SessionDetail>(`/sessions/${id}/finish`, { method: 'POST' }),
 
   providers: () => request<ProviderStatus>('/system/providers'),
@@ -292,7 +317,7 @@ export const api = {
   // 报告（M3）：GET 只读已有报告，没有就 404；POST 才会真的跑模型
   getReport: (sessionId: number) => request<ScoreReport>(`/sessions/${sessionId}/report`),
   createReport: (sessionId: number, force = true) =>
-    request<ScoreReport>(`/sessions/${sessionId}/report?force=${force ? 'true' : 'false'}`, { method: 'POST' }),
+    request<ScoreReport>(`/sessions/${sessionId}/report?force=${force ? 'true' : 'false'}`, { method: 'POST' }, 90_000),
   listReports: () => request<ReportSummary[]>('/reports'),
 
   // 薄弱点与训练（M5）

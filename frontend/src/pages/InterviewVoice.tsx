@@ -131,6 +131,8 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
   const [info, setInfo] = useState<ClientInfo | null>(null)
   const [infoError, setInfoError] = useState('')
   const [socketStatus, setSocketStatus] = useState<SocketStatus>('disconnected')
+  /** 最近一次断开的原因码（RFC 6455）。1005/1006=网络层被掐；1000=正常；1001=页面离开。 */
+  const [disconnectCode, setDisconnectCode] = useState<number | null>(null)
   /** 从后台回来时的恢复结果，直接显示给用户（不要静默） */
   const [recoveryNote, setRecoveryNote] = useState('')
   /** 正在恢复中：避免 visibilitychange 连发时重复跑恢复流程 */
@@ -404,11 +406,10 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
    * M19：从后台/锁屏回来时的恢复。
    *
    * 手机切到别的 App 再切回来，会发生三件**互不相同**的事，必须逐个检查：
-   * 1. 麦克风轨道被系统挂起 → 不再有音频分片上来，需要重新 getUserMedia
-   *    （权限已授予时不会二次弹窗）；
-   * 2. `AudioContext` 被暂停 → 面试官的声音会静默消失（`unlockAudio` 会 resume）；
-   * 3. WebSocket 断开 → `SessionSocket` 自己在退避重连（见 `api/ws.ts`），
-   *    这里只负责把状态如实显示出来。
+   * 1. WebSocket 断开 → **先恢复连接**（锁屏期间退避 timer 被冻结，回来要主动重启，
+   *    且恢复麦克风依赖连接状态，顺序必须在最前）；
+   * 2. 麦克风轨道被系统挂起 → 重新 getUserMedia（权限已授予时不会二次弹窗）；
+   * 3. `AudioContext` 被暂停 → 面试官的声音会静默消失（`unlockAudio` 会 resume）。
    *
    * **关键是把结果说出来**。静默地"看起来连上了但什么都不动"，比直接报错更糟——
    * 用户会以为是自己操作错了。
@@ -432,7 +433,32 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
       void (async () => {
         const notes: string[] = []
         try {
-          // 1) 麦克风：看"最近还有没有音频分片上来"，而不是猜轨道状态
+          // 1) 连接：**必须先恢复管道再碰麦克风**。
+          //    麦克风的 startRecording 用连接状态把关——若先重启麦克风，此刻 WS
+          //    还没连上（connected=false），恢复会被门禁静默吞掉，之后没人再触发，
+          //    表现为"熄屏回来连上了却没法继续说话"。
+          //    'reconnecting' 也立即重启：锁屏期间退避 timer 被冻结，解冻后不保证
+          //    会执行，不能干等它。
+          if (socketRef.current !== null && !socketRef.current.connected) {
+            const socket = socketRef.current
+            const canRestart =
+              (socket.connectionStatus === 'disconnected' ||
+                socket.connectionStatus === 'reconnecting') &&
+              !socket.manuallyClosed
+            if (canRestart) {
+              // connect() 在 onopen 时 resolve；加 8s 兜底，握手卡住不拖住后面的恢复
+              await Promise.race([
+                socket.connect(),
+                new Promise<void>((resolve) => setTimeout(resolve, 8_000)),
+              ]).catch(() => {})
+              notes.push('已重新连接服务（这一场面试还在继续）')
+            } else {
+              notes.push('正在重连服务（这一场面试还在继续）')
+            }
+          }
+
+          // 2) 麦克风：看"最近还有没有音频分片上来"，而不是猜轨道状态
+          //    （此时连接已恢复，startRecording 的门禁能放行）
           if (recording && micRef.current !== null) {
             const silentFor = Date.now() - lastChunkAtRef.current
             if (silentFor > MIC_STALL_MS) {
@@ -442,15 +468,10 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
             }
           }
 
-          // 2) 面试官的播放链路
+          // 3) 面试官的播放链路
           const unlocked = unlockAudio()
           if (unlocked.context !== null && unlocked.context.state !== 'running') {
             notes.push('音频输出被系统暂停了，若听不到面试官说话请点一下屏幕')
-          }
-
-          // 3) 连接（重连由 SessionSocket 自己退避，这里只说清现状）
-          if (socketRef.current !== null && !socketRef.current.connected) {
-            notes.push('正在重连服务（这一场面试还在继续）')
           }
 
           // 4) 常亮锁在切后台时会被系统释放，回来要重新申请
@@ -469,6 +490,27 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, recording, wakeLock])
+
+  /**
+   * 退避用尽后的自动恢复。
+   *
+   * SessionSocket 的重连计划（8 次）在"手机锁屏/切后台后连接反复被系统掐掉"
+   * 时会用尽并停在 disconnected。这里在 disconnected 且会话仍 live 时，
+   * 隔几秒重启一次连接循环——否则用户回来只能看到"已断开"卡死。
+   * 用户主动关闭（manuallyClosed）或会话已结束时不重启。
+   */
+  useEffect(() => {
+    if (socketStatus !== 'disconnected' || session === null || session.status === 'finished') {
+      return
+    }
+    const timer = setTimeout(() => {
+      const socket = socketRef.current
+      if (socket !== null && !socket.manuallyClosed) {
+        void socket.connect()
+      }
+    }, 5_000)
+    return () => clearTimeout(timer)
+  }, [socketStatus, session])
 
   const uploadResumeFile = async (file: File) => {
     setUploadingResume(true)
@@ -518,8 +560,17 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
         // M19：连接状态要显示出来。手机切后台/换网一定会断，
         // 静默重连会让用户以为程序坏了。
         onStatus: setSocketStatus,
-        onClose: () => {
+        onClose: (code) => {
           setConnected(false)
+          setDisconnectCode(code ?? null)
+        },
+        // 关键：**每次（重）连上都要恢复 connected**。以前只在 startSession 里
+        // 置一次 true，断线重连成功后界面仍显示"已断开"，而且 startRecording
+        // 用 connected 把关，用户回来根本没法继续说话——"重连上了却恢复不了"
+        // 就是这里断的。
+        onOpen: () => {
+          setConnected(true)
+          setDisconnectCode(null)
         },
       })
       socketRef.current = socket
@@ -534,7 +585,10 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
   }
 
   const startRecording = async () => {
-    if (recording || !connected) {
+    // 门禁用**真实 socket 状态**而非 React 的 connected：
+    // 熄屏回来恢复时 setConnected 是异步的（下一渲染才生效），而 socket.connected
+    // 是同步的真值——recovery 里 await connect() 完成后立刻就能放行。
+    if (recording || socketRef.current === null || !socketRef.current.connected) {
       return
     }
     setError('')
@@ -597,7 +651,7 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
 
   const submitText = () => {
     const text = draft.trim()
-    if (!text || !connected) {
+    if (!text || socketRef.current === null || !socketRef.current.connected) {
       return
     }
     setDraft('')
@@ -617,7 +671,7 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
         : socketStatus === 'connecting'
           ? '连接中…'
           : session !== null
-            ? '已断开'
+            ? `已断开${disconnectCode !== null ? `（断开码 ${disconnectCode}）` : ''}`
             : '未连接'
   const connectionOk = socketStatus === 'connected' && connected
 
@@ -626,7 +680,10 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
 
   return (
     <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="flex h-full min-h-0 flex-col rounded-panel border border-ink-1 bg-surface">
+      {/* 会话区：手机端开始后才显示；桌面始终在左列 */}
+      <section
+        className={`${session ? 'flex' : 'hidden lg:flex'} h-full min-h-0 flex-col rounded-panel border border-ink-1 bg-surface lg:order-1`}
+      >
         <header className="flex flex-wrap items-center justify-end gap-3 border-b border-ink-1 px-4 py-2.5">
           <div className="flex items-center gap-2">
             <span
@@ -653,10 +710,21 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
           </div>
         </header>
 
-        {/* M19：设备体检。全部正常时只占一行；出问题时才展开可执行的修复指引。 */}
-        <div className="border-b border-ink-1 px-3 py-1.5">
-          <PhonePreflight device={device} info={info} error={infoError} />
-        </div>
+        {/* 设备体检：未开始时显示完整卡片；面试开始后让位给聊天流——
+            手机上体检卡（尤其语音播报不可用时）会展开占掉 200px+，
+            把聊天流挤成一行高，长问题只能看到头一句。 */}
+        {session === null ? (
+          <div className="border-b border-ink-1 px-3 py-1.5">
+            <PhonePreflight device={device} info={info} error={infoError} />
+          </div>
+        ) : (
+          <div className="border-b border-ink-1 px-4 py-1.5 text-[11px] text-ink-6">
+            面试进行中 ·{' '}
+            {device.hasSpeechSynthesis
+              ? '面试官语音：浏览器播报'
+              : '语音播报不可用，面试官问题会以文字显示，看文字回答即可'}
+          </div>
+        )}
 
         {recoveryNote && (
           <div className="border-b border-warn bg-warn-soft px-4 py-1.5 text-xs text-warn">
@@ -687,7 +755,8 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
           </div>
         )}
 
-        <div ref={streamRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+        {/* 手机上聊天流至少要有能放下两三行问题的空间，不能全被体检卡/操作条挤没 */}
+        <div ref={streamRef} className="min-h-40 flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {turns.length === 0 && (
             <div className="rounded-card border border-dashed border-ink-2 p-6 text-sm leading-relaxed text-ink-6">
               语音面试：面试官会用浏览器朗读提问，你对着麦克风回答。
@@ -746,7 +815,9 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
           )}
         </div>
 
-        <footer className="space-y-3 border-t border-ink-1 px-4 py-3">
+        {/* M22：pb-safe——iPhone 的 Home 条会占掉底部一段，操作条不加安全区
+             padding，底部按钮就会被手势区压住一半、点不准 */}
+        <footer className="pb-safe space-y-3 border-t border-ink-1 px-4 py-3">
           {error && <p className="rounded-control bg-ng-soft px-3 py-2 text-xs text-ng">{error}</p>}
           {awaitingText && <p className="rounded-control bg-warn-soft px-3 py-2 text-xs text-warn">{awaitingText}</p>}
 
@@ -755,7 +826,7 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
               type="button"
               onClick={() => (recording ? void stopRecording() : void startRecording())}
               disabled={!isLive}
-              className={`${buttonBase} ${recording ? 'bg-ng text-surface hover:bg-ng/90' : 'bg-ink-9 text-surface hover:bg-ink-7'}`}
+              className={`${buttonBase} touch-target ${recording ? 'bg-ng text-surface hover:bg-ng/90' : 'bg-ink-9 text-surface hover:bg-ink-7'}`}
             >
               {recording ? '暂停收音' : '开始说话'}
             </button>
@@ -763,7 +834,7 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
               type="button"
               onClick={endTurn}
               disabled={!isLive}
-              className={`${buttonBase} border border-ink-2 text-ink-7 hover:bg-paper`}
+              className={`${buttonBase} touch-target border border-ink-2 text-ink-7 hover:bg-paper`}
             >
               我答完了
             </button>
@@ -842,7 +913,17 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
         </footer>
       </section>
 
-      <aside className="min-h-0 space-y-4 overflow-y-auto pr-1">
+      {/* 配置区：手机端未开始时优先显示（含设备体检）；桌面始终在右列 */}
+      <aside
+        className={`min-h-0 space-y-4 overflow-y-auto pr-1 lg:order-2 ${
+          session ? 'hidden lg:block' : ''
+        }`}
+      >
+        {/* 手机端未开始时，把设备体检也放在配置上方（会话区此时隐藏） */}
+        <div className="lg:hidden">
+          {session === null && <PhonePreflight device={device} info={info} error={infoError} />}
+        </div>
+
         <div className="rounded-panel border border-ink-1 bg-surface p-4">
           <h3 className="mb-3 text-sm font-semibold text-ink-9">本场配置</h3>
 
@@ -925,7 +1006,7 @@ export default function InterviewVoice({ onOpenReport, onSessionChange }: Props)
             disabled={busy || connected}
             className="w-full rounded-card bg-info px-4 py-2 text-sm font-medium text-surface hover:bg-info disabled:opacity-50"
           >
-            {connected ? '进行中…' : '开始语音面试'}
+            {connected ? '进行中…' : busy ? '正在生成开场问题…' : '开始语音面试'}
           </button>
           {connected && (
             <button

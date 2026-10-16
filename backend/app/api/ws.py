@@ -7,6 +7,7 @@ WS 只负责"音频双向 + 事件下发"，因此 M0 的文字链路与 M1 的�
 from __future__ import annotations
 
 import logging
+import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -27,6 +28,11 @@ logger = logging.getLogger(__name__)
 @router.websocket("/ws/sessions/{session_id}")
 async def session_ws(websocket: WebSocket, session_id: int) -> None:
     await websocket.accept()
+    # 记录连接起点与是否进入消息循环：断开日志里带上持续时长和所处阶段，
+    # 才能区分「网络层掐断」（loop 已进入，突然 1005）与「启动阶段被断」
+    # （state 都没发出去就被断，多为服务端上游初始化慢）。
+    connected_at = time.monotonic()
+    loop_entered = False
     if not websocket_authenticated(websocket):
         # 先 accept 再发可读原因再关：未 accept 直接关只能得到裸 403，
         # 前端分不清「没登录」和「服务挂了」。4401 与 HTTP 401 语义对齐。
@@ -122,11 +128,25 @@ async def session_ws(websocket: WebSocket, session_id: int) -> None:
 
     try:
         await runtime.start()
+        logger.info("会话 %s 的 WebSocket 连接已建立并进入消息循环", session_id)
+        loop_entered = True
         while True:
             message = await websocket.receive_json()
             await runtime.handle(message)
-    except WebSocketDisconnect:
-        logger.info("会话 %s 的 WebSocket 已断开", session_id)
+    except WebSocketDisconnect as exc:
+        # 把断开原因记下来：code=1000 是正常关闭，1001/1006 多为对端或网络层断开，
+        # 1005 在本 uvicorn 版本里表示"对端没发关闭帧连接就没了"（网络被掐）。
+        # 之前这里只记一句"已断开"，看不到 code/reason，静默断开时无法定位是浏览器
+        # 主动关、网络设备掐断还是服务端 ping 超时（uvicorn 默认 20s 无 pong 会掐）。
+        stage = "，未进入消息循环（启动阶段被断）" if not loop_entered else ""
+        logger.warning(
+            "会话 %s 的 WebSocket 已断开：code=%s reason=%r（连接持续 %.1fs%s）",
+            session_id,
+            getattr(exc, "code", None),
+            getattr(exc, "reason", None),
+            time.monotonic() - connected_at,
+            stage,
+        )
     except Exception as exc:  # noqa: BLE001 - 兜底：把异常告诉前端，别静默断
         logger.exception("语音会话 %s 出错", session_id)
         try:

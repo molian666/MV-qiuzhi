@@ -7,12 +7,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 from ..models.core import JobTarget, Resume
 from ..models.session import SessionTurn
-from ..providers.llm.base import LLMClient, LLMMessage, LLMResult, extract_json
+from ..providers.llm.base import LLMClient, LLMError, LLMMessage, LLMResult, extract_json
 
 BASE_SYSTEM_PROMPT = """你是一位经验丰富、风格专业的技术面试官，正在对候选人进行模拟面试。
 
@@ -76,6 +77,13 @@ class QuestionPlan:
     @property
     def is_followup(self) -> bool:
         return self.kind == "followup"
+
+
+#: 空返回 / 瞬时失败时的总尝试次数与退避秒数（下标 = 第几次失败后的等待）。
+#: 模型偶尔会把全部输出花在"思考"上导致 content 为空，或服务端 5xx / 限流
+#: 抖动——这些重试一次基本就回来了；4xx（Key / 模型名配错）不重试，直接报错。
+MAX_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = (1.0, 2.0)
 
 
 def build_context(
@@ -159,14 +167,25 @@ def build_messages(
 
 
 def parse_plan(result: LLMResult) -> QuestionPlan:
-    """解析模型输出；解析失败时退化为"把整段文本当问题"，不让一场面试因为格式炸掉。"""
+    """解析模型输出；解析失败时退化为"把整段文本当问题"，不让一场面试因为格式炸掉。
+
+    唯一不降级的底线：**最终问题不能为空**。空问题落库就是"面试官思考完什么都没说"
+    的直接来源（用户在界面上看到思考指示消失后只有空白）。所以这里抛 LLMError，
+    由 `next_question` 的重试兜底，而不是把空文本继续往上送。
+    """
     try:
         data = extract_json(result.text)
     except ValueError:
         text = result.text.strip()
+        if not text:
+            raise LLMError("模型返回了空内容（解析不出 JSON，也没有可用的纯文本）")
         return QuestionPlan(question=text, kind="new_topic", raw={"fallback": True})
 
-    question = str(data.get("question") or "").strip() or result.text.strip()
+    # JSON 解析出来了但 question 为空：不能拿原始 JSON 当问题问出去——那会把
+    # 模型输出原样当话术，用户看到一条 JSON 串。按失败处理，交给上层重试。
+    question = str(data.get("question") or "").strip()
+    if not question:
+        raise LLMError("模型返回了空问题（JSON 的 question 字段为空）")
     kind = str(data.get("kind") or "").strip() or "new_topic"
     raw_coach = data.get("coach")
     coach: dict[str, str] | None = None
@@ -229,10 +248,42 @@ class Interviewer:
             force_scene=force_scene,
             prompt=prompt,
         )
-        result = await self.llm.complete(
-            task="interview_turn",
-            messages=messages,
-            temperature=0.85,
-            json_object=True,
-        )
-        return parse_plan(result), result
+        # 空返回体与瞬时失败（超时 / 5xx / 限流）自动重试：模型偶尔会把全部输出
+        # 花在"思考"上、或服务端抖动，重试一次基本就回来了。4xx（Key / 模型名错）
+        # 不重试，直接抛给调用方——那属于配置问题，重试只会白等。
+        #
+        # **重试不是原样重发**：空 content 的头号原因是模型把 token 全花在思考上，
+        # 原样重发大概率还是空（历史会话 28 正是连空 3 次、面试卡死）。从第二次
+        # 尝试起压低温度并追加"直接输出"指令，逼模型跳过思考直接给题。
+        last_error: LLMError | None = None
+        for attempt in range(MAX_ATTEMPTS):
+            try:
+                attempt_messages = messages
+                temperature = 0.85
+                if attempt > 0:
+                    attempt_messages = [
+                        *messages,
+                        LLMMessage(
+                            role="user",
+                            content=(
+                                "注意：上一步你没有输出题目内容。现在请直接输出题目："
+                                "不要任何思考过程、不要解释、不要 reasoning，"
+                                "只输出要求的 JSON。"
+                            ),
+                        ),
+                    ]
+                    temperature = 0.3
+                result = await self.llm.complete(
+                    task="interview_turn",
+                    messages=attempt_messages,
+                    temperature=temperature,
+                    json_object=True,
+                )
+                plan = parse_plan(result)
+                return plan, result
+            except LLMError as exc:
+                last_error = exc
+                if not exc.retryable or attempt >= len(RETRY_BACKOFF_SECONDS):
+                    raise
+                await asyncio.sleep(RETRY_BACKOFF_SECONDS[attempt])
+        raise last_error or LLMError("面试官生成问题失败")

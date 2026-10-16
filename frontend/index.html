@@ -2,7 +2,9 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover：iPhone 上让页面铺满到刘海/Home 条后面，
+         安全区（env(safe-area-inset-*)）才会返回真实值，.pb-safe 才有意义 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>mianshi · 机器视觉求职训练</title>
     <!-- 与设计 token 的 paper 一致：移动端浏览器地址栏不再突兀地白一块 -->
     <meta name="theme-color" content="#f7f8f9" />

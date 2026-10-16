@@ -29,7 +29,7 @@ from ..models.pacing import InterviewerProfile
 from ..models.session import InterviewSession, SessionTurn
 from ..pacing_service import load_policy_for_session, profile_samples
 from ..providers.llm.base import LLMClient, LLMError
-from ..realtime.interviewer import REVERSE_QUESTION_PROMPT, Interviewer
+from ..realtime.interviewer import REVERSE_QUESTION_PROMPT, Interviewer, QuestionPlan
 from ..realtime.session_runtime import PHASE_CLOSING
 from ..repositories import count_turns, ordered_turns
 from ..story_service import prompt_block_for
@@ -194,6 +194,78 @@ def _detail(session_row: InterviewSession, turns: list[SessionTurn], db: Session
 
 def _mark_finished(session_row: InterviewSession, db: Session) -> None:
     mark_finished(db, session_row)
+
+
+async def _generate_interviewer_plan(
+    *,
+    db: Session,
+    llm: LLMClient,
+    session_row: InterviewSession,
+    turns: list[SessionTurn],
+    closing: bool,
+    force_scene: bool = False,
+    prompt_override: str = "",
+    round_override: int | None = None,
+) -> tuple[QuestionPlan, dict[str, Any]]:
+    """候选人回合已落库后，按本场配置生成面试官这一轮的内容。
+
+    `submit_answer` 与 `retry-question` 共用同一套策略（画像 / 压力 / 连环面 / 拟真 /
+    故事卡 / 题库），保证「重试」和「正常回答」问出来的是同一规则下的问题——重试
+    不会把候选人的回答再提交一遍。
+    """
+    settings = get_settings()
+    max_questions = int(session_row.plan.get("max_questions") or settings.default_max_questions)
+    policy = load_policy_for_session(db, session_row, default_silence_ms=settings.speech_silence_ms)
+    # M8：按"上一个问题 + 这次回答"挑出最相关的故事卡，让追问落在你真做过的经历上
+    last_question = next((turn.text for turn in reversed(turns) if turn.speaker == "interviewer"), "")
+    story_block = prompt_block_for(db, question=f"{last_question}\n{turns[-1].text}", limit=2) if last_question else ""
+
+    # M11：这一轮该由谁问（连环面会换人，音色也跟着换）
+    pressure, panel, style_preset, locale_key = _session_options(session_row)
+    coach, silence_pressure, scene, resume_dive = _realism_flags(session_row)
+    _, answer_count = _counts(turns)
+    round_index = round_override if round_override is not None else answer_count
+    if panel is not None:
+        style_preset = panel.style_for(round_index)
+    question_policy_block = _compose_policy_block(
+        style=style_preset,
+        panel=panel,
+        panel_round=round_index,
+        pressure=pressure,
+        policy=policy,
+        locale=locale_key,
+        coach=coach,
+        silence_pressure=silence_pressure,
+        scene=scene,
+        resume_dive=resume_dive,
+    )
+    current_interviewer = panel.current(round_index) if panel is not None else {}
+
+    interviewer = Interviewer(llm)
+    try:
+        plan, result = await interviewer.next_question(
+            turns=turns,
+            target=_load_target(db, session_row),
+            resume=_load_resume(db, session_row),
+            max_questions=max_questions,
+            style=str(session_row.plan.get("style") or DEFAULT_STYLE),
+            closing=closing,
+            policy_block=question_policy_block,
+            story_block=story_block,
+            bank_block=_bank_block_from_session(session_row),
+            force_scene=force_scene,
+            prompt=prompt_override,
+        )
+    except LLMError as exc:
+        log_llm_error(db, task="interview_turn", provider=getattr(llm, "name", ""), error=str(exc), session_id=session_row.id)
+        raise HTTPException(status_code=502, detail=f"生成下一个问题失败：{exc}") from exc
+    if not plan.question.strip():
+        # 双保险：Interviewer 内部已对空内容自动重试，这里再兜一层——
+        # 空回合绝不允许落库，否则界面就是"面试官思考完什么都没说"
+        log_llm_error(db, task="interview_turn", provider=getattr(llm, "name", ""), error="面试官返回了空问题", session_id=session_row.id)
+        raise HTTPException(status_code=502, detail="生成下一个问题失败：模型返回了空内容")
+    log_llm_result(db, result, session_id=session_row.id)
+    return plan, current_interviewer
 
 
 # --------------------------------------------------------------------------- #
@@ -404,8 +476,6 @@ async def submit_answer(
     settings = get_settings()
     turns = _turns(db, session_id)
     max_questions = int(session_row.plan.get("max_questions") or settings.default_max_questions)
-    style = str(session_row.plan.get("style") or DEFAULT_STYLE)
-    provider = getattr(llm, "name", "")
 
     elapsed = _elapsed_ms(session_row)
     previous_end = turns[-1].end_ms if turns and turns[-1].end_ms is not None else 0
@@ -426,54 +496,19 @@ async def submit_answer(
     _, answer_count = _counts(turns)
     closing = answer_count >= max_questions
 
-    interviewer = Interviewer(llm)
-    policy = load_policy_for_session(db, session_row, default_silence_ms=settings.speech_silence_ms)
-    # M8：按"上一个问题 + 这次回答"挑出最相关的故事卡，让追问落在你真做过的经历上
-    last_question = next((turn.text for turn in reversed(turns) if turn.speaker == "interviewer"), "")
-    story_block = prompt_block_for(db, question=f"{last_question}\n{payload.text}", limit=2) if last_question else ""
-
-    # M11：这一轮该由谁问（连环面会换人，音色也跟着换）
-    pressure, panel, style_preset, locale_key = _session_options(session_row)
-    coach, silence_pressure, scene, resume_dive = _realism_flags(session_row)
-    round_index = answer_count
-    if panel is not None:
-        style_preset = panel.style_for(round_index)
-    question_policy_block = _compose_policy_block(
-        style=style_preset,
-        panel=panel,
-        panel_round=round_index,
-        pressure=pressure,
-        policy=policy,
-        locale=locale_key,
-        coach=coach,
-        silence_pressure=silence_pressure,
-        scene=scene,
-        resume_dive=resume_dive,
-    )
-    current_interviewer = panel.current(round_index) if panel is not None else {}
-
     # M14：现场突发——第 3 次回答之后，下一问必须换成突发场景题（编排层硬卡时机，
-    # 不靠模型自己数轮数；收尾优先，题太少的场次不插）
+    # 不靠模型自己数轮数；收尾优先，题太少的场次不插）。与 retry-question 共用同一判定。
+    _, _, scene, _ = _realism_flags(session_row)
     force_scene = scene and answer_count == 3 and not closing
 
-    try:
-        plan, result = await interviewer.next_question(
-            turns=turns,
-            target=_load_target(db, session_row),
-            resume=_load_resume(db, session_row),
-            max_questions=max_questions,
-            style=style,
-            closing=closing,
-            policy_block=question_policy_block,
-            story_block=story_block,
-            bank_block=_bank_block_from_session(session_row),
-            force_scene=force_scene,
-        )
-    except LLMError as exc:
-        log_llm_error(db, task="interview_turn", provider=provider, error=str(exc), session_id=session_id)
-        raise HTTPException(status_code=502, detail=f"生成下一个问题失败：{exc}") from exc
-
-    log_llm_result(db, result, session_id=session_id)
+    plan, current_interviewer = await _generate_interviewer_plan(
+        db=db,
+        llm=llm,
+        session_row=session_row,
+        turns=turns,
+        closing=closing,
+        force_scene=force_scene,
+    )
 
     question_turn = SessionTurn(
         session_id=session_id,
@@ -510,6 +545,92 @@ async def submit_answer(
             "面试问题问完了。现在轮到你提问——有什么想了解的可以直接问；没有的话点「结束面试」。"
             if closing
             else ""
+        ),
+    )
+
+
+@router.post(
+    "/{session_id}/retry-question",
+    response_model=AnswerOut,
+    summary="重新生成面试官回复（上一条回答的回复生成失败时使用）",
+)
+async def retry_question(
+    session_id: int,
+    db: Session = Depends(get_session),
+    llm: LLMClient = Depends(get_llm),
+) -> AnswerOut:
+    """上一条候选人回答已落库、但面试官回复生成失败时，只重试「生成面试官回复」。
+
+    不能直接复用 `/answer`：那会再落一条候选人回答，把对话、回答计数和历史记录弄脏。
+    本端点只允许在「最后一个是等回复的候选人回合」时调用，生成逻辑与正常回答
+    共用 `_generate_interviewer_plan`，保证重试问出来的是同一套规则下的题。
+    """
+    session_row = db.get(InterviewSession, session_id)
+    if session_row is None:
+        raise HTTPException(status_code=404, detail=f"会话不存在：{session_id}")
+    if session_row.status != STATUS_LIVE:
+        raise HTTPException(
+            status_code=409,
+            detail=f"会话当前状态为 {session_row.status}，无法重试（请新建一场，或直接查看报告）",
+        )
+    if (session_row.plan or {}).get("phase") == PHASE_CLOSING:
+        # 收尾阶段的生成失败会把会话直接结束（_answer_reverse_question 的错误路径），
+        # 不存在"还欠一条回复"的 live 状态可重试
+        raise HTTPException(status_code=409, detail="收尾阶段无法重试：请新建一场面试，或直接查看报告")
+
+    turns = _turns(db, session_id)
+    if not turns or turns[-1].speaker != "candidate":
+        raise HTTPException(status_code=409, detail="当前没有等待面试官回复的回合，无需重试")
+
+    settings = get_settings()
+    max_questions = int(session_row.plan.get("max_questions") or settings.default_max_questions)
+    elapsed = _elapsed_ms(session_row)
+    _, answer_count = _counts(turns)
+    closing = answer_count >= max_questions
+    _, _, scene, _ = _realism_flags(session_row)
+    force_scene = scene and answer_count == 3 and not closing
+
+    plan, current_interviewer = await _generate_interviewer_plan(
+        db=db,
+        llm=llm,
+        session_row=session_row,
+        turns=turns,
+        closing=closing,
+        force_scene=force_scene,
+    )
+
+    question_turn = SessionTurn(
+        session_id=session_id,
+        idx=len(turns),
+        speaker="interviewer",
+        text=plan.question,
+        kind="closing" if closing else (plan.kind or "new_topic"),
+        topic=plan.topic,
+        is_followup=plan.is_followup and not closing,
+        meta={**dict(plan.raw or {}), "interviewer": current_interviewer} if current_interviewer else plan.raw,
+        start_ms=elapsed,
+        end_ms=elapsed,
+    )
+    db.add(question_turn)
+    db.commit()
+    db.refresh(question_turn)
+
+    if closing:
+        stored = dict(session_row.plan or {})
+        stored["phase"] = PHASE_CLOSING
+        session_row.plan = stored
+        db.add(session_row)
+        db.commit()
+        db.refresh(session_row)
+
+    return AnswerOut(
+        session=_detail(session_row, _turns(db, session_id), db),
+        question=TurnOut.model_validate(question_turn),
+        finished=False,
+        message=(
+            "面试问题问完了。现在轮到你提问——有什么想了解的可以直接问；没有的话点「结束面试」。"
+            if closing
+            else "面试官回复已重新生成。"
         ),
     )
 

@@ -110,7 +110,7 @@ export default function Report({ sessionId, onSelectSession }: Props) {
     })) ?? []
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-4 lg:h-full">
       <section className="shrink-0 rounded-panel border border-ink-1 bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -192,8 +192,8 @@ export default function Report({ sessionId, onSelectSession }: Props) {
 
       {report && (
         <>
-          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-            <div className="min-h-0 overflow-y-auto rounded-panel border border-ink-1 bg-surface p-4 pr-3">
+          <section className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[340px_minmax(0,1fr)]">
+            <div className="rounded-panel border border-ink-1 bg-surface p-4 pr-3 lg:min-h-0 lg:overflow-y-auto">
               <div className="mb-1 flex items-baseline gap-2">
                 <span className="text-4xl font-semibold text-ink-9">{Math.round(report.overall)}</span>
                 <span className="text-sm text-ink-6">/ 100</span>
@@ -215,7 +215,7 @@ export default function Report({ sessionId, onSelectSession }: Props) {
               </div>
             </div>
 
-            <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
+            <div className="space-y-3 pr-1 lg:min-h-0 lg:overflow-y-auto">
               <div className="rounded-panel border border-ink-1 bg-surface p-4">
                 <h3 className="mb-2 text-sm font-semibold text-ink-9">整体评价</h3>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-7">{report.summary}</p>

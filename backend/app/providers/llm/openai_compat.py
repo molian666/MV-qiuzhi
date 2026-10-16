@@ -73,6 +73,7 @@ class OpenAICompatClient(LLMClient):  # type: ignore[misc]
         reasoner_model: str | None = None,
         timeout: float = 60.0,
         trust_env: bool = False,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._api_key = api_key
         # 用户可能填 https://api.deepseek.com 也可能填 .../v1，两种都当合法输入；
@@ -86,6 +87,8 @@ class OpenAICompatClient(LLMClient):  # type: ignore[misc]
         # 而国内接口走墙外代理往往直接超时或 403（get_jobs 的 README 也专门提醒
         # "必须关闭墙外代理"）。需要走代理的用户把 TRUST_ENV_PROXY 打开即可。
         self._trust_env = trust_env
+        # 测试注入用；None 时按正常网络请求。
+        self._transport = transport
         self._label = provider_label(self._base_url)
 
     @property
@@ -107,13 +110,15 @@ class OpenAICompatClient(LLMClient):  # type: ignore[misc]
     ) -> LLMResult:
         if not self._api_key:
             raise LLMError(
-                "未配置 LLM_API_KEY：请在 backend/.env 里填写，或把 LLM_PROVIDER 设为 mock"
+                "未配置 LLM_API_KEY：请在 backend/.env 里填写，或把 LLM_PROVIDER 设为 mock",
+                retryable=False,
             )
         if not self._base_url:
             raise LLMError(
                 "未配置 LLM_BASE_URL：请填所选平台的 OpenAI 兼容地址，"
                 "例如 https://api.deepseek.com 或 "
-                "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                retryable=False,
             )
 
         chosen = model or self.model_for(task)
@@ -128,7 +133,9 @@ class OpenAICompatClient(LLMClient):  # type: ignore[misc]
 
         started = time.perf_counter()
         try:
-            async with httpx.AsyncClient(timeout=self._timeout, trust_env=self._trust_env) as client:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, trust_env=self._trust_env, transport=self._transport
+            ) as client:
                 response = await client.post(
                     f"{self._base_url}/chat/completions",
                     json=payload,
@@ -137,19 +144,43 @@ class OpenAICompatClient(LLMClient):  # type: ignore[misc]
                         "Content-Type": "application/json",
                     },
                 )
-        except httpx.HTTPError as exc:  # 网络层
+        except httpx.TimeoutException as exc:
+            # 读/连超时：整段超时（默认 30s）内服务一个字都没回，基本等于不可达。
+            # 重试只会把同样的 30s 再等一遍，直接抛给上层快速失败，别让面试开场
+            # 或答题干等几分钟。断连/协议错仍走下面的 retryable=True 分支。
+            raise LLMError(
+                f"{self._label} 无响应（超过 {self._timeout:.0f} 秒未返回）——"
+                "模型服务可能不可达，请检查 LLM_BASE_URL 的网络连通性，或换一个可用的模型通道",
+                retryable=False,
+            ) from exc
+        except httpx.HTTPError as exc:  # 网络层：断连等瞬时错误，值得重试
             raise LLMError(f"{self._label} 请求失败：{exc}") from exc
 
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         if response.status_code >= 400:
-            raise LLMError(f"{self._label} 返回 {response.status_code}：{response.text[:300]}")
+            # 4xx（Key/模型/参数错）重试必败；429 限流与 5xx 服务端抖动才重试
+            retryable = response.status_code == 429 or response.status_code >= 500
+            raise LLMError(
+                f"{self._label} 返回 {response.status_code}：{response.text[:300]}",
+                retryable=retryable,
+            )
 
         data = response.json()
         try:
-            text = data["choices"][0]["message"]["content"] or ""
+            content = data["choices"][0]["message"].get("content")
+            text = content.strip() if isinstance(content, str) else ""
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMError(f"{self._label} 返回体结构异常：{str(data)[:300]}") from exc
+
+        # 空返回体是"正在思考但什么都没生成"的头号原因（reasoner 模型把 token 花在
+        # 思考上、或模型抽风直接返回空）。以前这里静默当成成功，面试官回合就落了
+        # 一条空白内容——前端表现正是"思考一会儿后什么都不输出"。现在按失败处理，
+        # 让上层重试一次再决定是否放弃。
+        if not text:
+            raise LLMError(
+                f"{self._label} 返回了空内容（choices[0].message.content 为空，模型可能把全部输出花在了思考上）"
+            )
 
         usage = data.get("usage") or {}
         return LLMResult(

@@ -47,6 +47,11 @@ def main() -> None:
         "host": settings.host,
         "port": settings.port,
         "log_level": "info",
+        # 语音面试是长连接：uvicorn 默认 20s 无 pong 就掐断 WebSocket，
+        # 手机 Chrome 在省电/弱网下响应慢会被误杀（表现：面试开始不久"断开连接"）。
+        # 放宽到 30s 探测、90s 超时，并用应用层心跳兜底（见 ws.ts）。
+        "ws_ping_interval": 30.0,
+        "ws_ping_timeout": 90.0,
     }
     if settings.use_tls:
         options["ssl_certfile"] = settings.ssl_certfile

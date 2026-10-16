@@ -13,7 +13,16 @@ from typing import Any, Protocol, runtime_checkable
 
 
 class LLMError(RuntimeError):
-    """LLM 调用失败：网络、鉴权、额度、返回体异常。"""
+    """LLM 调用失败：网络、鉴权、额度、返回体异常。
+
+    `retryable` 区分「重试可能有用」与「重试必败」：
+    网络抖动 / 服务端 5xx / 限流 / 空返回体都值得重试；
+    配错 Key、模型不存在这类 4xx 重试只会白等，直接抛给调用方。
+    """
+
+    def __init__(self, message: str, *, retryable: bool = True) -> None:
+        super().__init__(message)
+        self.retryable = retryable
 
 
 # 结构化输入的包裹标记：放在协议层，让 Mock / 离线实现也能稳定解析输入，

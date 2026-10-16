@@ -68,7 +68,11 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_chat_model: str = ""  # 日常对话/追问，延迟优先
     llm_reasoner_model: str = ""  # 评分/纠错，质量优先；不填则复用 chat 模型
-    llm_timeout_seconds: float = 60.0
+    # 单次 LLM 请求超时（秒）。30 秒对 fast 档模型（deepseek-flash / qwen-*）足够；
+    # 太长会让「模型服务不可达」时整个界面干等（历史上 120s + 3 次重试 ≈ 6 分钟，
+    # 表现为点了开始面试一直没反应）。报告/评分这类长任务若偶发超时，在 .env 里
+    # 把 LLM_TIMEOUT_SECONDS 调大（如 60）即可，不必改代码。
+    llm_timeout_seconds: float = 30.0
 
     # 旧名（M13 之前只支持 DeepSeek）。新配置请用上面的 LLM_*，
     # 这两组会在 resolved_* 里被优先取新值，只在用户没改过时才兜底。

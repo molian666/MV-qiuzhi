@@ -307,7 +307,7 @@ export default function VisionBank() {
   return (
     /* 左列从 208px 放宽到 248px：去掉岗位切换后，筛选（尤其 13 个主题标签）
        成了唯一的缩小范围手段，208px 会把「深度学习与缺陷检测」这类标签折断 */
-    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[248px_minmax(240px,320px)_1fr]">
+    <div className="grid min-h-0 gap-4 lg:h-full xl:grid-cols-[248px_minmax(240px,320px)_1fr]">
       <aside className="flex min-h-0 flex-col gap-3">
         {/* 一句话说明这里是什么，替代原来的岗位方向切换 */}
         <div className="rounded-card border border-ink-1 bg-surface p-2.5">
@@ -504,7 +504,7 @@ export default function VisionBank() {
           </div>
         )}
 
-        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+        <div className="space-y-1 pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           {loading && items.length === 0 && <p className="px-1 text-xs text-ink-4">加载中…</p>}
           {!loading && items.length === 0 && (
             <p className="px-1 text-xs text-ink-4">没有符合条件的题。</p>
@@ -626,7 +626,7 @@ export default function VisionBank() {
         )}
 
         {detail && (
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div className="space-y-3 pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             <div className="rounded-panel border border-ink-1 bg-surface p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="btn-primary rounded-control px-1.5 py-0.5 text-[10px]">
@@ -635,6 +635,11 @@ export default function VisionBank() {
                 <span className="rounded-control bg-sunken px-1.5 py-0.5 text-[10px] text-ink-6">
                   {detail.category}
                 </span>
+                {detail.question_type === 'choice' && (
+                  <span className="rounded-control bg-ok-soft px-1.5 py-0.5 text-[10px] text-ok">
+                    选择题
+                  </span>
+                )}
                 <span
                   className={`rounded-control px-1.5 py-0.5 font-mono text-[10px] ${
                     DIFFICULTY_STYLES[detail.difficulty] ?? 'bg-sunken text-ink-6'
@@ -753,48 +758,112 @@ export default function VisionBank() {
 
             {revealed && (
               <>
-                <div className="rounded-panel border border-ink-1 bg-surface p-4">
-                  <h4 className="text-xs font-medium text-ink-6">答题要点（对照这个自评）</h4>
-                  <ol className="mt-2 space-y-1.5">
-                    {detail.points.map((point, index) => (
-                      <li key={index} className="flex gap-2 text-xs leading-relaxed text-ink-7">
-                        <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-control bg-sunken font-mono text-[10px] text-ink-6">
-                          {index + 1}
-                        </span>
-                        <span>{point}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
+                {detail.question_type === 'choice' ? (
+                  <>
+                    <div className="rounded-panel border border-ink-1 bg-surface p-4">
+                      <h4 className="text-xs font-medium text-ink-6">选项</h4>
+                      <div className="mt-2 space-y-1.5">
+                        {(detail.choice_options ?? []).map((option, index) => {
+                          const isCorrect = index === detail.correct_index
+                          return (
+                            <div
+                              key={index}
+                              className={`flex items-start gap-2 rounded-control border px-2.5 py-2 text-xs leading-relaxed ${
+                                isCorrect
+                                  ? 'border-ok bg-ok-soft text-ok'
+                                  : 'border-ink-1 bg-paper text-ink-7'
+                              }`}
+                            >
+                              <span className="mt-px font-mono text-[10px] text-ink-4">
+                                {String.fromCharCode(65 + index)}
+                              </span>
+                              <span className="min-w-0 flex-1">{option}</span>
+                              {isCorrect && (
+                                <span className="shrink-0 text-[10px] font-medium">✓ 正确答案</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {detail.explanation && (
+                        <div className="mt-3">
+                          <h4 className="text-xs font-medium text-ink-6">解析</h4>
+                          <div className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-ink-7">
+                            {detail.explanation}
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
-                <div className="rounded-panel border border-ink-1 bg-surface p-4">
-                  <h4 className="mb-3 text-xs font-medium text-ink-6">参考答案</h4>
-                  <Markdown text={detail.answer} />
-                </div>
+                    {(detail.points.length > 0 || detail.answer) && (
+                      <div className="rounded-panel border border-ink-1 bg-surface p-4">
+                        <h4 className="text-xs font-medium text-ink-6">完整解答</h4>
+                        {detail.points.length > 0 && (
+                          <ol className="mt-2 space-y-1.5">
+                            {detail.points.map((point, index) => (
+                              <li key={index} className="flex gap-2 text-xs leading-relaxed text-ink-7">
+                                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-control bg-sunken font-mono text-[10px] text-ink-6">
+                                  {index + 1}
+                                </span>
+                                <span>{point}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                        {detail.answer && (
+                          <div className="mt-2">
+                            <Markdown text={detail.answer} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-panel border border-ink-1 bg-surface p-4">
+                      <h4 className="text-xs font-medium text-ink-6">答题要点（对照这个自评）</h4>
+                      <ol className="mt-2 space-y-1.5">
+                        {detail.points.map((point, index) => (
+                          <li key={index} className="flex gap-2 text-xs leading-relaxed text-ink-7">
+                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-control bg-sunken font-mono text-[10px] text-ink-6">
+                              {index + 1}
+                            </span>
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
 
-                {detail.followups.length > 0 && (
-                  <div className="rounded-panel border border-ink-1 bg-surface p-4">
-                    <h4 className="text-xs font-medium text-ink-6">面试官大概率会追问</h4>
-                    <p className="mt-1 text-[11px] text-ink-4">
-                      答对主问题只是入场券，追问才是分水岭。
-                    </p>
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-ink-7">
-                      {detail.followups.map((item, index) => (
-                        <li key={index}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                    <div className="rounded-panel border border-ink-1 bg-surface p-4">
+                      <h4 className="mb-3 text-xs font-medium text-ink-6">参考答案</h4>
+                      <Markdown text={detail.answer} />
+                    </div>
 
-                {detail.pitfalls.length > 0 && (
-                  <div className="rounded-panel border border-warn bg-warn-soft p-4">
-                    <h4 className="text-xs font-medium text-warn">常见错误回答</h4>
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-warn">
-                      {detail.pitfalls.map((item, index) => (
-                        <li key={index}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
+                    {detail.followups.length > 0 && (
+                      <div className="rounded-panel border border-ink-1 bg-surface p-4">
+                        <h4 className="text-xs font-medium text-ink-6">面试官大概率会追问</h4>
+                        <p className="mt-1 text-[11px] text-ink-4">
+                          答对主问题只是入场券，追问才是分水岭。
+                        </p>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-ink-7">
+                          {detail.followups.map((item, index) => (
+                            <li key={index}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {detail.pitfalls.length > 0 && (
+                      <div className="rounded-panel border border-warn bg-warn-soft p-4">
+                        <h4 className="text-xs font-medium text-warn">常见错误回答</h4>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-warn">
+                          {detail.pitfalls.map((item, index) => (
+                            <li key={index}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="rounded-panel border border-ink-1 bg-surface p-4">

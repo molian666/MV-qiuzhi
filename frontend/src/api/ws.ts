@@ -177,7 +177,11 @@ export type ServerEvent =
 export interface SocketHandlers {
   onEvent: (event: ServerEvent) => void
   onOpen?: () => void
-  onClose?: () => void
+  /**
+   * 连接被关闭。`code` 用于诊断：1000=正常关闭；1001=页面离开/导航；
+   * 1005/1006=异常断开（没收到关闭帧，多为网络层被掐断）；其他见 RFC 6455。
+   */
+  onClose?: (code?: number) => void
   /**
    * 连接状态变化（M19 手机端）。
    *
@@ -225,6 +229,20 @@ export class SessionSocket {
   /** 用户主动关闭（或会话已结束）：不再自动重连 */
   private manualClose = false
   private status: SocketStatus = 'connecting'
+  /** 最后一次收到下行消息的时间。心跳据此判断连接是否"假死"。 */
+  private lastMessageAt = 0
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  /** 应用层心跳：服务端 runtime 收到 `{type:'ping'}` 会回 pong（见 session_runtime.handle）。
+   *  语音面试是长连接，光靠服务端 ping 不够——手机切后台/换网时 TCP 可能半开，
+   *  服务端感知不到，前端必须自己能发现并重连。
+   *
+   *  间隔刻意压到 2 秒：手机侧连接曾在「收到 state 后空闲约 2 秒」被网络层掐断
+   *  （路由器 NAT 空闲超时 / 手机省电策略，断开无关闭帧、服务端记 1005）。
+   *  高频心跳让连接永不空闲，空闲超时型掐断就无从下手；代价只是每分钟约
+   *  30 条几字节的消息，可以忽略。 */
+  private static readonly HEARTBEAT_MS = 2_000
+  /** 超过这么久没收到任何下行消息（含 pong）就判定假死，主动关连接走退避重连。 */
+  private static readonly STALE_MS = 10_000
 
   constructor(sessionId: number, handlers: SocketHandlers) {
     this.sessionId = sessionId
@@ -239,6 +257,11 @@ export class SessionSocket {
     return this.status
   }
 
+  /** 用户是否主动关闭过（或会话已结束）：为 true 时外部不应再自动重连。 */
+  get manuallyClosed(): boolean {
+    return this.manualClose
+  }
+
   private setStatus(status: SocketStatus): void {
     if (this.status === status) {
       return
@@ -249,6 +272,12 @@ export class SessionSocket {
 
   connect(): Promise<void> {
     this.manualClose = false
+    // 外部主动重启时，清掉可能还挂着的退避 timer（锁屏期间 timer 被冻结，
+    // 解冻后可能迟到触发 → 双开连接；这里先清掉，防双开）。
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer)
+      this.retryTimer = null
+    }
     return this.openSocket()
   }
 
@@ -266,6 +295,8 @@ export class SessionSocket {
         settled = true
         this.plan.reset()
         this.setStatus('connected')
+        this.lastMessageAt = Date.now()
+        this.startHeartbeat()
         this.handlers.onOpen?.()
         resolve()
       }
@@ -275,8 +306,9 @@ export class SessionSocket {
           reject(new Error('WebSocket 连接失败：请确认后端已启动'))
         }
       }
-      socket.onclose = () => {
-        this.handlers.onClose?.()
+      socket.onclose = (event: CloseEvent) => {
+        this.stopHeartbeat()
+        this.handlers.onClose?.(event.code)
         if (this.manualClose) {
           this.setStatus('disconnected')
           return
@@ -284,6 +316,8 @@ export class SessionSocket {
         this.scheduleReconnect()
       }
       socket.onmessage = (event: MessageEvent<string>) => {
+        // 任何下行消息都说明连接活着，刷新心跳基准
+        this.lastMessageAt = Date.now()
         let parsed: ServerEvent
         try {
           parsed = JSON.parse(event.data) as ServerEvent
@@ -330,6 +364,31 @@ export class SessionSocket {
     }, delay)
   }
 
+  /**
+   * 应用层心跳循环：每 HEARTBEAT_MS 发一次 ping；若 STALE_MS 内没收到任何下行消息，
+   * 判定连接假死并主动关闭（onclose 会走退避重连）。
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat()
+    // 连上就立刻打一个 ping：如果掐断发生在"空闲约 2 秒"，第一个心跳不能等
+    // HEARTBEAT_MS（2 秒）之后才发，否则还是留了接近 2 秒的空档。
+    this.send({ type: 'ping' })
+    this.heartbeatTimer = setInterval(() => {
+      this.send({ type: 'ping' })
+      if (Date.now() - this.lastMessageAt > SessionSocket.STALE_MS) {
+        // 传 1000 规范关闭：服务端能区分"心跳判死"与"网络层被掐"（后者是 1005/1006）
+        this.socket?.close(1000, 'stale')
+      }
+    }, SessionSocket.HEARTBEAT_MS)
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer !== null) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = null
+    }
+  }
+
   sendAudio(pcm: Int16Array): void {
     this.send({ type: 'audio_append', pcm: toBase64(pcm) })
   }
@@ -354,6 +413,7 @@ export class SessionSocket {
 
   close(): void {
     this.manualClose = true
+    this.stopHeartbeat()
     if (this.retryTimer !== null) {
       clearTimeout(this.retryTimer)
       this.retryTimer = null

@@ -15,7 +15,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { LlmTest, ProviderStatus, SystemSettings, Usage } from '../api/types'
+import type { AppVersion, LlmTest, ProviderStatus, SystemSettings, Usage } from '../api/types'
 
 /** 模型服务的字段。顺序就是配置的顺序：先选平台地址，再填 Key，最后确认模型名。
  *
@@ -104,6 +104,14 @@ export default function System() {
   const [testResult, setTestResult] = useState<LlmTest | null>(null)
   const [error, setError] = useState('')
 
+  // 检测更新：本地 git 版本 + 与 GitHub 远程对比
+  const [version, setVersion] = useState<AppVersion | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [checkResult, setCheckResult] = useState<{
+    state: 'latest' | 'update' | 'fail'
+    text: string
+  } | null>(null)
+
   const load = () => {
     Promise.all([api.providers(), api.usage(), api.systemSettings()])
       .then(([providerStatus, usageStats, config]) => {
@@ -116,6 +124,69 @@ export default function System() {
   }
 
   useEffect(load, [])
+
+  useEffect(() => {
+    api
+      .appVersion()
+      .then(setVersion)
+      .catch(() => setVersion({ available: false }))
+  }, [])
+
+  /** 检查更新：拿本地 commit 与 GitHub 仓库最新 commit 对比。
+   *
+   *  GitHub 公开 API 允许浏览器直接跨域读取（Access-Control-Allow-Origin: *），
+   *  所以不需要后端代劳。失败（离线 / GitHub 不可达 / 不是 git 仓库）时
+   *  给出可操作的提示而不是假装没问题。
+   */
+  const checkUpdate = async () => {
+    setChecking(true)
+    setCheckResult(null)
+    try {
+      if (!version?.available || !version.local_commit) {
+        throw new Error('本地不是 git 仓库，没有可对比的版本')
+      }
+      const match = version.repo_url?.match(/github\.com[/:]([^/]+)\/([^/.]+)/)
+      if (!match) {
+        throw new Error('没识别出 GitHub 仓库地址（remote origin 不是 github.com）')
+      }
+      const [, owner, repo] = match
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/commits?per_page=1`,
+        { headers: { Accept: 'application/vnd.github+json' } },
+      )
+      if (!response.ok) {
+        throw new Error(`GitHub 返回 ${response.status}${response.status === 403 ? '（可能被限流，稍后再试）' : ''}`)
+      }
+      const commits = (await response.json()) as {
+        sha: string
+        commit?: { message?: string; author?: { date?: string } }
+      }[]
+      const latest = commits[0]
+      if (!latest?.sha) {
+        throw new Error('GitHub 没有返回提交信息')
+      }
+      const local = version.local_commit
+      if (latest.sha.startsWith(local) || local.startsWith(latest.sha)) {
+        setCheckResult({ state: 'latest', text: `已是最新版本（本地 ${local} 与远程一致）。` })
+        return
+      }
+      const date = latest.commit?.author?.date
+        ? new Date(latest.commit.author.date).toLocaleString('zh-CN')
+        : ''
+      const message = latest.commit?.message?.split('\n')[0] ?? ''
+      setCheckResult({
+        state: 'update',
+        text: `发现新版本：远程 ${latest.sha.slice(0, 7)}${date ? `（更新于 ${date}）` : ''}\n「${message}」\n\n在项目目录执行 git pull 即可更新到最新。`,
+      })
+    } catch (err) {
+      setCheckResult({
+        state: 'fail',
+        text: `检查失败：${errorMessage(err)}。可能网络不通或 GitHub 暂时不可达，可稍后再试。`,
+      })
+    } finally {
+      setChecking(false)
+    }
+  }
 
   const save = async () => {
     // 只提交真正改过的：密钥框留空 = 不动它，否则会把已配的密钥清掉
@@ -233,15 +304,17 @@ export default function System() {
   const hasChanges = Object.keys(draft).length > 0
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex min-h-0 flex-col gap-3 lg:h-full">
       {error && (
         <p className="shrink-0 rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>
       )}
 
       {/* 左右分栏：模型与密钥是"要填的东西"，提供方状态与用量是"看的东西"。
           竖着堆会一屏放不下，而这两类内容本来就不必抢同一块纵向空间。 */}
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
-        <section className="min-h-0 overflow-y-auto rounded-panel border border-ink-1 bg-surface p-4 xl:pr-3">
+      <div className="grid min-w-0 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+        {/* M22：min-w-0——grid 子项默认 min-width:auto，provider 按钮组那行
+            会把面板撑出视口；允许收缩后内容在容器内换行 */}
+        <section className="min-w-0 rounded-panel border border-ink-1 bg-surface p-4 xl:pr-3 lg:min-h-0 lg:overflow-y-auto">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-ink-9">模型与密钥</h2>
           {providers?.llm && (
@@ -275,7 +348,8 @@ export default function System() {
         ) : (
           <>
             {/* 提供方：就两个选项，用按钮组比下拉更直接 */}
-            <div className="mt-3 flex items-center gap-1 self-start rounded-card border border-ink-1 bg-paper p-0.5">
+            {/* M22：flex-wrap——手机上一行放不下时让提示文字换行，而不是把面板撑宽 */}
+            <div className="mt-3 flex flex-wrap items-center gap-1 self-start rounded-card border border-ink-1 bg-paper p-0.5">
               {[
                 { key: 'mock', label: 'mock', hint: '不联网，内置示例' },
                 { key: 'openai', label: 'openai', hint: '真调模型' },
@@ -410,7 +484,7 @@ export default function System() {
       </section>
 
         {/* 右栏：看的两块。各自不长，合起来滚动一次就够 */}
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+        <div className="flex min-w-0 flex-col gap-4 pr-1 lg:min-h-0 lg:overflow-y-auto">
           <section className="rounded-panel border border-ink-1 bg-surface p-4">
             <h2 className="mb-3 text-base font-semibold text-ink-9">提供方</h2>
         {!providers ? (
@@ -508,6 +582,62 @@ export default function System() {
             </div>
           </>
         )}
+          </section>
+
+          <section className="rounded-panel border border-ink-1 bg-surface p-4">
+            <h2 className="mb-3 text-base font-semibold text-ink-9">关于与更新</h2>
+            {!version ? (
+              <p className="text-sm text-ink-6">加载中…</p>
+            ) : !version.available ? (
+              <p className="text-sm leading-relaxed text-ink-6">
+                当前目录不是 git 仓库，无法检查更新。
+              </p>
+            ) : (
+              <>
+                <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-ink-6">
+                  <span>本地版本</span>
+                  <span className="font-mono text-ink-7">{version.local_commit}</span>
+                  {version.local_date && (
+                    <span className="text-ink-4">
+                      {new Date(version.local_date).toLocaleString('zh-CN')}
+                    </span>
+                  )}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void checkUpdate()}
+                    disabled={checking}
+                    className="rounded-control border border-ink-2 bg-surface px-3 py-1.5 text-xs text-ink-7 transition-colors hover:bg-paper disabled:border-ink-1 disabled:bg-sunken disabled:text-ink-6"
+                  >
+                    {checking ? '检查中…' : '检查更新'}
+                  </button>
+                  {version.repo_url && (
+                    <a
+                      href={version.repo_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-ink-6 hover:underline"
+                    >
+                      项目主页
+                    </a>
+                  )}
+                </div>
+                {checkResult && (
+                  <div
+                    className={`mt-2 whitespace-pre-wrap rounded-control border px-3 py-2 text-xs leading-relaxed ${
+                      checkResult.state === 'update'
+                        ? 'border-warn bg-warn-soft text-warn'
+                        : checkResult.state === 'latest'
+                          ? 'border-ok bg-ok-soft text-ok'
+                          : 'border-ng bg-ng-soft text-ng'
+                    }`}
+                  >
+                    {checkResult.text}
+                  </div>
+                )}
+              </>
+            )}
           </section>
         </div>
       </div>

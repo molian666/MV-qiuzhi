@@ -207,7 +207,7 @@ export default function OfferDesk() {
   const brief = current?.brief ?? null
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-4 lg:h-full">
       {error && (
         <div className="shrink-0 rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">
           {error}
@@ -232,7 +232,7 @@ export default function OfferDesk() {
       </div>
 
       {/* 页签内容：切页签时高度不变，内容在内部滚动 */}
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+      <div className="space-y-4 pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
 
       {/* ---------------------------- 对比矩阵 ---------------------------- */}
       {panel === 'matrix' && (
@@ -529,7 +529,7 @@ export default function OfferDesk() {
               <h2 className="text-sm font-semibold">
                 {current.company || '谈判'} · 你的底线 {wan(Number(current.plan.bottom_line ?? 0))}
               </h2>
-              <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+              <div className="mt-3 space-y-2 lg:max-h-80 lg:overflow-y-auto">
                 {current.turns.map((turn, index) => (
                   <div
                     key={`${turn.speaker}-${index}`}

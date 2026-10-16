@@ -123,6 +123,24 @@ def _ensure_apply_columns(engine: Engine) -> None:
     )
 
 
+def _ensure_question_bank_columns(engine: Engine) -> None:
+    """给 question_bank 补题型列（旧库建于这些字段加入之前）。
+
+    选择题功能只影响新生成的题；旧题全部按问答题处理（question_type 默认 open），
+    照常参与抽题，行为不变。
+    """
+    _add_missing_columns(
+        engine,
+        "question_bank",
+        {
+            "question_type": "VARCHAR NOT NULL DEFAULT 'open'",
+            "choice_options": "JSON",
+            "correct_index": "INTEGER",
+            "explanation": "TEXT",
+        },
+    )
+
+
 def init_db() -> None:
     """建表 + 准备数据目录（M0 用 create_all，M2 起换 Alembic）。"""
     from . import models  # noqa: F401  导入以注册全部模型
@@ -135,6 +153,7 @@ def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     _ensure_resume_columns(engine)
     _ensure_apply_columns(engine)
+    _ensure_question_bank_columns(engine)
 
 
 @contextmanager

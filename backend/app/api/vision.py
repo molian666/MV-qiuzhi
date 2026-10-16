@@ -236,6 +236,8 @@ async def generate_questions_route(
             count=payload.count,
             category=payload.category,
             difficulty=payload.difficulty,
+            question_type=payload.question_type,
+            domain=payload.domain,
             mode=payload.mode,
             batch=payload.batch,
             note=payload.note,

@@ -416,6 +416,10 @@ export interface VisionGenerateIn {
   count: number
   category?: string | null
   difficulty?: number | null
+  /** 题型：open = 问答题 | choice = 选择题（4 选项 + 正确下标 + 解析） */
+  question_type?: 'open' | 'choice'
+  /** 更细的领域约束（如「打光」「标定」「缺陷检测」） */
+  domain?: string | null
   /** new = 新建批次；append = 继续生成；replace = 丢掉这批重新生成 */
   mode: 'new' | 'append' | 'replace'
   batch?: string | null
@@ -463,6 +467,8 @@ export interface VisionQuestionBrief {
   role_label: string
   category: string
   difficulty: number
+  /** 题型：open = 问答题 | choice = 选择题（列表只给题型，不给选项/答案） */
+  question_type?: string
   /** 全部标签：含来源批次、分类，以及文档自带的标记（「高频」「易错」） */
   tags: string[]
   attempts: number
@@ -474,6 +480,31 @@ export interface VisionQuestion extends VisionQuestionBrief {
   answer: string
   followups: string[]
   pitfalls: string[]
+  /** 选择题专属：选项（A/B/C/D）。问答题为空数组。 */
+  choice_options?: string[]
+  /** 选择题正确选项下标（0 起）。问答题为 null。 */
+  correct_index?: number | null
+  /** 解析：选择题为什么对/错；问答题的答题思路补充。 */
+  explanation?: string
+}
+
+/** 本地版本信息（「检查更新」的数据来源） */
+export interface AppVersion {
+  available: boolean
+  /** 本地 git commit 短哈希 */
+  local_commit?: string
+  /** 本地最近提交时间（ISO） */
+  local_date?: string
+  /** git remote origin 地址 */
+  repo_url?: string
+}
+
+/** 远程（GitHub）最新版本信息 */
+export interface RemoteVersion {
+  sha: string
+  date: string
+  message: string
+  url: string
 }
 
 export interface VisionAttempt {

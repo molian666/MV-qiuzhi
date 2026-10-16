@@ -38,6 +38,8 @@ def build_mock_generated_questions(messages: list[LLMMessage], *, count: int = 3
     difficulty = 3
     existing = 0
     wanted = count
+    question_type = "open"
+    domain = ""
 
     for message in messages:
         content = message.content
@@ -54,6 +56,12 @@ def build_mock_generated_questions(messages: list[LLMMessage], *, count: int = 3
             wanted = max(1, min(int(asked.group(1)), 12))
         if "已经出过了" in content:
             existing = content.count("\n- ")
+        # 选择题：prompt 里明确写了「本批题型：全部出选择题」
+        if "全部出选择题" in content:
+            question_type = "choice"
+        domain_match = re.search(r"聚焦领域：(.+?)。", content)
+        if domain_match:
+            domain = domain_match.group(1).strip()
 
     label = ROLE_LABELS.get(role, role)
     categories = [category] if category else _CATEGORY_HINTS.get(role, ["通用"])
@@ -65,34 +73,37 @@ def build_mock_generated_questions(messages: list[LLMMessage], *, count: int = 3
     for index in range(wanted):
         angle = _ANGLES[(index + existing) % len(_ANGLES)]
         item_category = categories[index % len(categories)]
-        questions.append(
-            {
-                "question": f"（Mock 占位题 {index + 1}）{label}方向的面试里，关于「{angle}」，你一般怎么处理？",
-                "category": item_category,
-                "difficulty": difficulty,
-                "points": [
-                    "这是 Mock 生成的占位要点——没有真实内容，不要当面试题用",
-                    "配上真实模型（在系统设置里填 API Key）后，这里会是真正的答题要点",
-                    "Mock 的意义是让「生成 → 预览 → 采纳 → 用于面试」这条链路能跑通",
-                ],
-                "answer": (
-                    "这是一道 **Mock 生成的占位题**，不是真实面试题。\n\n"
-                    "它的作用是让你在没有配置模型的情况下，也能把「生成题目 → 预览 → "
-                    "采纳进题库 → 在模拟面试里按占比抽到它」这条链路走一遍，"
-                    "确认交互和流量都正常。\n\n"
-                    "配上真实模型之后，这个位置会是一道有实质内容的题：题干、答题要点、"
-                    "参考答案、追问方向、常见错误都会齐全。\n\n"
-                    "**不要把 Mock 生成的题当成可用的面试素材**——它没有经过任何事实核对。"
-                ),
-                "followups": [
-                    "（Mock 生成）这道题在真实模型下会带 2-4 个追问方向",
-                ],
-                "pitfalls": [
-                    "（Mock 生成）这道题在真实模型下会列出常见错误回答",
-                    "把 Mock 生成的题当成真实面试题来背——这是最需要避免的",
-                ],
-            }
-        )
+        if question_type == "choice":
+            questions.append(_mock_choice(item_category, index + 1, existing, label, angle, domain))
+        else:
+            questions.append(
+                {
+                    "question": f"（Mock 占位题 {index + 1}）{label}方向的面试里，关于「{angle}」，你一般怎么处理？",
+                    "category": item_category,
+                    "difficulty": difficulty,
+                    "points": [
+                        "这是 Mock 生成的占位要点——没有真实内容，不要当面试题用",
+                        "配上真实模型（在系统设置里填 API Key）后，这里会是真正的答题要点",
+                        "Mock 的意义是让「生成 → 预览 → 采纳 → 用于面试」这条链路能跑通",
+                    ],
+                    "answer": (
+                        "这是一道 **Mock 生成的占位题**，不是真实面试题。\n\n"
+                        "它的作用是让你在没有配置模型的情况下，也能把「生成题目 → 预览 → "
+                        "采纳进题库 → 在模拟面试里按占比抽到它」这条链路走一遍，"
+                        "确认交互和流量都正常。\n\n"
+                        "配上真实模型之后，这个位置会是一道有实质内容的题：题干、答题要点、"
+                        "参考答案、追问方向、常见错误都会齐全。\n\n"
+                        "**不要把 Mock 生成的题当成可用的面试素材**——它没有经过任何事实核对。"
+                    ),
+                    "followups": [
+                        "（Mock 生成）这道题在真实模型下会带 2-4 个追问方向",
+                    ],
+                    "pitfalls": [
+                        "（Mock 生成）这道题在真实模型下会列出常见错误回答",
+                        "把 Mock 生成的题当成真实面试题来背——这是最需要避免的",
+                    ],
+                }
+            )
 
     return json.dumps(
         {
@@ -102,3 +113,44 @@ def build_mock_generated_questions(messages: list[LLMMessage], *, count: int = 3
         },
         ensure_ascii=False,
     )
+
+
+def _mock_choice(
+    category: str, index: int, existing: int, label: str, angle: str, domain: str
+) -> dict:
+    """Mock 的选择题：结构完整（4 选项 + 正确下标 + 解析），内容明显是占位。"""
+    domain_note = f"（{domain}）" if domain else ""
+    return {
+        "question": f"（Mock 占位选择题 {index}）{label}方向{domain_note}，关于「{angle}」，正确的做法是？",
+        "type": "choice",
+        "category": category,
+        "difficulty": 3,
+        "options": [
+            "选项 A：这是 Mock 编的选项，不代表真实结论",
+            "选项 B：这也是占位内容，正式使用时由真实模型给出",
+            "选项 C：注意这里的表述——占位题每个选项都不可信",
+            "选项 D：正确下标是固定的 2（C），仅用于验证选择题链路",
+        ],
+        "correct": 2,
+        "explanation": (
+            "（Mock 占位解析）这道题的正确选项是 C。解析内容本身也是占位的："
+            "真实模型会在这里说明为什么这个选项对、其他选项错在哪。"
+            "选择题的「生成 → 点选作答 → 判对错 → 看解析」链路已跑通，"
+            "配上真实模型后这里会是实质内容。"
+        ),
+        "points": [
+            "（Mock 占位）选择题的答题要点——真实模型会给出对照清单",
+            "选择题与问答题的差异：选项作答后直接判对错，不需要等批改",
+        ],
+        "answer": (
+            "这是一道 **Mock 生成的占位选择题**，不是真实面试题。\n\n"
+            "正确选项是 C（下标 2）。配上真实模型后，这里会是完整解答："
+            "不仅标出正确选项，还会把这道题背后的完整思路写出来，"
+            "方便你答完对照自己漏了什么。\n\n"
+            "**不要把 Mock 生成的题当成可用的面试素材。**"
+        ),
+        "followups": [],
+        "pitfalls": [
+            "把 Mock 生成的题当成真实面试题来背——这是最需要避免的",
+        ],
+    }

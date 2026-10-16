@@ -122,7 +122,7 @@ export default function Applications() {
   const maxFunnel = stats?.funnel[0]?.count || 1
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="flex min-h-0 flex-col gap-4 lg:h-full">
       <section className="grid shrink-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: '总投递', value: `${stats?.total ?? 0}`, hint: '导入 + 手动 + 扩展' },
@@ -142,8 +142,8 @@ export default function Applications() {
         <p className="shrink-0 rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-4 pr-1 lg:min-h-0 lg:overflow-y-auto">
           {/* 漏斗 */}
           <section className="rounded-panel border border-ink-1 bg-surface p-4">
             <h3 className="mb-3 text-sm font-semibold text-ink-9">投递漏斗</h3>
@@ -239,7 +239,7 @@ export default function Applications() {
             {items.length === 0 ? (
               <p className="text-xs text-ink-6">还没有记录。</p>
             ) : (
-              <div className="max-h-[420px] overflow-y-auto">
+              <div className="lg:max-h-[420px] lg:overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-paper text-left text-xs text-ink-6">
                     <tr>
@@ -291,7 +291,7 @@ export default function Applications() {
           </section>
         </div>
 
-        <aside className="min-h-0 space-y-4 overflow-y-auto pr-1">
+        <aside className="space-y-4 pr-1 lg:min-h-0 lg:overflow-y-auto">
           {/* 导入 */}
           <section className="rounded-panel border border-ink-1 bg-surface p-4">
             <h3 className="mb-2 text-sm font-semibold text-ink-9">导入投递记录</h3>

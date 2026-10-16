@@ -224,14 +224,14 @@ export default function Recordings() {
   const inputClass = 'w-full rounded-card border border-ink-2 px-3 py-2 text-sm outline-none focus:border-info'
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-4 lg:h-full">
       {error && (
         <p className="shrink-0 rounded-control bg-ng-soft px-3 py-2 text-sm text-ng">{error}</p>
       )}
 
-      <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
         {/* 左：对话来源 */}
-        <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
+        <div className="space-y-3 pr-1 lg:min-h-0 lg:overflow-y-auto">
           <div className="rounded-panel border border-ink-1 bg-surface p-4">
             <h3 className="mb-1 text-sm font-semibold text-ink-9">① 添加一段真实面试对话</h3>
             {/* 用 Markdown 组件而不是 <p>：这里的 `[面试官]` 要用行内代码样式，
@@ -440,7 +440,7 @@ export default function Recordings() {
                     收起
                   </button>
                 </div>
-                <div className="max-h-56 space-y-1 overflow-y-auto">
+                <div className="space-y-1 lg:max-h-56 lg:overflow-y-auto">
                   {detail.segments.map((segment) => (
                     <p key={segment.idx} className="text-[11px] leading-relaxed text-ink-6">
                       <span className={segment.speaker === 'interviewer' ? 'text-info' : 'text-ok'}>
@@ -456,7 +456,7 @@ export default function Recordings() {
         </div>
 
         {/* 右：画像 */}
-        <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
+        <div className="space-y-3 pr-1 lg:min-h-0 lg:overflow-y-auto">
           <div className="rounded-panel border border-ink-1 bg-surface p-4">
             <h3 className="mb-3 text-sm font-semibold text-ink-9">② 学出面试官画像</h3>
             <div className="flex items-center gap-2">
@@ -618,7 +618,7 @@ export default function Recordings() {
               )}
 
               {profile.samples.length > 0 && (
-                <div className="mt-3 max-h-56 overflow-y-auto">
+                <div className="mt-3 lg:max-h-56 lg:overflow-y-auto">
                   <table className="w-full text-[11px]">
                     <thead className="bg-paper text-left text-ink-6">
                       <tr>

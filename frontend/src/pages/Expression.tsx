@@ -122,7 +122,7 @@ export default function Expression() {
     })) ?? []
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-4 lg:h-full">
       {error && (
         <div className="shrink-0 rounded-control border border-ng bg-ng-soft px-3 py-2 text-sm text-ng">
           {error}
@@ -139,7 +139,7 @@ export default function Expression() {
           <label className="text-xs text-ink-6">
             面试场次
             <select
-              className="mt-1 w-80 rounded-control border border-ink-2 px-2 py-1.5 text-sm"
+              className="mt-1 w-full rounded-control border border-ink-2 px-2 py-1.5 text-sm sm:w-80"
               value={sessionId ?? ''}
               onChange={(event) => setSessionId(Number(event.target.value))}
             >
@@ -177,7 +177,7 @@ export default function Expression() {
       )}
 
       {report && (
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+        <div className="space-y-4 pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           {/* 结论 */}
           <section className="rounded-card border border-ink-1 bg-surface p-4">
             <div className="flex flex-wrap items-center gap-3">

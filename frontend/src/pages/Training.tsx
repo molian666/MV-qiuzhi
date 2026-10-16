@@ -169,7 +169,10 @@ export default function Training() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex min-h-0 flex-col gap-3 lg:h-full">
+      {/* M22 手机端：手机上（<lg）不锁高、不内滚——整页自然铺开由 main 统一滚动，
+          不再出现"上半屏一个滚动条、下半屏又一个滚动条"的多块滑动。
+          lg 以上恢复桌面式：锁高 + 面板各自内滚。 */}
       <section className="grid shrink-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="平均掌握度" value={`${overview?.average_mastery ?? 0}`} hint="0–100，越高越稳" />
         <Stat
@@ -189,7 +192,7 @@ export default function Training() {
         <p className="shrink-0 rounded-control bg-ng-soft px-3 py-2 text-xs text-ng">{error}</p>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
         {/* 今日训练：按薄弱点推题，作答后模型批改并更新掌握度 */}
         <section className="flex min-h-0 flex-col">
           <div className="flex shrink-0 items-center justify-between pb-2">
@@ -204,7 +207,7 @@ export default function Training() {
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-2 pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {loading ? (
               <p className="rounded-panel border border-ink-1 bg-surface px-4 py-6 text-sm text-ink-6">
                 正在组题…
@@ -338,7 +341,7 @@ export default function Training() {
         </section>
 
         {/* 右栏：掌握度 + 题库积累 */}
-        <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+        <aside className="flex flex-col gap-3 pr-1 lg:min-h-0 lg:overflow-y-auto">
           {history && (
             <div className="rounded-panel border border-ink-1 bg-surface p-3.5">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -378,7 +381,7 @@ export default function Training() {
                 还没有数据。生成一份面试报告后，这里会按薄弱程度排序。
               </p>
             ) : (
-              <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+              <div className="space-y-1.5 pr-1 lg:max-h-64 lg:overflow-y-auto">
                 {overview.items.map((item) => (
                   <button
                     key={item.topic_id}

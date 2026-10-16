@@ -182,6 +182,10 @@ def import_questions(
                 difficulty=item.difficulty,
                 reference_points=list(item.points),
                 sample_answer=item.answer,
+                question_type=item.question_type,
+                choice_options=list(item.options),
+                correct_index=item.correct_index,
+                explanation=item.explanation,
                 source=source,
             )
         )
@@ -393,6 +397,8 @@ async def generate_draft(
     count: int,
     category: str | None = None,
     difficulty: int | None = None,
+    question_type: str = "open",
+    domain: str | None = None,
     mode: str = "new",
     batch: str | None = None,
     note: str = "",
@@ -403,6 +409,10 @@ async def generate_draft(
     - `new`：新建一个批次；
     - `append`：在 `batch` 上继续生成——把该批已有题干带给模型，要求它别重复；
     - `replace`：丢掉 `batch` 的现有草稿，按这次给的参数重新生成一批。
+
+    `question_type`：open（问答题）| choice（选择题）。选择题的选项与正确下标
+    由模型给出、存进库；它们只参与「生成 → 作答看解析 → 采纳」的自测闭环，
+    抽题时会被排除（面试是问答场景）。
 
     生成结果**不自动进入抽题池**：用户要看过、决定采纳。这样「选择是否添加到
     提问的题库」就落在了一个明确动作上，而不是靠默认行为。
@@ -430,6 +440,8 @@ async def generate_draft(
         count=count,
         difficulty=difficulty,
         category=category,
+        question_type=question_type,
+        domain=domain,
         existing=hints,
         extra_note=note,
     )
@@ -460,6 +472,10 @@ async def generate_draft(
                 difficulty=item.difficulty,
                 reference_points=list(item.points),
                 sample_answer=compose_answer_text(item.answer, item.followups, item.pitfalls),
+                question_type=item.question_type,
+                choice_options=list(item.options),
+                correct_index=item.correct_index,
+                explanation=item.explanation,
                 source=source,
             )
         )
@@ -698,11 +714,15 @@ def _query_pool(
         statement = statement.where(QuestionBank.difficulty <= max_difficulty)
 
     # 草稿不进抽题池：模型生成的东西要人看过才该被问到；
-    # 已删除的题同样不进——否则"删掉的题还在面试里被问到"
+    # 已删除的题同样不进——否则"删掉的题还在面试里被问到"；
+    # 选择题不进抽题池：面试是问答场景，选项题不适用，
+    # 它们只作为「生成 → 作答看解析 → 采纳进题库」的自测资源
     return [
         row
         for row in db.exec(statement).all()
-        if DRAFT_TAG not in (row.tags or []) and not is_deleted(row)
+        if DRAFT_TAG not in (row.tags or [])
+        and not is_deleted(row)
+        and (row.question_type or "open") != "choice"
     ]
 
 
@@ -789,6 +809,7 @@ def _row_to_brief(row: QuestionBank, stats: dict[int, dict[str, object]]) -> dic
         "role_label": ROLE_LABELS.get(role, role),
         "category": categories[0] if categories else "未分类",
         "difficulty": row.difficulty,
+        "question_type": row.question_type or "open",
         "tags": [tag.removeprefix(_TAG_MARK_PREFIX) for tag in tags],
         "attempts": int(entry.get("attempts", 0)),
         "last_rating": str(entry.get("last", "")),
@@ -865,6 +886,14 @@ def get_question(db: Session, question_id: int) -> dict[str, object] | None:
         return None
 
     detail = _row_to_brief(row, _attempt_stats(db))
+    # 选择题的选项与答案只放在详情里：列表页显示题型就够，不该提前泄露答案
+    detail.update(
+        {
+            "choice_options": list(row.choice_options or []),
+            "correct_index": row.correct_index,
+            "explanation": row.explanation or "",
+        }
+    )
     builtin = next((item for item in all_questions() if item.text == row.text), None)
     if builtin is None:
         # 上传的题没有代码题库可对照：要点与答案直接用库里的，
