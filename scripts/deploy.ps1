@@ -23,19 +23,19 @@
     注册为计划任务（开机自启、崩溃后自动重启）。
 
 .EXAMPLE
-    pwsh -File scripts\deploy.ps1 -HostAddress 47.98.1.2 -Port 8443 -RegisterTask
+    powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -HostAddress 47.98.1.2 -Port 18443 -RegisterTask
 
 .NOTES
     需要以管理员身份运行（防火墙规则与计划任务都需要）。
-    请用 PowerShell 7（pwsh）运行：Windows PowerShell 5.1 对无 BOM 的
-    UTF-8 脚本会按 ANSI 解析，中文提示会变乱码。
+    兼容 Windows PowerShell 5.1（云服务器默认自带，无需安装 pwsh）。
+    本文件请保持 UTF-8 with BOM 保存，否则 5.1 会按 GBK 解析中文。
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$HostAddress,
 
-    [int]$Port = 8443,
+    [int]$Port = 18443,
 
     [switch]$RegisterTask,
 
@@ -59,7 +59,9 @@ function Write-Info([string]$Text) { Write-Host "         $Text" -ForegroundColo
 Write-Step '1/5 检查运行环境'
 # --------------------------------------------------------------------------- #
 if ($PSVersionTable.PSVersion.Major -lt 7) {
-    Write-Warn2 '当前是 Windows PowerShell 5.1，中文提示可能乱码；建议改用 pwsh 运行。'
+    Write-Ok "Windows PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)（脚本已兼容，可直接运行）"
+} else {
+    Write-Ok "PowerShell $($PSVersionTable.PSVersion)"
 }
 
 $python = Join-Path $backendDir '.venv\Scripts\python.exe'
@@ -72,6 +74,16 @@ Write-Info (& $python --version)
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)
 if ($isAdmin) { Write-Ok '以管理员身份运行' } else { Write-Warn2 '不是管理员：防火墙与计划任务会失败' }
+
+# 端口占用预检：别等证书、.env 都弄完了才发现端口被占
+$occupied = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+if ($occupied) {
+    $procNames = $occupied.OwningProcess | Sort-Object -Unique | ForEach-Object {
+        try { (Get-Process -Id $_ -ErrorAction Stop).ProcessName } catch { '?' }
+    }
+    throw "端口 $Port 已被占用（进程：$($procNames -join ', ')）。换一个端口重跑，例如：-Port 18444"
+}
+Write-Ok "端口 $Port 空闲"
 
 # --------------------------------------------------------------------------- #
 Write-Step '2/5 生成自签证书'
@@ -148,33 +160,67 @@ if (-not $openssl) {
 # --------------------------------------------------------------------------- #
 Write-Step '3/5 写入 backend\.env 的部署项'
 # --------------------------------------------------------------------------- #
-$existing = if (Test-Path $envFile) { Get-Content $envFile -Encoding UTF8 -Raw } else { '' }
+$existingLines = if (Test-Path $envFile) { Get-Content $envFile -Encoding UTF8 } else { @() }
 
-if ($existing -match '(?m)^\s*AUTH_PASSWORD\s*=\s*\S') {
-    Write-Ok 'AUTH_PASSWORD 已设置'
+# 密码：已有就保留（重跑/换端口不该把已登录设备踢下线），没有才生成
+$existingPassword = ''
+foreach ($line in $existingLines) {
+    if ($line -match '^\s*AUTH_PASSWORD\s*=\s*(.+?)\s*$') { $existingPassword = $Matches[1]; break }
+}
+if ($existingPassword) {
+    $password = $existingPassword
+    Write-Ok 'AUTH_PASSWORD 已存在，保留原密码'
 } else {
-    # 生成一个高熵密码：弱密码在公网上等于没密码。
     # 用 Create().GetBytes() 而不是静态的 RandomNumberGenerator::Fill——
     # 后者是 .NET 5+ 才有的 API，Windows PowerShell 5.1（.NET Framework）上没有。
     $bytes = New-Object byte[] 24
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
     try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
     $password = [Convert]::ToBase64String($bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=')
+}
 
-    $block = @"
+# 要同步到 .env 的部署项——每次重跑都刷新，换端口直接重跑即可生效
+$deployKv = [ordered]@{
+    HOST          = '0.0.0.0'
+    PORT          = "$Port"
+    AUTH_PASSWORD = $password
+    COOKIE_SECURE = 'true'
+    SSL_CERTFILE  = $certPath.Replace('\', '/')
+    SSL_KEYFILE   = $keyPath.Replace('\', '/')
+}
 
-# ---------- 部署（由 scripts\deploy.ps1 写入）----------
-HOST=0.0.0.0
-PORT=$Port
-AUTH_PASSWORD=$password
-COOKIE_SECURE=true
-SSL_CERTFILE=$($certPath.Replace('\', '/'))
-SSL_KEYFILE=$($keyPath.Replace('\', '/'))
-"@
-    # 追加而不是 Add-Content：Windows PowerShell 5.1 的 -Encoding UTF8 会写 BOM，
-    # 而 .env 开头的 BOM 会让首行的键名带上不可见字符。这里显式用无 BOM 的 UTF-8。
-    [System.IO.File]::AppendAllText($envFile, $block, [System.Text.UTF8Encoding]::new($false))
-    Write-Ok "已写入 $envFile"
+# 逐行替换已存在的键，记录哪些键还没落到文件里
+$outLines = New-Object System.Collections.Generic.List[string]
+$seen = @{}
+foreach ($line in $existingLines) {
+    $replaced = $false
+    foreach ($key in $deployKv.Keys) {
+        if ($line -match "^\s*$key\s*=") {
+            $outLines.Add("$key=$($deployKv[$key])")
+            $seen[$key] = $true
+            $replaced = $true
+            break
+        }
+    }
+    if (-not $replaced) { $outLines.Add($line) }
+}
+
+# 文件里缺失的键，追加到末尾
+$missing = @()
+foreach ($key in $deployKv.Keys) {
+    if (-not $seen.ContainsKey($key)) { $missing += $key }
+}
+if ($missing.Count -gt 0) {
+    $outLines.Add('')
+    $outLines.Add('# ---------- 部署（由 scripts\deploy.ps1 写入）----------')
+    foreach ($key in $missing) { $outLines.Add("$key=$($deployKv[$key])") }
+}
+
+# 显式写无 BOM 的 UTF-8：.env 开头的 BOM 会让首行键名带上不可见字符。
+[System.IO.File]::WriteAllText($envFile, ($outLines -join "`r`n") + "`r`n", [System.Text.UTF8Encoding]::new($false))
+Write-Ok "已同步 $envFile（HOST=0.0.0.0，PORT=$Port）"
+
+if (-not $existingPassword) {
     Write-Host ''
     Write-Host '  ┌──────────────── 请记下访问密码 ────────────────┐' -ForegroundColor Yellow
     Write-Host "    $password" -ForegroundColor Yellow
@@ -236,13 +282,20 @@ if ($RegisterTask) {
 Write-Step '完成，接下来'
 # --------------------------------------------------------------------------- #
 Write-Host @"
-    1. 打开 https://${HostAddress}:${Port}（浏览器会先警告，见下）
-    2. 让浏览器的警告消失：把证书导入「受信任的根证书颁发机构」
+    1. 先构建前端（只需一次；以后改了前端代码再重跑）：
+         cd frontend; pnpm install; pnpm build
+       后端会自动托管 frontend/dist，一个端口就够，不要在服务器上跑 vite dev。
+
+    2. 到云服务商控制台的「安全组 / 防火墙」放行 TCP $Port。
+       Windows 防火墙只挡本机入站，阿里云/腾讯云还有一层安全组，不开手机连不上。
+
+    3. 打开 https://${HostAddress}:${Port}（浏览器会先警告，见下）
+    4. 让浏览器的警告消失：把证书导入「受信任的根证书颁发机构」
          - 下载 certs\server.crt 到本机
          - Windows：certmgr.msc → 受信任的根证书颁发机构 → 证书 → 导入
          - macOS：  钥匙串访问 → 系统 → 拖入 → 双击 → 始终信任
        导入后**必须重启浏览器**，麦克风才能在语音面试里用。
-    3. 用上面的密码登录。
-    4. 云上不提供投递执行与扩展抓取（要家庭 IP 与本机登录态），
+    5. 用上面的密码登录；手机浏览器直接访问同一地址即可。
+    6. 云上不提供投递执行与扩展抓取（要家庭 IP 与本机登录态），
        /api/apply/search、/api/apply/execute、/api/applications/ingest 会返回 403 并说明原因。
 "@ -ForegroundColor Gray
