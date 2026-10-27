@@ -60,8 +60,9 @@ export default function Recordings() {
 
   const [title, setTitle] = useState('')
   const [rawText, setRawText] = useState('')
-  const [docFile, setDocFile] = useState<File | null>(null)
-  const [check, setCheck] = useState<DocCheck | null>(null)
+  /** 一次可选的多个文稿文件；每个文件保存为一条独立对话 */
+  const [docFiles, setDocFiles] = useState<File[]>([])
+  const [checks, setChecks] = useState<DocCheck[]>([])
   const [checking, setChecking] = useState(false)
   const [profileName, setProfileName] = useState('')
   /**
@@ -89,50 +90,87 @@ export default function Recordings() {
     void refresh()
   }, [refresh])
 
-  /** 选了文件就先体检一遍：当场告诉用户"能切出多少问答、缺什么"，
-   *  而不是等他上传完、生成画像失败后才发现没标说话人。 */
-  const pickDocument = async (picked: File | null) => {
-    setDocFile(picked)
-    setCheck(null)
-    setError('')
-    if (picked === null) {
+  /** 选了一批文件就逐个体检一遍：当场告诉用户"能切出多少问答、缺什么"，
+   *  而不是等他上传完、生成画像失败后才发现没标说话人。单个文件解析失败
+   *  会在对应卡片上标出来，不拖垮整批。 */
+  const pickDocuments = async (files: FileList | null) => {
+    const picked = files ? Array.from(files) : []
+    if (picked.length === 0) {
       return
     }
+    setError('')
+    setDocFiles(picked)
+    setChecks([])
     setChecking(true)
     try {
-      setCheck(await api.inspectDocument(picked))
-    } catch (err) {
-      setError(errorMessage(err))
-      setDocFile(null)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+      const results = await Promise.all(
+        picked.map(async (file) => {
+          try {
+            return await api.inspectDocument(file)
+          } catch (err) {
+            // 单个文件读不了（编码/格式/后端抽风）不整批失败：
+            // 造一个"不可用"的体检结果，让用户看到是哪份文件出了问题。
+            return {
+              encoding: '',
+              filename: file.name,
+              total_lines: 0,
+              segments: 0,
+              labeled: 0,
+              interviewer: 0,
+              candidate: 0,
+              timestamped: 0,
+              looks_like_questions: 0,
+              inferred_roles: false,
+              role_note: '',
+              usable: false,
+              summary: `读取失败：${errorMessage(err)}`,
+              warnings: [`读取失败：${errorMessage(err)}`],
+              preview: [],
+            } satisfies DocCheck
+          }
+        }),
+      )
+      setChecks(results)
     } finally {
       setChecking(false)
     }
   }
 
+  const removeFile = (index: number) => {
+    setDocFiles((previous) => previous.filter((_, i) => i !== index))
+    setChecks((previous) => previous.filter((_, i) => i !== index))
+  }
+
   const resetForm = () => {
     setTitle('')
     setRawText('')
-    setDocFile(null)
-    setCheck(null)
+    setDocFiles([])
+    setChecks([])
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
   }
 
-  /** 保存：有文件就走文稿上传（后端识别编码并直接落段落），否则存粘贴的文本 */
+  /** 保存：有文件就逐份上传文稿（每个文件一条独立对话，标题默认用文件名），
+   *  否则存粘贴的文本。 */
   const submitRecording = async () => {
-    if (docFile === null && !rawText.trim()) {
+    if (docFiles.length === 0 && !rawText.trim()) {
       setError('请上传对话文稿（.txt / .md / .docx），或把对话粘贴进文本框')
       return
     }
     setBusy(true)
     setError('')
     try {
-      if (docFile !== null) {
-        await api.uploadDocument(docFile, title)
+      if (docFiles.length > 0) {
+        // 多文件时以文件名为标题（后端 title 留空会取文件名）；单文件才用输入框的标题
+        for (const file of docFiles) {
+          try {
+            await api.uploadDocument(file, docFiles.length === 1 ? title : '')
+          } catch (err) {
+            setError(`「${file.name}」保存失败：${errorMessage(err)}`)
+            break
+          }
+        }
       } else {
         await api.createRecording({ title, raw_text: rawText })
       }
@@ -257,81 +295,115 @@ export default function Recordings() {
                   disabled={checking}
                   className="shrink-0 rounded-control border border-ink-2 bg-paper px-3 py-1.5 text-xs text-ink-7 hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {check ? '重新选择文件' : '选择文件'}
+                  {docFiles.length > 0 ? '重新选择文件' : '选择文件'}
                 </button>
-                {check && <span className="text-[11px] text-ink-6">{check.filename}</span>}
+                {docFiles.length > 0 && (
+                  <span className="text-[11px] text-ink-6">已选 {docFiles.length} 份</span>
+                )}
                 {checking && <span className="text-[11px] text-ink-6">正在解析…</span>}
               </div>
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 accept={DOC_ACCEPT}
-                aria-label="上传面试对话文稿（.txt / .md / .docx）"
-                onChange={(event) => void pickDocument(event.target.files?.[0] ?? null)}
+                aria-label="上传面试对话文稿（.txt / .md / .docx，可多选）"
+                onChange={(event) => void pickDocuments(event.target.files)}
                 className="hidden"
               />
               <p className="mt-1.5 text-[11px] text-ink-4">
-                支持 .txt / .md / .docx。纯文本会自动识别 GBK 与 UTF-8；Word 文档直接读正文。
+                支持 .txt / .md / .docx，可一次多选（每个文件保存为一条对话，标题用文件名）。
+                纯文本会自动识别 GBK 与 UTF-8；Word 文档直接读正文。
               </p>
 
-              {check && (
-                <div className="mt-2 rounded-control border border-ink-1 bg-surface p-2.5">
-                  <p className={`text-[11px] font-medium ${check.usable ? 'text-ok' : 'text-warn'}`}>
-                    {check.filename} · 编码 {check.encoding || '未知'}
-                  </p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-ink-7">{check.summary}</p>
-
-                  {check.inferred_roles && (
-                    <p className="mt-1 text-[11px] leading-relaxed text-info">
-                      {check.role_note}
-                      （原文只标了「发言人」这类编号，没有谁是谁的标记。）
-                    </p>
-                  )}
-
-                  {check.warnings.length > 0 && (
-                    <ul className="mt-1.5 space-y-0.5">
-                      {check.warnings.map((warning) => (
-                        <li key={warning} className="text-[11px] leading-relaxed text-warn">
-                          — {warning}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {check.preview.length > 0 && (
-                    <details className="mt-1.5">
-                      <summary className="cursor-pointer text-[11px] text-ink-6">
-                        看前 {check.preview.length} 段切分结果
-                      </summary>
-                      <div className="mt-1 space-y-0.5">
-                        {check.preview.map((segment) => (
-                          <p key={segment.idx} className="text-[11px] leading-relaxed text-ink-6">
-                            {/* 角色是推断出来的时候，把原文标签一起显示：
-                                用户才能核对"面试官到底是不是发言人1"，猜反了也好去改 */}
-                            <span
-                              className={
-                                segment.speaker === 'interviewer'
-                                  ? 'text-info'
-                                  : segment.speaker === 'candidate'
-                                    ? 'text-ok'
-                                    : 'text-warn'
-                              }
-                            >
-                              {segment.speaker === 'interviewer'
-                                ? '面试官'
-                                : segment.speaker === 'candidate'
-                                  ? '我'
-                                  : '未标注'}
-                            </span>
-                            {segment.source_label && (
-                              <span className="text-ink-4">（{segment.source_label}）</span>
-                            )}{' '}
-                            {segment.text}
+              {docFiles.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {docFiles.map((file, index) => {
+                    const check = checks[index]
+                    return (
+                      <div key={`${file.name}-${index}`} className="rounded-control border border-ink-1 bg-surface p-2.5">
+                        <div className="flex items-center gap-2">
+                          <p
+                            className={`min-w-0 flex-1 truncate text-[11px] font-medium ${
+                              check ? (check.usable ? 'text-ok' : 'text-warn') : 'text-ink-6'
+                            }`}
+                          >
+                            {file.name}
                           </p>
-                        ))}
+                          <button
+                            type="button"
+                            onClick={() => removeFile(index)}
+                            className="shrink-0 rounded-control border border-ink-2 px-2 py-0.5 text-[11px] text-ink-6 hover:bg-paper"
+                          >
+                            移除
+                          </button>
+                        </div>
+
+                        {checking ? (
+                          <p className="mt-1 text-[11px] text-ink-6">正在解析…</p>
+                        ) : check ? (
+                          <>
+                            <p className="mt-1 text-[11px] leading-relaxed text-ink-7">
+                              {check.encoding ? `编码 ${check.encoding} · ` : ''}
+                              {check.summary}
+                            </p>
+
+                            {check.inferred_roles && (
+                              <p className="mt-1 text-[11px] leading-relaxed text-info">
+                                {check.role_note}
+                                （原文只标了「发言人」这类编号，没有谁是谁的标记。）
+                              </p>
+                            )}
+
+                            {check.warnings.length > 0 && (
+                              <ul className="mt-1.5 space-y-0.5">
+                                {check.warnings.map((warning) => (
+                                  <li key={warning} className="text-[11px] leading-relaxed text-warn">
+                                    — {warning}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+
+                            {check.preview.length > 0 && (
+                              <details className="mt-1.5">
+                                <summary className="cursor-pointer text-[11px] text-ink-6">
+                                  看前 {check.preview.length} 段切分结果
+                                </summary>
+                                <div className="mt-1 space-y-0.5">
+                                  {check.preview.map((segment) => (
+                                    <p key={segment.idx} className="text-[11px] leading-relaxed text-ink-6">
+                                      {/* 角色是推断出来的时候，把原文标签一起显示：
+                                          用户才能核对"面试官到底是不是发言人1"，猜反了也好去改 */}
+                                      <span
+                                        className={
+                                          segment.speaker === 'interviewer'
+                                            ? 'text-info'
+                                            : segment.speaker === 'candidate'
+                                              ? 'text-ok'
+                                              : 'text-warn'
+                                        }
+                                      >
+                                        {segment.speaker === 'interviewer'
+                                          ? '面试官'
+                                          : segment.speaker === 'candidate'
+                                            ? '我'
+                                            : '未标注'}
+                                      </span>
+                                      {segment.source_label && (
+                                        <span className="text-ink-4">（{segment.source_label}）</span>
+                                      )}{' '}
+                                      {segment.text}
+                                    </p>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
+                          </>
+                        ) : null}
                       </div>
-                    </details>
-                  )}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -358,10 +430,10 @@ export default function Recordings() {
               <button
                 type="button"
                 onClick={() => void submitRecording()}
-                disabled={busy || checking || (docFile === null && !rawText.trim())}
+                disabled={busy || checking || (docFiles.length === 0 && !rawText.trim())}
                 className="ml-auto btn-primary rounded-control px-3 py-1.5 text-xs font-medium"
               >
-                {busy ? '保存中…' : '保存这段对话'}
+                {busy ? '保存中…' : docFiles.length > 1 ? `保存这 ${docFiles.length} 段对话` : '保存这段对话'}
               </button>
             </div>
 
